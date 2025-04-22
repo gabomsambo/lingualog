@@ -1,3 +1,4 @@
+// src/components/entries/new-entry-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -5,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { createSupabaseClient } from "@/lib/supabase/client";
+// --- Updated Supabase Client Import ---
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
+// --- UI Imports ---
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -26,173 +29,219 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/use-toast"; // Assuming use-toast is setup
 
+// --- Zod Schema Definition ---
 const formSchema = z.object({
-  title: z.string().min(2, "Title must be at least 2 characters").max(100, "Title must not exceed 100 characters"),
-  content: z.string().min(10, "Content must be at least 10 characters"),
-  language: z.string().min(1, "Please select a language"),
+  title: z.string()
+    .min(2, { message: "Title must be at least 2 characters." })
+    .max(150, { message: "Title must not exceed 150 characters." }), // Increased max length slightly
+  content: z.string()
+    .min(10, { message: "Content must be at least 10 characters." }),
+  language: z.string()
+    .min(1, { message: "Please select the language you are writing in." }), // Changed message slightly
 });
 
+// --- Language Options ---
+// Consider fetching these from a constants file or API later if needed
 const languageOptions = [
-  { value: "spanish", label: "Spanish" },
+  { value: "arabic", label: "Arabic" },
+  { value: "chinese", label: "Chinese" },
   { value: "french", label: "French" },
   { value: "german", label: "German" },
   { value: "italian", label: "Italian" },
-  { value: "portuguese", label: "Portuguese" },
-  { value: "chinese", label: "Chinese" },
   { value: "japanese", label: "Japanese" },
   { value: "korean", label: "Korean" },
+  { value: "portuguese", label: "Portuguese" },
   { value: "russian", label: "Russian" },
-  { value: "arabic", label: "Arabic" },
+  { value: "spanish", label: "Spanish" },
+  // Add more languages as needed
+  { value: "english", label: "English" }, // Added English as an option
+  { value: "other", label: "Other" },
 ];
 
+// --- Component Definition ---
 export function NewEntryForm() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const supabase = createSupabaseClient();
+  const router = useRouter(); // Hook for navigation
+  const [isLoading, setIsLoading] = useState(false); // State for loading indicators
+  const [isFeedbackLoading, setIsFeedbackLoading] = useState(false); // Separate loading state for feedback
+  // --- Use the correct browser client ---
+  const supabase = createSupabaseBrowserClient(); // Initialize Supabase
 
+  // Initialize react-hook-form
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema), // Use Zod for validation
     defaultValues: {
       title: "",
       content: "",
-      language: "",
+      language: "", // Start with no language selected
     },
   });
 
+  // --- Handler for Submitting the New Entry ---
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
+    setIsLoading(true); // Indicate loading state
 
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      // 1. Get the current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-      if (userError || !userData.user) {
-        throw new Error("You must be logged in to create an entry");
+      // Handle error or missing session
+      if (sessionError || !session?.user) {
+        console.error("Session Error:", sessionError?.message);
+        toast({ title: "Authentication Error", description: "You must be logged in to create an entry.", variant: "destructive" });
+        setIsLoading(false); // Stop loading
+        // Optionally redirect to login
+        // router.push('/auth/sign-in');
+        return; // Stop submission
       }
 
-      const { error } = await supabase.from("entries").insert({
-        title: values.title,
-        content: values.content,
-        language: values.language,
-        user_id: userData.user.id,
-      });
+      // 2. Insert the new entry into the Supabase table
+      const userId = session.user.id;
+      const { error: insertError } = await supabase
+        .from("entries") // Ensure 'entries' matches your table name
+        .insert({
+          title: values.title,
+          content: values.content,
+          language: values.language,
+          user_id: userId, // Associate entry with the logged-in user
+          // corrected_content: null, // Ensure defaults are set if needed
+          // vocab_extracted: false,
+        });
 
-      if (error) {
-        throw error;
+      // Handle insertion errors
+      if (insertError) {
+        console.error("Insert Error:", insertError);
+        throw insertError; // Propagate error to the catch block
       }
 
+      // 3. Show success toast
       toast({
-        title: "Success",
-        description: "Your journal entry has been saved.",
+        title: "Entry Saved!",
+        description: "Your journal entry has been successfully saved.",
       });
 
-      router.push("/dashboard");
-      router.refresh();
+      // 4. Redirect to the dashboard after successful save
+      router.push("/dashboard"); // Ensure this path is correct
+      router.refresh(); // Refresh dashboard data
+
     } catch (error: any) {
+      // Show error toast if any step fails
       toast({
-        title: "Error",
-        description: error.message || "Failed to save your entry. Please try again.",
+        title: "Failed to Save Entry",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Stop loading on error
     }
+    // Note: No finally block needed to set isLoading false if success causes navigation
   }
 
+  // --- Handler for Requesting Grammar Feedback ---
   async function requestGrammarFeedback() {
+    // Get current form values without triggering full validation/submission
     const values = form.getValues();
-    
-    if (!values.content || values.content.length < 10) {
-      toast({
-        title: "Error",
-        description: "Please write at least 10 characters before requesting feedback",
-        variant: "destructive",
-      });
+
+    // Basic client-side checks before calling API
+    if (!values.content || values.content.trim().length < 10) {
+      toast({ title: "Cannot Get Feedback", description: "Please write at least 10 characters in the content field.", variant: "destructive" });
       return;
     }
-
     if (!values.language) {
-      toast({
-        title: "Error",
-        description: "Please select a language before requesting feedback",
-        variant: "destructive",
-      });
+      toast({ title: "Cannot Get Feedback", description: "Please select the language of your entry first.", variant: "destructive" });
       return;
     }
 
-    setIsLoading(true);
+    setIsFeedbackLoading(true); // Use separate loading state for feedback button
 
     try {
-      const response = await fetch("/api/grammar", {
+      // Call your internal API endpoint for grammar checking
+      const response = await fetch("/api/grammar", { // Ensure this API route exists
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: values.content,
           language: values.language,
+          // Optionally pass entry ID if needed by the API
         }),
       });
 
+      // Check if the API call was successful
       if (!response.ok) {
-        throw new Error("Failed to get grammar feedback");
+        const errorData = await response.json().catch(() => ({ message: "Unknown API error" }));
+        console.error("API Error:", response.status, errorData);
+        throw new Error(errorData.message || `Failed to get grammar feedback (Status: ${response.status})`);
       }
 
-      const data = await response.json();
+      // Process the successful response
+      const data = await response.json(); // Assuming API returns JSON with feedback
 
       toast({
-        title: "Feedback received",
-        description: "Grammar suggestions have been added to your entry",
+        title: "Grammar Feedback Received",
+        description: "Suggestions processed (check console or UI for details).", // Adjust message
       });
 
-      // In a real implementation, you would display the corrections here
-      console.log("Grammar feedback:", data);
-      
+      // TODO: Implement how feedback is displayed or applied
+      // Example: Update form state, show a modal, etc.
+      console.log("Grammar feedback data:", data);
+      // Example: Maybe update a state variable holding corrections
+      // setCorrections(data.corrections);
+
     } catch (error: any) {
+      // Show error toast if feedback request fails
       toast({
-        title: "Error",
+        title: "Feedback Error",
         description: error.message || "Failed to get grammar feedback. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsFeedbackLoading(false); // Turn off feedback loading indicator
     }
   }
 
+  // --- Render the Form ---
   return (
     <Form {...form}>
+      {/* Pass form control to the form component */}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+        {/* Title Field */}
         <FormField
           control={form.control}
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Title</FormLabel>
+              <FormLabel>Entry Title</FormLabel>
               <FormControl>
-                <Input placeholder="My language learning journey" {...field} />
+                <Input placeholder="e.g., Practicing past tense" {...field} />
               </FormControl>
-              <FormMessage />
+              <FormDescription>A short title for your journal entry.</FormDescription>
+              <FormMessage /> {/* Displays validation errors */}
             </FormItem>
           )}
         />
-        
+
+        {/* Language Selection Field */}
         <FormField
           control={form.control}
           name="language"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Language</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                defaultValue={field.value}
+              {/* Use shadcn/ui Select component */}
+              <Select
+                onValueChange={field.onChange} // Update form state on change
+                defaultValue={field.value} // Control the selected value
+                value={field.value} // Ensure value is explicitly set for controlled component
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a language" />
+                    {/* Display placeholder if no value is selected */}
+                    <SelectValue placeholder="Select the language you wrote in" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
+                  {/* Map over language options to create SelectItems */}
                   {languageOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -201,42 +250,47 @@ export function NewEntryForm() {
                 </SelectContent>
               </Select>
               <FormDescription>
-                Choose the language you are practicing
+                Choose the language you are practicing in this entry.
               </FormDescription>
-              <FormMessage />
+              <FormMessage /> {/* Displays validation errors */}
             </FormItem>
           )}
         />
-        
+
+        {/* Content Textarea Field */}
         <FormField
           control={form.control}
           name="content"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Content</FormLabel>
+              <FormLabel>Journal Content</FormLabel>
               <FormControl>
-                <Textarea 
-                  placeholder="Write your thoughts, practice phrases, or document what you learned today..." 
-                  className="min-h-[300px]"
-                  {...field} 
+                <Textarea
+                  placeholder="Write your thoughts, practice phrases, or document what you learned today..."
+                  className="min-h-[250px] resize-y" // Allow vertical resize
+                  {...field} // Spread field props (onChange, onBlur, value, ref)
                 />
               </FormControl>
-              <FormMessage />
+              <FormDescription>Write as much as you like in your target language.</FormDescription>
+              <FormMessage /> {/* Displays validation errors */}
             </FormItem>
           )}
         />
-        
-        <div className="flex items-center gap-4">
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Entry"}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-4 pt-2"> {/* Added padding top */}
+          <Button type="submit" disabled={isLoading || isFeedbackLoading}>
+            {/* Show loading text if saving */}
+            {isLoading ? "Saving Entry..." : "Save Entry"}
           </Button>
-          <Button 
-            type="button" 
+          <Button
+            type="button" // Important: Prevent form submission
             variant="outline"
             onClick={requestGrammarFeedback}
-            disabled={isLoading}
+            disabled={isLoading || isFeedbackLoading} // Disable if saving or getting feedback
           >
-            Get Grammar Feedback
+            {/* Show loading text if getting feedback */}
+            {isFeedbackLoading ? "Getting Feedback..." : "Get Grammar Feedback"}
           </Button>
         </div>
       </form>

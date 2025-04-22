@@ -23,6 +23,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/middleware.js", "src/app/auth/callback/route.js", "src/app/api/vocabulary/route.js", "src/app/api/grammar/route.js", "src/components/stats/language-distribution.js", "src/components/stats/writing-progress.js", "src/app/dashboard/stats/page.js", "src/app/api/entries/route.js", "src/components/stats/stats-overview.js", "src/components/layout/site-header.js"],
   "exclude": ["node_modules"]
 }

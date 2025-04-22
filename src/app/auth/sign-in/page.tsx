@@ -20,7 +20,7 @@ export default function SignInPage() {
         <SignInForm />
         <p className="px-8 text-center text-sm text-muted-foreground">
           <Link
-            href="/sign-up"
+            href="/auth/sign-up"
             className="hover:text-brand underline underline-offset-4"
           >
             Don&apos;t have an account? Sign Up
