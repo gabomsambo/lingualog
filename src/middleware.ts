@@ -1,10 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+
+// Create a Supabase client without relying on the helpers
+const createSupabase = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseKey);
+};
 
 // This middleware protects all routes under /dashboard
 export async function middleware(request: NextRequest) {
   // Create a Supabase client
-  const supabase = createSupabaseClient();
+  const supabase = createSupabase();
 
   // Refresh session if available
   const { data: { session } } = await supabase.auth.getSession();
