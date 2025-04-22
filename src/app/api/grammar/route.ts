@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/client";
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const { content, language } = await request.json();
 

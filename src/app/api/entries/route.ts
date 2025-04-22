@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/client";
 
-export async function GET(request: Request) {
+export async function GET(request) {
   try {
     const url = new URL(request.url);
     const language = url.searchParams.get("language");
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const { title, content, language } = await request.json();
 

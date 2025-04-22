@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/client";
 
-export async function POST(request: Request) {
+export async function POST(request) {
   try {
     const { entryId } = await request.json();
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     const vocabulary = JSON.parse(openaiData.choices[0].message.content);
 
     // Store the extracted vocabulary in the database
-    const vocabularyInserts = vocabulary.map((item: any) => ({
+    const vocabularyInserts = vocabulary.map((item) => ({
       user_id: user.id,
       entry_id: entryId,
       word: item.word,
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request) {
   try {
     const url = new URL(request.url);
     const language = url.searchParams.get("language");
