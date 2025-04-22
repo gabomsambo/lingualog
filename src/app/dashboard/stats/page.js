@@ -1,9 +1,8 @@
-import { Metadata } from "next";
 import { StatsOverview } from "@/components/stats/stats-overview";
 import { WritingProgress } from "@/components/stats/writing-progress";
 import { LanguageDistribution } from "@/components/stats/language-distribution";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Stats | LinguaLog",
   description: "Track your language learning progress and writing statistics",
 };

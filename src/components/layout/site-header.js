@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Book, LayoutDashboard, LogOut, PenLine, Vocabulary } from "lucide-react";
+import { Book, LayoutDashboard, LogOut, PenLine, BookOpen } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,7 @@ export function SiteHeader() {
             href="/vocabulary" 
             className={`flex items-center gap-2 text-sm ${pathname === "/vocabulary" ? "font-medium" : "text-muted-foreground"}`}
           >
-            <Vocabulary className="h-4 w-4" />
+            <BookOpen className="h-4 w-4" />
             Vocabulary
           </Link>
           

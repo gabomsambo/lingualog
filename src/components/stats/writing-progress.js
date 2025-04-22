@@ -7,13 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-type DataPoint = {
-  date: string;
-  wordCount: number;
-};
-
 export function WritingProgress() {
-  const [data, setData] = useState<DataPoint[]>([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const supabase = createSupabaseClient();
 

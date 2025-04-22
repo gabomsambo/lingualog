@@ -6,15 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
-type DataPoint = {
-  name: string;
-  value: number;
-};
-
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#FF6B6B", "#6B8E23", "#9932CC", "#008080", "#CD5C5C"];
 
 export function LanguageDistribution() {
-  const [data, setData] = useState<DataPoint[]>([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const supabase = createSupabaseClient();
 
@@ -38,7 +33,7 @@ export function LanguageDistribution() {
         }
 
         // Count entries by language
-        const languageCounts: Record<string, number> = {};
+        const languageCounts = {};
         
         entries?.forEach(entry => {
           const lang = entry.language;
