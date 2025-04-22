@@ -33,42 +33,37 @@ export default function EntryDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch data only if entryId is available
-    if (entryId) {
-      async function fetchEntryDetail() {
-        setIsLoading(true);
-        setError(null);
-        try {
-          // Fetch data from your API endpoint
-          const response = await fetch(`/api/entries/${entryId}`);
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({})); // Try to parse error
-            throw new Error(errorData.error || `Entry not found or unauthorized (Status: ${response.status})`);
-          }
-
-          const data = await response.json();
-          if (!data.entry) {
-             throw new Error("Entry data not found in API response.");
-          }
-          setEntry(data.entry);
-
-        } catch (err: any) {
-          console.error("Failed to fetch entry detail:", err);
-          setError(err.message);
-          setEntry(null); // Clear entry on error
-        } finally {
-          setIsLoading(false);
+    // Define using const and arrow function expression
+    const fetchEntryDetail = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`/api/entries/${entryId}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Entry not found or unauthorized (Status: ${response.status})`);
         }
-      }
-      fetchEntryDetail();
-    } else {
-        // Handle case where ID is missing (shouldn't happen with typical navigation)
-        setError("Entry ID is missing.");
+        const data = await response.json();
+        if (!data.entry) {
+           throw new Error("Entry data not found in API response.");
+        }
+        setEntry(data.entry);
+      } catch (err: any) {
+        console.error("Failed to fetch entry detail:", err);
+        setError(err.message);
+        setEntry(null);
+      } finally {
         setIsLoading(false);
-    }
-  }, [entryId]); // Re-run effect if entryId changes
+      }
+    };
 
+    if (entryId) {
+      fetchEntryDetail(); // Call the function expression
+    } else {
+      setError("Entry ID is missing.");
+      setIsLoading(false);
+    }
+  }, [entryId]);
   // --- Render Loading State ---
   if (isLoading) {
     return (
