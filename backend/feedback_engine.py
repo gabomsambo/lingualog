@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 import httpx
 
 from config import GEMINI_API_KEY, USE_MISTRAL
-from mistral_engine import MistralEngine
+import mistral_engine # Import the module itself
 from gemini_engine import GeminiEngine
 
 # Configure logger
@@ -26,16 +26,7 @@ OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-3.5-turbo"
 REQUEST_TIMEOUT = 15.0  # seconds
 
-# Initialize engines (can be done once globally or on demand)
-mistral_ai_engine = None
-if USE_MISTRAL:
-    try:
-        mistral_ai_engine = MistralEngine()
-        logger.info("MistralEngine initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to initialize MistralEngine: {e}")
-        mistral_ai_engine = None # Ensure it's None if init fails
-
+# Initialize Gemini engine if not using Mistral
 gemini_ai_engine = None
 if not USE_MISTRAL:
     try:
@@ -88,41 +79,40 @@ def analyze_entry(text: str, language: str) -> Dict[str, Any]:
     Returns:
         Dictionary with all feedback dimensions
     """
-    # Temporarily forcing mock analysis for debugging end-to-end flow
-    logger.info("FORCED MOCK: Generating mock feedback data for debugging.")
-    return analyze_with_mock(text, language)
+    # Comment out the forced mock for actual testing
+    # logger.info("FORCED MOCK: Generating mock feedback data for debugging.")
+    # return analyze_with_mock(text, language)
 
-    # try:
-    #     # First try using Mistral
-    #     if USE_MISTRAL:
-    #         try:
-    #             logger.info("Generating feedback using Mistral model")
-    #             return mistral_engine.analyze_entry(text)
-    #         except Exception as e:
-    #             logger.error(f"Error using Mistral: {str(e)}. Trying fallback if available.")
-    #             # If Mistral fails, try OpenAI if key is available
+    try:
+        if USE_MISTRAL:
+            try:
+                logger.info("Generating feedback using Mistral model")
+                return mistral_engine.analyze_entry(text) # Pass language if/when mistral_engine supports it
+            except Exception as e:
+                logger.error(f"Error using Mistral: {str(e)}. Trying fallback.")
+                # Fall through to Gemini or mock if Mistral fails
         
-    #     # Try OpenAI if API key is available and either Mistral is disabled or failed
-    #     if OPENAI_API_KEY:
-    #         try:
-    #             logger.info("Generating feedback using OpenAI")
-    #             return analyze_with_openai(text)
-    #         except Exception as e:
-    #             logger.error(f"Error using OpenAI API: {str(e)}. Falling back to mock data.")
+        # Try Gemini if not using Mistral OR if Mistral failed and Gemini engine is available
+        if not USE_MISTRAL or (USE_MISTRAL and gemini_ai_engine): # Adjusted condition for fallback
+            if gemini_ai_engine:
+                try:
+                    logger.info("Generating feedback using Gemini model")
+                    return gemini_ai_engine.analyze_text(text, language)
+                except Exception as e:
+                    logger.error(f"Error using Gemini API: {str(e)}. Falling back to mock data.")
+            else:
+                logger.warning("Gemini engine not initialized, and it was the selected or fallback option.")
                 
-    #     # Fall back to mock data as a last resort
-    #     logger.info("Generating mock feedback data")
-    #     return analyze_with_mock(text)
+        # Fall back to mock data as a last resort
+        logger.warning("Falling back to mock data as no primary AI engine is available or operational.")
+        return analyze_with_mock(text, language)
         
-    # except Exception as e:
-    #     # Log the error but fall back to mock data
-    #     logger.error(f"Error in analyze_entry: {str(e)}. Falling back to mock data.")
-        
-    #     # Create mock feedback
-    #     return analyze_with_mock(text)
+    except Exception as e:
+        logger.error(f"Critical error in analyze_entry: {str(e)}. Falling back to mock data.")
+        return analyze_with_mock(text, language)
 
 
-def analyze_with_openai(text: str) -> Dict[str, Any]:
+def analyze_with_openai(text: str) -> Dict[str, Any]: # This function should be reviewed/removed if Gemini is the sole non-Mistral provider
     """
     Analyze text using OpenAI API.
     
