@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .entry {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test - Fetch Entries</h1>
+    <button id="fetchButton">Fetch Entries</button>
+    <div id="status"></div>
+    <div id="entries"></div>
+
+    <script>
+        document.getElementById('fetchButton').addEventListener('click', async () => {
+            const statusEl = document.getElementById('status');
+            const entriesEl = document.getElementById('entries');
+            
+            statusEl.textContent = 'Loading...';
+            entriesEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('http://localhost:8000/entries');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}: ${await response.text()}`);
+                }
+                
+                const entries = await response.json();
+                statusEl.textContent = `Successfully loaded ${entries.length} entries`;
+                
+                // Display entries
+                entries.forEach(entry => {
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'entry';
+                    
+                    entryDiv.innerHTML = `
+                        <h3>Entry from ${new Date(entry.created_at).toLocaleString()}</h3>
+                        <p><strong>Original:</strong> ${entry.original_text}</p>
+                        <p><strong>Corrected:</strong> ${entry.corrected}</p>
+                        <p><strong>Score:</strong> ${entry.score}</p>
+                        <p><strong>Tone:</strong> ${entry.tone}</p>
+                        <p><strong>Translation:</strong> ${entry.translation}</p>
+                    `;
+                    
+                    entriesEl.appendChild(entryDiv);
+                });
+            } catch (error) {
+                statusEl.textContent = `Error: ${error.message}`;
+                console.error('Fetch error:', error);
+            }
+        });
+    </script>
+</body>
+</html> 

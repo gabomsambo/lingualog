@@ -1,0 +1,41 @@
+from typing import Dict, Any
+
+def analyze_entry(text: str) -> Dict[str, Any]:
+    """
+    Analyze a journal entry using LLM (OpenAI API or mock).
+    
+    This function attempts to use the OpenAI API if the key is available,
+    and falls back to mock data if not.
+    
+    Args:
+        text: The journal entry text to analyze
+        
+    Returns:
+        dict: {
+            "corrected": corrected text with grammar fixes,
+            "rewrite": native-like rewrite of the original text,
+            "fluency_score": integer between 0-100,
+            "tone": detected emotional tone,
+            "translation": translation to English (or user's native language)
+            "explanation": optional explanation of grammar issues
+        }
+    """
+    # If API key is missing or empty, use mock data right away
+    if not OPENAI_API_KEY or OPENAI_API_KEY.strip() == "":
+        logger.warning("OPENAI_API_KEY not found or empty. Using mock data instead.")
+        return analyze_with_mock(text)
+    
+    # Try to use the real LLM if API key is available
+    try:
+        return analyze_with_openai(text)
+    except Exception as e:
+        error_msg = str(e).lower()
+        
+        # Handle quota errors specifically
+        if "quota" in error_msg or "insufficient_quota" in error_msg or "exceeded" in error_msg:
+            logger.error(f"OpenAI API quota exceeded. Falling back to mock data.")
+        else:
+            logger.error(f"Error using OpenAI API: {str(e)}. Falling back to mock data.")
+            
+        # Return mock data as fallback
+        return analyze_with_mock(text) 

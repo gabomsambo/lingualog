@@ -1,0 +1,17 @@
+fastapi>=0.115.0
+uvicorn>=0.34.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
+pydantic>=2.0.0
+supabase==2.5.0
+httpx>=0.25.0
+httpx[http2]
+email-validator>=2.0.0
+# Mistral model requirements
+transformers>=4.42.0
+huggingface_hub>=0.20.3
+torch>=2.0.0
+protobuf>=3.20.0
+sentencepiece>=0.1.99
+pytest-cov
+accelerate
