@@ -14,8 +14,9 @@ import time
 from typing import Dict, Any, Optional
 import httpx
 
-from config import OPENAI_API_KEY, USE_MISTRAL
-import mistral_engine
+from config import GEMINI_API_KEY, USE_MISTRAL
+from mistral_engine import MistralEngine
+from gemini_engine import GeminiEngine
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -25,13 +26,33 @@ OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-3.5-turbo"
 REQUEST_TIMEOUT = 15.0  # seconds
 
+# Initialize engines (can be done once globally or on demand)
+mistral_ai_engine = None
+if USE_MISTRAL:
+    try:
+        mistral_ai_engine = MistralEngine()
+        logger.info("MistralEngine initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize MistralEngine: {e}")
+        mistral_ai_engine = None # Ensure it's None if init fails
 
-def generate_feedback(entry_text: str) -> Dict[str, Any]:
+gemini_ai_engine = None
+if not USE_MISTRAL:
+    try:
+        gemini_ai_engine = GeminiEngine()
+        logger.info("GeminiEngine initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize GeminiEngine: {e}")
+        gemini_ai_engine = None # Ensure it's None if init fails
+
+
+def generate_feedback(entry_text: str, language: str) -> Dict[str, Any]:
     """
     Generate comprehensive language feedback for journal entry text.
     
     Args:
         entry_text: The journal entry text to analyze
+        language: The language of the entry text
         
     Returns:
         Dictionary containing various feedback dimensions:
@@ -43,7 +64,7 @@ def generate_feedback(entry_text: str) -> Dict[str, Any]:
         - explanation: Optional explanation of mistakes
     """
     # Call analyze_entry to get all dimensions of feedback
-    analysis = analyze_entry(entry_text)
+    analysis = analyze_entry(entry_text, language)
     
     # Format the output according to our API contract
     return {
@@ -56,19 +77,20 @@ def generate_feedback(entry_text: str) -> Dict[str, Any]:
     }
 
 
-def analyze_entry(text: str) -> Dict[str, Any]:
+def analyze_entry(text: str, language: str) -> Dict[str, Any]:
     """
     Generate comprehensive language feedback for a journal entry.
     
     Args:
         text: The journal entry text to analyze
+        language: The language of the entry text
         
     Returns:
         Dictionary with all feedback dimensions
     """
     # Temporarily forcing mock analysis for debugging end-to-end flow
     logger.info("FORCED MOCK: Generating mock feedback data for debugging.")
-    return analyze_with_mock(text)
+    return analyze_with_mock(text, language)
 
     # try:
     #     # First try using Mistral
@@ -130,7 +152,7 @@ def analyze_with_openai(text: str) -> Dict[str, Any]:
     # Prepare the API request
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
+        "Authorization": f"Bearer {GEMINI_API_KEY}"
     }
     
     payload = {
@@ -192,7 +214,7 @@ def analyze_with_openai(text: str) -> Dict[str, Any]:
         raise
 
 
-def analyze_with_mock(text: str) -> Dict[str, Any]:
+def analyze_with_mock(text: str, language: str) -> Dict[str, Any]:
     """
     Mock AI analysis of a journal entry.
     
@@ -202,6 +224,7 @@ def analyze_with_mock(text: str) -> Dict[str, Any]:
     
     Args:
         text: The journal entry text to analyze
+        language: The language of the entry text
         
     Returns:
         dict: {
@@ -228,14 +251,25 @@ def analyze_with_mock(text: str) -> Dict[str, Any]:
     # Add a simple message to indicate this is mock data
     explanation = "This is mock feedback for development. In production, real AI feedback will be provided."
     
+    # Simulate language-specific elements if needed, e.g., for translation
+    translation_target_lang = "es" # Example
+    if language == "es":
+        translation_target_lang = "en"
+
     # Return the mocked analysis dictionary
     return {
-        "corrected": text,  # Return the same text as corrected for now
-        "rewrite": rewrite,
-        "fluency_score": fluency_score,
-        "tone": tone,
-        "translation": translation,
-        "explanation": explanation
+        "corrected": f"[Mock Corrected] {text}",
+        "rewrite": f"[Mock Rewritten] {text} (more fluently)",
+        "fluency_score": random.randint(70, 95),
+        "tone": random.choice(["Reflective", "Confident", "Neutral", "Inquisitive"]),
+        "translation": {translation_target_lang: f"[Mock Translation to {translation_target_lang.upper()}] {text}"},
+        "explanation": f"[Mock Explanation] Consider using more varied sentence structures. The word '{random.choice(text.split() if text.split() else ['example'])}' was used well.",
+        # Ensuring the mock provides the structure expected by the frontend
+        "corrected_text": f"[Mock Corrected Text] {text}",
+        "vocabulary_suggestions": [
+            {"word": "good", "suggestion": "excellent", "context": "This is a good example."}
+        ],
+        "tone_emotion": [random.choice(["neutral", "happy", "analytical"])]
     }
 
 
