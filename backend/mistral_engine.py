@@ -226,117 +226,154 @@ def generate_text(prompt: str, model=None, tokenizer=None, max_tokens: int = 100
         return generate_text_mock(prompt, max_tokens)
 
 
-def analyze_entry_with_transformers(text: str, model, tokenizer) -> Dict[str, Any]:
+def analyze_entry_with_transformers(text: str, language: str, model, tokenizer) -> Dict[str, Any]:
     """
-    Analyze a journal entry using the real Mistral model.
-    
+    Analyze the entry text using the Mistral model via transformers.
+    Generates grammar correction, rewrite, fluency score, tone, and translation.
+
     Args:
-        text: The journal entry text to analyze
-        model: The loaded model
-        tokenizer: The loaded tokenizer
-        
+        text: The journal entry text.
+        language: The language of the journal entry.
+        model: Pre-loaded model.
+        tokenizer: Pre-loaded tokenizer.
+
     Returns:
-        Dict: Dictionary with all feedback dimensions
+        A dictionary containing all feedback components.
     """
-    # Construct a prompt that asks for JSON-formatted feedback
-    prompt = f"""You are an expert language tutor. Analyze this journal entry and provide comprehensive feedback in JSON format.
+    logger.info(f"Analyzing text (transformers): '{text[:50]}...' in language: {language}")
 
-Journal entry: "{text}"
+    # Construct a detailed prompt for Mistral
+    # TODO: Refine this prompt for better results and ensure it uses the 'language' parameter.
+    # For example, explicitly ask for feedback *for a {language} learner*.
+    prompt = f""""Analyze the following text written in {language} by a language learner.
+Provide the following feedback in a JSON format:
+1.  "corrected_text": "The corrected version of the text."
+2.  "fluent_rewrite": "A more fluent, native-sounding version of the text."
+3.  "fluency_score": An integer score from 0 to 100 (0=beginner, 100=native-like).
+4.  "tone_analysis": A brief description of the tone/emotion (e.g., "neutral", "happy", "frustrated").
+5.  "target_language_translation": "Translate the original text to English. If the original text is already in English, translate it to French."
+6.  "explanation_of_changes": "Briefly explain the most important corrections or changes made."
 
-Provide your feedback with the following fields:
-- corrected: A version with grammar and spelling corrected
-- rewrite: A more natural/native-like rewrite that sounds fluent
-- fluency_score: An integer score between 0-100
-- tone: The emotional tone detected (one word like "Reflective", "Confident", "Neutral", etc.)
-- translation: Translation to English
-- explanation: Brief explanation of main grammar issues or improvement suggestions
+Original text:
+"{text}"
 
-Return ONLY the JSON with no other text."""
+JSON Feedback:
+"""
 
-    # Generate text with the Mistral model
-    response = generate_text_with_transformers(prompt, model, tokenizer)
+    generated_json_str = generate_text(prompt, model=model, tokenizer=tokenizer, max_tokens=1500)
     
-    # Extract the JSON part from the response
-    json_start = response.find('{')
-    json_end = response.rfind('}') + 1
-    
-    if json_start >= 0 and json_end > json_start:
-        json_str = response[json_start:json_end]
-        feedback = json.loads(json_str)
-    else:
-        raise ValueError("No valid JSON found in response")
-    
-    # Check for required fields and provide defaults if missing
-    required_fields = ["corrected", "rewrite", "fluency_score", "tone", "translation", "explanation"]
-    for field in required_fields:
-        if field not in feedback:
-            if field == "fluency_score":
-                feedback[field] = 70
-            elif field == "tone":
-                feedback[field] = "Neutral"
-            elif field == "explanation":
-                feedback[field] = "No explanation provided."
-            else:
-                feedback[field] = text
-    
-    return feedback
+    logger.debug(f"Raw Mistral output: {generated_json_str}")
 
-
-def analyze_entry_mock(text: str) -> Dict[str, Any]:
-    """
-    Mock function to analyze a journal entry.
-    
-    Args:
-        text: The journal entry text to analyze
-        
-    Returns:
-        Dict: Dictionary with all feedback dimensions
-    """
-    logger.info(f"[MOCK] Analyzing journal entry: {text[:50]}...")
-    
-    # Parse the prompt to extract any apparent errors for the mock
-    has_errors = any(word in text.lower() for word in ["goed", "thinked", "buyed", "peoples"])
-    
-    # Create a mock JSON response
-    feedback = {
-        "corrected": text.replace("goed", "went").replace("thinked", "thought").replace("buyed", "bought").replace("peoples", "people"),
-        "rewrite": f"Yesterday I went to the store to buy some food. The weather was nice and I saw many people outside. I thought about my weekend plans and I'm excited.",
-        "fluency_score": random.randint(60, 85) if has_errors else random.randint(85, 95),
-        "tone": random.choice(["Reflective", "Confident", "Neutral"]),
-        "translation": f"This is a mock translation of: {text}",
-        "explanation": "This is a mock analysis. The text contains some common grammatical errors: 'goed' should be 'went', 'thinked' should be 'thought', etc." if has_errors else "This text is mostly correct with good grammar and structure."
-    }
-    
-    return feedback
-
-
-def analyze_entry(text: str) -> Dict[str, Any]:
-    """
-    Analyze a journal entry using the Mistral model to provide comprehensive
-    language feedback.
-    
-    Args:
-        text: The journal entry text to analyze
-        
-    Returns:
-        Dict: Dictionary with all feedback dimensions
-    """
     try:
-        # Check if we should use transformers or mock
-        if TRANSFORMERS_AVAILABLE and not USE_TRANSFORMERS_ONLY:
-            # Load model and tokenizer
-            model, tokenizer = load_model()
+        # Attempt to parse the JSON from the model's output
+        # The model might return text before or after the JSON block, so we need to extract it.
+        json_start = generated_json_str.find('{')
+        json_end = generated_json_str.rfind('}') + 1
+        if json_start != -1 and json_end != -1 and json_start < json_end:
+            feedback_json_str = generated_json_str[json_start:json_end]
+            feedback = json.loads(feedback_json_str)
             
-            # Check if we got real model and tokenizer or mock objects
-            if isinstance(model, str) and model == "mock_model":
-                return analyze_entry_mock(text)
-            
-            # Use real implementation
-            return analyze_entry_with_transformers(text, model, tokenizer)
+            # Validate and structure the feedback
+            # Basic validation for presence of keys, can be expanded
+            required_keys = ["corrected_text", "fluent_rewrite", "fluency_score", "tone_analysis", "target_language_translation", "explanation_of_changes"]
+            for key in required_keys:
+                if key not in feedback:
+                    logger.warning(f"Key '{key}' missing in Mistral output. Using default.")
+                    # Provide default values for missing keys
+                    if key == "fluency_score":
+                        feedback[key] = 50 
+                    elif key in ["corrected_text", "fluent_rewrite"]:
+                         feedback[key] = text # return original if missing
+                    else:
+                        feedback[key] = f"Default value for missing {key}"
+
+
+            # Map to the expected output structure (consistent with feedback_engine)
+            return {
+                "corrected": feedback.get("corrected_text", text),
+                "rewrite": feedback.get("fluent_rewrite", text),
+                "fluency_score": feedback.get("fluency_score", 50),
+                "tone": feedback.get("tone_analysis", "N/A"),
+                "translation": feedback.get("target_language_translation", "N/A"), # Consider target lang for translation
+                "explanation": feedback.get("explanation_of_changes", "No explanation provided.")
+            }
         else:
-            # Use mock implementation
-            return analyze_entry_mock(text)
-    
+            logger.error(f"Could not find valid JSON in Mistral output: {generated_json_str}")
+            # Fallback to mock if JSON parsing fails badly
+            return analyze_entry_mock(text, language) # Pass language here too
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSONDecodeError for Mistral output: {generated_json_str}. Error: {e}")
+        # Fallback to mock if JSON parsing fails
+        return analyze_entry_mock(text, language) # Pass language here too
     except Exception as e:
-        logger.error(f"Error analyzing entry with Mistral: {str(e)}, falling back to mock")
-        return analyze_entry_mock(text) 
+        logger.error(f"Unexpected error processing Mistral output: {e}")
+        return analyze_entry_mock(text, language) # Pass language here too
+
+
+def analyze_entry_mock(text: str, language: str) -> Dict[str, Any]:
+    """
+    Mock function to simulate AI feedback generation.
+
+    Args:
+        text: The journal entry text.
+        language: The language of the journal entry.
+
+    Returns:
+        A dictionary containing mock feedback components.
+    """
+    logger.info(f"[MOCK] Analyzing text: '{text[:50]}...' in language: {language}")
+    
+    # Simulate some language-dependent behavior for mock
+    translation_target = "English"
+    mock_translation = f"This is a mock translation of the {language} text to {translation_target}."
+    if language.lower() == "english":
+        translation_target = "French"
+        mock_translation = f"Ceci est une traduction fictive du texte anglais en {translation_target}."
+    elif language.lower() == "spanish":
+        mock_translation = "Esta es una traducción simulada del texto en español al inglés."
+
+
+    return {
+        "corrected": f"[Mock Corrected {language}] {text}",
+        "rewrite": f"[Mock Rewritten more fluently in {language}] {text}",
+        "fluency_score": random.randint(60, 95),
+        "tone": random.choice(["neutral", "positive", "slightly concerned", "formal"]),
+        "translation": mock_translation,
+        "explanation": f"[Mock Explanation] The anlysis was for {language}. The main point was X, and we corrected Y because Z."
+    }
+
+
+model_instance = None
+tokenizer_instance = None
+
+def get_model_and_tokenizer():
+    global model_instance, tokenizer_instance
+    if model_instance is None or tokenizer_instance is None:
+        model_path = download_model() # Ensure model is downloaded
+        model_instance, tokenizer_instance = load_model(str(model_path))
+    return model_instance, tokenizer_instance
+
+def analyze_entry(text: str, language: str) -> Dict[str, Any]:
+    """
+    Main function to analyze entry text. Uses real model or mock based on availability.
+
+    Args:
+        text: The journal entry text.
+        language: The language of the journal entry.
+
+    Returns:
+        A dictionary containing all feedback components.
+    """
+    model, tokenizer = get_model_and_tokenizer()
+
+    if TRANSFORMERS_AVAILABLE and not USE_TRANSFORMERS_ONLY and model != "mock_model":
+        try:
+            logger.info(f"Using transformers for analysis of text in {language}.")
+            return analyze_entry_with_transformers(text, language, model, tokenizer)
+        except Exception as e:
+            logger.error(f"Error during transformers analysis: {e}. Falling back to mock.")
+            return analyze_entry_mock(text, language) # Pass language
+    else:
+        logger.info(f"Using mock analysis for text in {language}.")
+        return analyze_entry_mock(text, language) # Pass language 

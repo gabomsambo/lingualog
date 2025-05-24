@@ -1,233 +1,243 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { BookOpen, Search, X, Lightbulb } from "lucide-react"
-
+import { useState, useEffect, useMemo } from "react"
+import { motion } from "framer-motion"
+import { Trash2, Search, Filter, X, Info, BookOpen, Languages } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { WritingAnimation } from "@/components/writing-animation"
-
-// Badge variants for languages
-const languageBadgeVariants: Record<string, "pink" | "blue" | "purple" | "green" | "yellow" | "default" | "outline"> = {
-  Spanish: "pink",
-  French: "blue",
-  German: "purple",
-  Japanese: "green",
-  English: "yellow",
-  Other: "default",
-}
-
-// Mock vocabulary data
-const mockVocabulary = [
-  {
-    id: "1",
-    word: "comenzar",
-    language: "Spanish",
-    translation: "to begin",
-    entryId: "1",
-    entryTitle: "My first day learning Spanish",
-    context: "Estoy muy emocionado por comenzar este viaje.",
-  },
-  {
-    id: "2",
-    word: "emocionado",
-    language: "Spanish",
-    translation: "excited",
-    entryId: "1",
-    entryTitle: "My first day learning Spanish",
-    context: "Estoy muy emocionado por comenzar este viaje.",
-  },
-  {
-    id: "3",
-    word: "viaje",
-    language: "Spanish",
-    translation: "journey, trip",
-    entryId: "1",
-    entryTitle: "My first day learning Spanish",
-    context: "Estoy muy emocionado por comenzar este viaje.",
-  },
-  {
-    id: "4",
-    word: "apprendre",
-    language: "French",
-    translation: "to learn",
-    entryId: "2",
-    entryTitle: "French vocabulary practice",
-    context: "J'aime apprendre le français.",
-  },
-  {
-    id: "5",
-    word: "boulangerie",
-    language: "French",
-    translation: "bakery",
-    entryId: "2",
-    entryTitle: "French vocabulary practice",
-    context: "Je vais à la boulangerie pour acheter du pain.",
-  },
-  {
-    id: "6",
-    word: "Bahnhof",
-    language: "German",
-    translation: "train station",
-    entryId: "3",
-    entryTitle: "German grammar rules",
-    context: "Der Bahnhof ist nicht weit von hier.",
-  },
-]
+import { useToast } from "@/components/ui/use-toast"
+import { LoadingSpinner } from "@/components/loading-spinner"
+import { getVocabularyItems, deleteVocabularyItem, UserVocabularyItemResponse } from "@/lib/api"
+import { getLanguageEmoji } from "@/lib/utils"
+import Link from "next/link"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import LearnWordModal, { VocabWordData } from "./LearnWordModal"
 
 export default function VocabularyPage() {
-  const [loading, setLoading] = useState(true)
-  const [vocabulary, setVocabulary] = useState<typeof mockVocabulary>([])
+  const { toast } = useToast()
+  const [allVocab, setAllVocab] = useState<UserVocabularyItemResponse[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [activeLanguage, setActiveLanguage] = useState("all")
+  const [languageFilter, setLanguageFilter] = useState("all")
+
+  const [isLearnModalOpen, setIsLearnModalOpen] = useState(false)
+  const [selectedVocabForModal, setSelectedVocabForModal] = useState<VocabWordData | null>(null)
+
+  const fetchVocab = async () => {
+    setIsLoading(true)
+    try {
+      const items = await getVocabularyItems()
+      setAllVocab(items || [])
+    } catch (error: any) {
+      toast({ title: "Error fetching vocabulary", description: error.message, variant: "destructive" })
+      setAllVocab([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    // Simulate API call
-    const timer = setTimeout(() => {
-      setVocabulary(mockVocabulary)
-      setLoading(false)
-    }, 1500)
-
-    return () => clearTimeout(timer)
+    fetchVocab()
   }, [])
 
-  // Get unique languages for tabs
-  const languages = ["all", ...new Set(mockVocabulary.map((item) => item.language.toLowerCase()))]
+  const handleDeleteVocabItem = async (itemId: string, term: string) => {
+    // Optimistic UI update can be added here if desired
+    try {
+      await deleteVocabularyItem(itemId)
+      toast({ title: "Vocabulary Item Deleted", description: `"${term}" removed from your vocabulary.` })
+      setAllVocab(prev => prev.filter(item => item.id !== itemId))
+    } catch (error: any) {
+      toast({ title: "Error deleting item", description: error.message, variant: "destructive" })
+    }
+  }
 
-  // Filter vocabulary based on search and language
-  const filteredVocabulary = vocabulary.filter((item) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      item.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.translation.toLowerCase().includes(searchTerm.toLowerCase())
+  const availableLanguages = useMemo(() => {
+    const languages = new Set(allVocab.map(item => item.language))
+    return [{ value: "all", label: "All Languages" }, ...Array.from(languages).sort().map(lang => ({ value: lang, label: lang }))]
+  }, [allVocab])
 
-    const matchesLanguage = activeLanguage === "all" || item.language.toLowerCase() === activeLanguage
+  const filteredVocab = useMemo(() => {
+    return allVocab.filter(item => {
+      const matchesLang = languageFilter === "all" || item.language === languageFilter
+      const matchesSearch = searchTerm === "" || 
+                            item.term.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (item.definition && item.definition.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            (item.example_sentence && item.example_sentence.toLowerCase().includes(searchTerm.toLowerCase()))
+      return matchesLang && matchesSearch
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Sort by newest first
+  }, [allVocab, searchTerm, languageFilter])
 
-    return matchesSearch && matchesLanguage
-  })
+  const handleOpenLearnModal = (item: UserVocabularyItemResponse) => {
+    // Construct vocabModalData ONLY with fields available from UserVocabularyItemResponse
+    // Other fields will be picked up from LearnWordModal's internal placeholderData
+    const vocabModalData: Partial<VocabWordData> = { // Use Partial<VocabWordData> as we are not providing all fields
+      id: item.id,
+      word: item.term,
+      romaji: item.reading || "", // Keep empty string if no reading, modal can decide to show/hide parentheses
+      definition: item.definition,
+      exampleSentence: item.example_sentence,
+      partOfSpeech: item.part_of_speech,
+      // Map 'status' to 'frequency' if appropriate, otherwise let placeholder handle it.
+      // If item.status is not one of 'Common', 'Uncommon', 'Rare', it will be undefined and placeholder will be used.
+      frequency: ['Common', 'Uncommon', 'Rare'].includes(item.status || '') 
+                   ? item.status as VocabWordData['frequency'] 
+                   : undefined,
+      // Fields like userNote and tags might be relevant if they come from API in future
+      // For now, if they are not on UserVocabularyItemResponse, don't set them here to allow placeholders
+      // For example, if UserVocabularyItemResponse could have item.user_note or item.user_tags:
+      // userNote: item.user_note || undefined,
+      // tags: item.user_tags || undefined,
+    };
+
+    // Explicitly remove keys that are undefined, so they don\'t overwrite placeholders with undefined
+    const cleanedVocabModalData = Object.fromEntries(
+      Object.entries(vocabModalData).filter(([_, v]) => v !== undefined)
+    ) as Partial<VocabWordData>;
+
+    setSelectedVocabForModal(cleanedVocabModalData as VocabWordData); // Cast needed due to Partial, modal handles defaults
+    setIsLearnModalOpen(true);
+  };
+
+  const handleCloseLearnModal = () => {
+    setIsLearnModalOpen(false);
+    setSelectedVocabForModal(null);
+  };
+
+  const WordCard = ({ item }: { item: UserVocabularyItemResponse }) => (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <Card className="h-full flex flex-col fun-card border-fun-purple/20 hover:border-fun-purple/40 transition-all duration-300 hover:shadow-lg">
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-xl font-bold group-hover:text-fun-purple transition-colors duration-300">
+              {item.term}
+              {item.reading && <span className="ml-2 text-sm font-normal text-muted-foreground">({item.reading})</span>}
+            </CardTitle>
+            <Badge variant="outline" className="text-xs">{getLanguageEmoji(item.language)} {item.language}</Badge>
+          </div>
+          {item.part_of_speech && <p className="text-xs text-muted-foreground capitalize">{item.part_of_speech}</p>}
+        </CardHeader>
+        <CardContent className="flex-grow space-y-2 text-sm">
+          {item.definition && <div><strong>Definition:</strong> {item.definition}</div>}
+          {item.example_sentence && (
+            <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                <p className="text-xs italic text-slate-500 dark:text-slate-400">
+                    <Info size={12} className="inline mr-1"/> 
+                    Example: "{item.example_sentence}"
+                </p>
+            </div>
+          )}
+          {item.entry_id && (
+            <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Link href={`/entries/${item.entry_id}`} className="text-xs text-blue-500 hover:underline inline-flex items-center">
+                           Source Entry <BookOpen size={12} className="ml-1"/>
+                        </Link>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-800 rounded-md">
+                        <p>View the journal entry where this word was saved.</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+            )}
+        </CardContent>
+        <CardFooter className="pt-2 flex flex-col sm:flex-row gap-2">
+            <Button
+                variant="outline"
+                size="sm"
+                className="w-full rounded-md text-blue-600 border-blue-500 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-blue-900/50 hover:text-blue-700"
+                onClick={() => handleOpenLearnModal(item)}
+            >
+                <BookOpen className="mr-2 h-4 w-4" /> Learn It
+            </Button>
+            <Button 
+                variant="ghost" 
+                size="sm"
+                className="w-full text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 rounded-md"
+                onClick={() => handleDeleteVocabItem(item.id, item.term)}
+            >
+                <Trash2 className="mr-2 h-4 w-4" /> Remove
+            </Button>
+        </CardFooter>
+      </Card>
+    </motion.div>
+  )
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">
-          <span className="fun-heading">Your Vocabulary Collection 📚</span>
-        </h2>
-        <p className="text-muted-foreground mt-2 text-lg">Track and review vocabulary from your journal entries</p>
-      </div>
+    <div className="container max-w-5xl mx-auto py-8 px-4">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-8">
+        <h1 className="text-4xl font-bold mb-2">
+            <span className="fun-heading">My Vocabulary</span> 📖
+        </h1>
+        <p className="text-xl text-muted-foreground">Review and manage all the words you've saved.</p>
+      </motion.div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-4 h-5 w-5 text-muted-foreground" />
-          <Input
-            placeholder="Search words or translations..."
-            className="pl-12 fun-input h-14 text-base"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 h-10 w-10 hover:bg-fun-pink/10 rounded-full"
-              onClick={() => setSearchTerm("")}
-            >
-              <X className="h-5 w-5" />
-              <span className="sr-only">Clear search</span>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <Tabs defaultValue="all" value={activeLanguage} onValueChange={setActiveLanguage}>
-        <TabsList className="bg-fun-purple/10 p-1 rounded-full">
-          {languages.map((lang) => (
-            <TabsTrigger
-              key={lang}
-              value={lang}
-              className="capitalize rounded-full data-[state=active]:bg-white data-[state=active]:text-primary text-base"
-            >
-              {lang === "all" ? "All Languages" : lang}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <div className="mt-8">
-          {loading ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="fun-card border-fun-purple/20">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between">
-                      <Skeleton className="h-8 w-28" />
-                      <Skeleton className="h-6 w-20" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-5 w-1/2" />
-                  </CardContent>
-                </Card>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="mb-8 p-4 bg-card border rounded-lg shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search term, definition, example..."
+              className="pl-10 fun-input h-12 text-base"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full" onClick={() => setSearchTerm("")}>
+                <X className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+          <Select value={languageFilter} onValueChange={setLanguageFilter}>
+            <SelectTrigger className="w-full sm:w-[200px] h-12 fun-input text-base">
+                <div className="flex items-center">
+                    <Languages className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Filter by language" />
+                </div>
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-fun-purple/30">
+              {availableLanguages.map(lang => (
+                <SelectItem key={lang.value} value={lang.value} className="text-base py-2">{lang.label}</SelectItem>
               ))}
-            </div>
-          ) : filteredVocabulary.length === 0 ? (
-            <Card className="fun-card border-fun-purple/20">
-              <CardContent className="py-12 text-center">
-                <Lightbulb className="h-16 w-16 text-fun-yellow mx-auto mb-4" />
-                <h3 className="text-xl font-medium">No vocabulary found</h3>
-                <p className="text-muted-foreground mt-2 text-lg">
-                  {searchTerm
-                    ? "Try a different search term or language filter"
-                    : "Start writing journal entries to build your vocabulary"}
-                </p>
-              </CardContent>
-            </Card>
+            </SelectContent>
+          </Select>
+        </div>
+      </motion.div>
+
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+            <LoadingSpinner text="Loading your vocabulary..." />
+        </div>
+      ) : filteredVocab.length === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center py-16">
+          <BookOpen className="h-16 w-16 mx-auto mb-6 text-fun-purple opacity-70" />
+          <h2 className="text-2xl font-bold mb-3">No Vocabulary Found</h2>
+          {allVocab.length > 0 ? (
+            <p className="text-muted-foreground text-lg mb-8">Try adjusting your search or language filter.</p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredVocabulary.map((item) => (
-                <Card key={item.id} className="fun-card group border-fun-purple/20 hover:border-fun-purple/40">
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-2xl group-hover:text-fun-purple transition-colors duration-300">
-                        {item.word}
-                      </CardTitle>
-                      <Badge variant={languageBadgeVariants[item.language] || "default"}>{item.language}</Badge>
-                    </div>
-                    <CardDescription className="font-medium text-fun-purple text-lg">
-                      {item.translation}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="text-base italic text-muted-foreground bg-fun-purple/5 p-4 rounded-2xl border-2 border-fun-purple/10">
-                      "{item.context}"
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <BookOpen className="h-4 w-4 mr-2 text-fun-pink" />
-                      <Link
-                        href={`/entries/${item.entryId}`}
-                        className="hover:underline hover:text-fun-purple transition-colors duration-200"
-                      >
-                        From: {item.entryTitle}
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <p className="text-muted-foreground text-lg mb-8">Start saving words from your journal entries to build your vocabulary list!</p>
           )}
-
-          {loading && (
-            <div className="flex justify-center py-8">
-              <WritingAnimation text="Loading vocabulary" />
-            </div>
-          )}
-        </div>
-      </Tabs>
+           <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-fun-purple to-fun-pink mt-4">
+            <Link href="/entries/new">Write a New Entry</Link>
+          </Button>
+        </motion.div>
+      ) : (
+        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredVocab.map(item => (
+            <WordCard key={item.id} item={item} />
+          ))}
+        </motion.div>
+      )}
+      {selectedVocabForModal && (
+        <LearnWordModal
+          isOpen={isLearnModalOpen}
+          onClose={handleCloseLearnModal}
+          vocabEntry={selectedVocabForModal}
+        />
+      )}
     </div>
   )
 }

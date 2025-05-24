@@ -49,7 +49,7 @@ export function FluencyScore({ score }: FluencyScoreProps) {
   }
 
   return (
-    <Card className="border-fun-purple/20 shadow-fun rounded-3xl overflow-hidden h-full">
+    <Card className="border-fun-purple/20 shadow-fun rounded-3xl overflow-hidden">
       <CardHeader className="bg-gradient-to-r from-fun-purple/10 to-fun-pink/10 pb-4">
         <CardTitle className="text-2xl flex items-center">
           <span className="fun-heading">Fluency Score</span> 📊

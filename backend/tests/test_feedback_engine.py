@@ -10,10 +10,12 @@ from typing import Dict, Any
 from backend.feedback_engine import generate_feedback, analyze_entry
 
 
-def test_feedback_structure():
+@pytest.mark.asyncio
+async def test_feedback_structure():
     """Test that generate_feedback returns a dictionary with the expected keys."""
     sample_text = "This is a test journal entry."
-    result = generate_feedback(sample_text)
+    language = "English"
+    result = await generate_feedback(sample_text, language)
     
     # Verify the structure of the feedback dictionary
     assert isinstance(result, dict)
@@ -25,10 +27,12 @@ def test_feedback_structure():
     assert "explanation" in result
 
 
-def test_feedback_types():
+@pytest.mark.asyncio
+async def test_feedback_types():
     """Test that the feedback values have the expected data types."""
     sample_text = "This is a test journal entry."
-    result = generate_feedback(sample_text)
+    language = "English"
+    result = await generate_feedback(sample_text, language)
     
     # Verify the data types
     assert isinstance(result["corrected"], str)
@@ -42,19 +46,23 @@ def test_feedback_types():
     assert 0 <= result["score"] <= 100
 
 
-def test_empty_input():
+@pytest.mark.asyncio
+async def test_empty_input():
     """Test that the feedback engine handles empty input correctly."""
-    result = generate_feedback("")
+    language = "English"
+    result = await generate_feedback("", language)
     
     # Even with empty input, should return the expected structure
     assert isinstance(result, dict)
     assert all(key in result for key in ["corrected", "rewritten", "score", "tone", "translation", "explanation"])
 
 
-def test_analyze_entry_normal_input():
+@pytest.mark.asyncio
+async def test_analyze_entry_normal_input():
     """Test analyze_entry with normal Spanish text input."""
     input_text = "Hoy fui al mercado y compré frutas frescas."
-    result = analyze_entry(input_text)
+    language = "Spanish"
+    result = await analyze_entry(input_text, language)
     
     # Verify result is a dictionary with expected keys
     assert isinstance(result, dict)
@@ -74,10 +82,12 @@ def test_analyze_entry_normal_input():
     assert isinstance(result["translation"], str)
 
 
-def test_analyze_entry_empty_input():
+@pytest.mark.asyncio
+async def test_analyze_entry_empty_input():
     """Test analyze_entry with empty string input."""
     input_text = ""
-    result = analyze_entry(input_text)
+    language = "English"
+    result = await analyze_entry(input_text, language)
     
     # Verify result is a dictionary with expected keys
     assert isinstance(result, dict)
@@ -97,14 +107,15 @@ def test_analyze_entry_empty_input():
     assert result["translation"] == "Translated version of: "
 
 
-def test_analyze_entry_long_input():
+@pytest.mark.asyncio
+async def test_analyze_entry_long_input():
     """Test analyze_entry with a simulated long text input (300 words)."""
     # Generate a long text by repeating a sentence multiple times
     base_sentence = "Este es un párrafo largo para probar el análisis de texto. "
     # A sentence with roughly 10 words, repeated 30 times should give ~300 words
     input_text = base_sentence * 30
-    
-    result = analyze_entry(input_text)
+    language = "Spanish"
+    result = await analyze_entry(input_text, language)
     
     # Verify result is a dictionary with expected keys
     assert isinstance(result, dict)

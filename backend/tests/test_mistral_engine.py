@@ -133,7 +133,7 @@ class TestMistralEngine:
             mock_generate.return_value = json.dumps(mock_json)
             
             # Call analyze_entry
-            result = mistral_engine.analyze_entry("Test text")
+            result = mistral_engine.analyze_entry("Test text", language="English")
             
             # Verify the parsed response matches our mock JSON
             assert result["corrected"] == "Corrected text"
@@ -162,7 +162,7 @@ class TestMistralEngine:
             mock_generate.return_value = json.dumps(mock_json)
             
             # Call analyze_entry
-            result = mistral_engine.analyze_entry("Test text")
+            result = mistral_engine.analyze_entry("Test text", language="English")
             
             # Verify the missing fields are filled with defaults
             assert result["corrected"] == "Corrected text"

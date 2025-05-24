@@ -13,9 +13,10 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { EntryCard } from "@/components/entry-card"
-import { getEntries } from "@/lib/api"
-import { formatDate } from "@/lib/utils"
+import { getEntries, deleteEntry as apiDeleteEntry } from "@/lib/api"
+import { formatDate, getLanguageEmoji, getDisplayTitle, getExcerpt } from "@/lib/utils"
 import type { Entry } from "@/types/entry"
+import { useToast } from "@/components/ui/use-toast"
 
 // We'll use tone options since we don't have language in the new Entry type
 const toneOptions = [
@@ -38,6 +39,8 @@ export default function EntriesPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [toneFilter, setToneFilter] = useState("all")
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function fetchEntries() {
@@ -103,6 +106,67 @@ export default function EntriesPage() {
       case "japanese": return "🇯🇵";
       // Add more languages and their emojis as needed
       default: return "📝";
+    }
+  };
+
+  async function loadEntries(showLoadingSpinner = true) {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
+    setIsRefreshing(true);
+    try {
+      const fetchedEntries = await getEntries();
+      // Ensure all entries have a valid id, default if necessary (though API should provide it)
+      const processedEntries = fetchedEntries.map(entry => ({
+        ...entry,
+        id: entry.id || `fallback-id-${Math.random().toString(36).substr(2, 9)}`,
+        title: getDisplayTitle(entry.title, entry.original_text),
+        languageEmoji: getLanguageEmoji(entry.language),
+        excerpt: getExcerpt(entry.original_text)
+      }));
+      setEntries(processedEntries);
+    } catch (error) {
+      console.error("Failed to fetch entries:", error);
+      toast({
+        title: "Error fetching entries",
+        description: (error as Error).message || "Could not load your journal entries. Please try again.",
+        variant: "destructive",
+      });
+      setEntries([]); // Set to empty array on error
+    } finally {
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
+      setIsRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadEntries();
+  }, []);
+
+  const handleDeleteEntry = async (entryId: string) => {
+    // Optimistically remove the entry from the UI
+    const originalEntries = [...entries];
+    setEntries(prevEntries => prevEntries.filter(entry => entry.id !== entryId));
+
+    try {
+      await apiDeleteEntry(entryId);
+      toast({
+        title: "Entry Deleted",
+        description: "Your journal entry has been successfully deleted.",
+        variant: "default", // or "success" if you have one
+      });
+      // No need to re-fetch, UI is already updated
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      toast({
+        title: "Error Deleting Entry",
+        description: (error as Error).message || "Could not delete the entry. Please try again.",
+        variant: "destructive",
+      });
+      // Revert to original entries if deletion failed
+      setEntries(originalEntries);
     }
   };
 
@@ -276,6 +340,7 @@ export default function EntriesPage() {
                     date: entry.created_at, 
                     excerpt: getExcerpt(entry.original_text), 
                   }}
+                  onDelete={handleDeleteEntry}
                 />
               </div>
             ))}

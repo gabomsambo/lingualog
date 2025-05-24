@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { ArrowLeft, Star, StarOff, Download, Copy, Check } from "lucide-react"
+import { ArrowLeft, Star, StarOff, Download, Copy, Check, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,172 +14,22 @@ import { GrammarFeedback } from "@/components/grammar-feedback"
 import { FluencyScore } from "@/components/fluency-score"
 import { VocabularyPanel } from "@/components/vocabulary-panel"
 import { LoadingSpinner } from "@/components/loading-spinner"
-import { getEntryById } from "@/lib/api" // Import the API function
-import type { Entry } from "@/types/entry" // Import the Entry type
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getEntryById, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
+import type { Entry, GrammarSuggestion, NewWord, Rubric } from "@/types/entry"
 
-interface GrammarFeedbackItem {
-  id: string;
-  original: string;
-  suggested: string;
-  explanation: string;
-  type: "positive" | "suggestion" | "error";
-  dismissed: boolean;
-}
-
-interface VocabularyItem {
-  id: string;
-  word: string;
-  reading: string;
-  romaji: string;
-  partOfSpeech: string;
-  definition: string;
-  example: string;
-  level: string;
-  saved: boolean;
-}
-
-interface FluencyScoreData {
-  overall: number;
-  level: string;
-  grammar: number;
-  vocabulary: number;
-  complexity: number;
-  improvement: string;
-}
-
-interface MockEntryType {
-  id: string;
-  title: string;
-  language: string;
-  languageCode: string;
-  languageEmoji: string;
-  date: string;
-  content: string;
-  translation: string;
-  isFavorite: boolean;
-  fluencyScore: FluencyScoreData;
-  grammarFeedback: GrammarFeedbackItem[];
-  vocabulary: VocabularyItem[];
-}
-
-// Mock entry data (will be partially overridden by fetched data)
-const mockEntryData: MockEntryType = {
-  id: "1", // Placeholder, will be overridden
-  title: "My day at the Japanese restaurant", // Placeholder, will be overridden
-  language: "Japanese", // Placeholder, will be overridden
-  languageCode: "ja", // Placeholder, can be derived or kept if not in API
-  languageEmoji: "🇯🇵", // Placeholder, can be derived or kept if not in API
-  date: "2025-04-21T14:30:00Z", // Placeholder
-  content: `今日は友達と日本のレストランに行きました。私たちは寿司とラーメンを食べました。とても美味しかったです！
-
-レストランの雰囲気も素晴らしかったです。伝統的な日本の音楽が流れていて、壁には美しい絵が飾られていました。
-
-私は日本語で注文しようとしましたが、少し緊張しました。でも、ウェイターはとても親切で、私の日本語を理解してくれました。彼は「日本語が上手ですね」と言ってくれました。とても嬉しかったです！
-
-次回は、もっと複雑な文章で注文してみたいです。日本語の勉強を続けます！`, // Placeholder, will be overridden
-  translation: `Today I went to a Japanese restaurant with my friends. We ate sushi and ramen. It was very delicious!
-
-The atmosphere of the restaurant was also wonderful. Traditional Japanese music was playing, and beautiful pictures were displayed on the walls.
-
-I tried to order in Japanese, but I was a little nervous. However, the waiter was very kind and understood my Japanese. He said "Your Japanese is good!" I was very happy!
-
-Next time, I want to try ordering with more complex sentences. I will continue studying Japanese!`, // Placeholder
-  isFavorite: false, // Placeholder
-  fluencyScore: { // Placeholder
-    overall: 72,
-    level: "Intermediate",
-    grammar: 80,
-    vocabulary: 65,
-    complexity: 70,
-    improvement: "You're using more varied vocabulary and longer sentences!",
-  },
-  grammarFeedback: [ // Placeholder
-    {
-      id: "g1",
-      original: "私たちは寿司とラーメンを食べました。",
-      suggested: "私たちは寿司とラーメンを食べました。",
-      explanation: "This sentence is grammatically correct! Great job using the past tense form correctly.",
-      type: "positive",
-      dismissed: false,
-    },
-    {
-      id: "g2",
-      original: "レストランの雰囲気も素晴らしかったです。",
-      suggested: "レストランの雰囲気も素晴らしかったです。",
-      explanation: "Perfect use of the past tense adjective form. Well done!",
-      type: "positive",
-      dismissed: false,
-    },
-    {
-      id: "g3",
-      original: "私は日本語で注文しようとしましたが、少し緊張しました。",
-      suggested: "私は日本語で注文しようとしましたが、少し緊張しました。",
-      explanation: "Excellent use of the 'try to do' form (〜しようとする) and connecting sentences with が.",
-      type: "positive",
-      dismissed: false,
-    },
-    {
-      id: "g4",
-      original: "次回は、もっと複雑な文章で注文してみたいです。",
-      suggested: "次回は、もっと複雑な文で注文してみたいです。",
-      explanation:
-        "Consider using 文 instead of 文章 here. 文 refers to a sentence, while 文章 refers to a passage or text.",
-      type: "suggestion",
-      dismissed: false,
-    },
-  ],
-  vocabulary: [ // Placeholder
-    {
-      id: "v1",
-      word: "雰囲気",
-      reading: "ふんいき",
-      romaji: "fun'iki",
-      partOfSpeech: "noun",
-      definition: "atmosphere, ambiance",
-      example: "レストランの雰囲気も素晴らしかったです。",
-      level: "intermediate",
-      saved: false,
-    },
-    {
-      id: "v2",
-      word: "緊張",
-      reading: "きんちょう",
-      romaji: "kinchō",
-      partOfSpeech: "noun, verb (する)",
-      definition: "tension, nervousness, to be nervous",
-      example: "私は少し緊張しました。",
-      level: "intermediate",
-      saved: false,
-    },
-    {
-      id: "v3",
-      word: "複雑",
-      reading: "ふくざつ",
-      romaji: "fukuzatsu",
-      partOfSpeech: "na-adjective",
-      definition: "complex, complicated",
-      example: "もっと複雑な文章で注文してみたいです。",
-      level: "intermediate",
-      saved: false,
-    },
-    {
-      id: "v4",
-      word: "注文",
-      reading: "ちゅうもん",
-      romaji: "chūmon",
-      partOfSpeech: "noun, verb (する)",
-      definition: "order, to order",
-      example: "私は日本語で注文しようとしました。",
-      level: "beginner",
-      saved: true,
-    },
-  ],
-}
+// Helper to determine fluency level based on score
+const determineFluencyLevel = (score: number): string => {
+  if (score >= 90) return "Advanced";
+  if (score >= 75) return "Intermediate";
+  if (score >= 50) return "Beginner";
+  return "Novice";
+};
 
 // Helper to get language emoji (you might want to move this to a utils file)
 const getLanguageEmoji = (languageCode?: string): string => {
   if (!languageCode) return "📝";
-  switch (languageCode.toLowerCase()) {
+  switch (languageCode?.toLowerCase()) {
     case "ja": return "🇯🇵";
     case "en": return "🇬🇧";
     case "es": return "🇪🇸";
@@ -190,272 +40,335 @@ const getLanguageEmoji = (languageCode?: string): string => {
   }
 };
 
+// Helper to map language name to code (you might want to move this to a utils file)
+const mapLanguageToCode = (languageName?: string): string => {
+  if (!languageName) return "unknown";
+  switch (languageName.toLowerCase()) {
+    case "japanese": return "ja";
+    case "english": return "en";
+    case "spanish": return "es";
+    case "french": return "fr";
+    case "german": return "de";
+    // Add more mappings as needed
+    default: return "unknown";
+  }
+};
 
 export default function EntryInsightPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [entry, setEntry] = useState<MockEntryType | null>(null) // Use MockEntryType for the state
+  const [entry, setEntry] = useState<Entry | null>(null)
   const [showTranslation, setShowTranslation] = useState(false)
-  const [isFavorite, setIsFavorite] = useState(false) // This will use mockEntryData's isFavorite initially
+  const [isFavorite, setIsFavorite] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [userVocabulary, setUserVocabulary] = useState<UserVocabularyItemResponse[]>([])
+  const [processedWords, setProcessedWords] = useState<NewWord[]>([])
+  const [vocabLoading, setVocabLoading] = useState(true)
+
+  const loadFullEntryData = useCallback(async () => {
+    if (!params.id || typeof params.id !== 'string') {
+      setLoading(false)
+      toast({ title: "Error", description: "Invalid entry ID.", variant: "destructive" })
+      router.push("/dashboard")
+      return
+    }
+    setLoading(true)
+    setVocabLoading(true)
+
+    try {
+      const [fetchedEntryData, fetchedUserVocabulary] = await Promise.all([
+        getEntryById(params.id as string),
+        getVocabularyItems()
+      ])
+
+      setUserVocabulary(fetchedUserVocabulary || [])
+
+      if (fetchedEntryData) {
+        // Cast to any to access ai_feedback, as the fetchedEntryData is typed as frontend Entry
+        const apiResponse = fetchedEntryData as any; 
+        const aiFeedbackData = apiResponse.ai_feedback; // Extract for easier access
+
+        const processedEntry: Entry = {
+          // Spread common top-level fields from fetchedEntryData (which is typed as Entry)
+          id: fetchedEntryData.id,
+          user_id: fetchedEntryData.user_id,
+          content: fetchedEntryData.content || "", // Already correct and part of Entry type
+          title: fetchedEntryData.title || `Entry from ${new Date(fetchedEntryData.created_at || Date.now()).toLocaleDateString()}`,
+          language: fetchedEntryData.language || "Unknown",
+          languageCode: mapLanguageToCode(fetchedEntryData.language),
+          languageEmoji: getLanguageEmoji(mapLanguageToCode(fetchedEntryData.language)),
+          created_at: fetchedEntryData.created_at,
+          updated_at: fetchedEntryData.updated_at,
+          is_favorite: fetchedEntryData.is_favorite || false,
+          tags: (apiResponse.tags as string[] | undefined) || [], // Assuming tags might come from apiResponse top level
+          
+          // AI Feedback Fields - Mapped from aiFeedbackData
+          translation: aiFeedbackData?.translation || "",
+          explanation: aiFeedbackData?.explanation || "", 
+          rewritten_text: aiFeedbackData?.rewrite || "",   
+          score: aiFeedbackData?.score ?? 0,              
+          tone: aiFeedbackData?.tone || "Neutral",        
+          rubric: aiFeedbackData?.rubric || { grammar: 0, vocabulary: 0, complexity: 0 },
+          grammar_suggestions: (aiFeedbackData?.grammar_suggestions || []).map((s: GrammarSuggestion, index: number) => ({
+            ...s,
+            id: s.id || `g-${index}`,
+            dismissed: s.dismissed || false,
+          })),
+          new_words: (aiFeedbackData?.new_words || []).map((w: NewWord, index: number) => ({ // Added typing for new_words map as well for consistency
+            ...w,
+            id: w.id || `word-${index}` // Ensure new_words also get a unique id if missing
+          })),
+        };
+        
+        const currentWords = (processedEntry.new_words || []).map(word => {
+          const savedVersion = (fetchedUserVocabulary || []).find(
+            item => item.term === word.term && item.language === processedEntry.language
+          )
+          return {
+            ...word,
+            id: word.id || word.term,
+            db_id: savedVersion ? savedVersion.id : undefined,
+            saved: !!savedVersion,
+          }
+        })
+        setProcessedWords(currentWords)
+        setEntry(processedEntry)
+        setIsFavorite(processedEntry.is_favorite || false)
+      } else {
+        toast({ title: "Entry not found", description: "Could not find the requested entry.", variant: "destructive" })
+        router.push("/dashboard")
+      }
+    } catch (error) {
+      console.error("Failed to load entry or vocabulary:", error)
+      toast({ title: "Error", description: "Failed to load entry details or vocabulary.", variant: "destructive" })
+    } finally {
+      setLoading(false)
+      setVocabLoading(false)
+    }
+  }, [params.id, toast, router])
 
   useEffect(() => {
-    async function fetchEntryData() {
-      if (!params.id || typeof params.id !== 'string') {
-        setLoading(false);
-        // Optionally, redirect or show an error if ID is missing/invalid
-        toast({ title: "Error", description: "Invalid entry ID.", variant: "destructive" });
-        router.push("/dashboard"); // Example redirect
-        return;
-      }
+    loadFullEntryData()
+  }, [loadFullEntryData])
 
-      try {
-        const fetchedEntryData = await getEntryById(params.id as string)
-        if (fetchedEntryData) {
-          // Combine fetched data with mock data for fields not yet in API response
-          const combinedEntryData: MockEntryType = {
-            ...mockEntryData, // Start with mock data as a base for placeholders
-            id: fetchedEntryData.id || mockEntryData.id,
-            title: fetchedEntryData.title || mockEntryData.title, // Use fetched title or fallback to mock
-            language: fetchedEntryData.language || mockEntryData.language, // Use fetched language or fallback to mock
-            // Assuming languageCode and languageEmoji might not be directly in fetchedEntryData.Entry
-            // If they are, use them: fetchedEntryData.languageCode || mockEntryData.languageCode
-            // For now, we derive emoji from language if possible, or use mock
-            languageCode: fetchedEntryData.language ? mapLanguageToCode(fetchedEntryData.language) : mockEntryData.languageCode,
-            languageEmoji: fetchedEntryData.language ? getLanguageEmoji(mapLanguageToCode(fetchedEntryData.language)) : mockEntryData.languageEmoji,
-            content: fetchedEntryData.original_text || mockEntryData.content, // Use fetched original_text for content
-            date: fetchedEntryData.created_at || mockEntryData.date, // Use created_at for date
-             // Keep using mock for these until API provides them
-            translation: mockEntryData.translation,
-            isFavorite: mockEntryData.isFavorite, // This will be the mock's initial favorite state
-            fluencyScore: mockEntryData.fluencyScore,
-            grammarFeedback: mockEntryData.grammarFeedback,
-            vocabulary: mockEntryData.vocabulary,
-          };
-          setEntry(combinedEntryData);
-          setIsFavorite(combinedEntryData.isFavorite); // Set favorite state based on combined/mock data
-        } else {
-          toast({ title: "Entry not found", description: "Could not find the requested entry.", variant: "destructive" });
-          // Optionally redirect if entry not found
-           router.push("/dashboard");
-        }
-      } catch (error) {
-        console.error("Failed to fetch entry:", error)
-        toast({ title: "Error", description: "Failed to load the entry.", variant: "destructive" });
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchEntryData()
-  }, [params.id, router, toast])
-
-  // Helper function to map full language names to codes if your API returns full names
-  // This is just an example, adjust based on your actual API data for 'language'
-  const mapLanguageToCode = (languageName: string): string => {
-    const name = languageName.toLowerCase();
-    if (name.includes("japanese")) return "ja";
-    if (name.includes("english")) return "en";
-    if (name.includes("spanish")) return "es";
-    if (name.includes("french")) return "fr";
-    if (name.includes("german")) return "de";
-    return ""; // Fallback or default code
-  };
+  const handleVocabularyUpdate = () => {
+    loadFullEntryData()
+  }
 
   const handleCopyText = () => {
-    if (!entry) return
-
-    navigator.clipboard.writeText(entry.content)
-    setCopied(true)
-
-    toast({
-      title: "Copied to clipboard! 📋",
-      description: "Your journal entry has been copied to your clipboard",
-      variant: "fun",
-    })
-
-    setTimeout(() => setCopied(false), 2000)
+    if (entry?.content) {
+      navigator.clipboard.writeText(entry.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast({ title: "Copied!", description: "Entry text copied to clipboard." })
+    }
   }
 
   const handleExportPDF = () => {
-    toast({
-      title: "Exporting PDF... 📄",
-      description: "Your journal entry is being prepared for download",
-      variant: "fun",
-    })
+    toast({ title: "Coming Soon!", description: "PDF export will be available in a future update." })
   }
 
-  const handleToggleFavorite = () => {
-    // This is a local toggle for now, actual API update would be needed here
-    setIsFavorite(!isFavorite);
-    if (entry) {
-      setEntry({ ...entry, isFavorite: !isFavorite }); // Update local entry state if needed
-    }
-
+  const handleToggleFavorite = async () => {
+    if (!entry) return;
+    const newFavoriteStatus = !isFavorite;
+    setIsFavorite(newFavoriteStatus);
     toast({
-      title: !isFavorite ? "Added to favorites! ⭐" : "Removed from favorites",
-      description: !isFavorite
-        ? "This entry has been added to your favorites"
-        : "This entry has been removed from your favorites",
-      variant: "fun",
-    })
-  }
+      title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
+    });
+    setEntry(prev => prev ? { ...prev, is_favorite: newFavoriteStatus } : null);
+  };
 
   const handleDismissGrammarFeedback = (id: string) => {
-    if (!entry) return
-
-    setEntry({
-      ...entry,
-      grammarFeedback: entry.grammarFeedback.map((item) => (item.id === id ? { ...item, dismissed: true } : item)),
-    })
-
-    toast({
-      title: "Feedback marked as understood ✅",
-      description: "Keep up the great progress!",
-      variant: "fun",
-    })
-  }
+    setEntry(prev => {
+      if (!prev || !prev.grammar_suggestions) return prev;
+      return {
+        ...prev,
+        grammar_suggestions: prev.grammar_suggestions.map(item =>
+          item.id === id ? { ...item, dismissed: true } : item
+        ),
+      };
+    });
+  };
 
   const handleSaveVocabulary = (id: string) => {
-    if (!entry) return
+    setEntry(prev => {
+      if (!prev || !prev.new_words) return prev;
+      const wordToUpdate = prev.new_words.find(word => word.id === id);
+      const currentSavedStatus = wordToUpdate ? wordToUpdate.saved : false;
+      const newSavedStatus = !currentSavedStatus;
 
-    setEntry({
-      ...entry,
-      vocabulary: entry.vocabulary.map((item) => (item.id === id ? { ...item, saved: !item.saved } : item)),
-    })
-
-    const word = entry.vocabulary.find((item) => item.id === id)
-
-    toast({
-      title: word && !word.saved ? "Word removed from bank" : "Word added to your bank! 📚", // Corrected logic for toast
-      description: word && !word.saved
-        ? `"${word.word}" has been removed from your vocabulary bank`
-        : `"${word?.word || 'This word'}" has been added to your vocabulary bank`,
-      variant: "fun",
-    })
-  }
+      toast({ title: newSavedStatus ? "Word saved!" : "Word unsaved." });
+      return {
+        ...prev,
+        new_words: prev.new_words.map(item =>
+          item.id === id ? { ...item, saved: newSavedStatus } : item
+        ),
+      };
+    });
+  };
 
   if (loading) {
     return (
-      <div className="container max-w-5xl mx-auto py-8 px-4">
-        <div className="flex items-center space-x-4 mb-8">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <Skeleton className="h-10 w-64" />
-        </div>
-
-        <div className="grid gap-8">
-          <Skeleton className="h-64 w-full rounded-2xl" />
-          <Skeleton className="h-48 w-full rounded-2xl" />
-          <Skeleton className="h-64 w-full rounded-2xl" />
-        </div>
-
-        <div className="flex justify-center py-8">
-          <LoadingSpinner text="Loading your insights..." />
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <LoadingSpinner />
+        <p className="mt-4 text-lg text-muted-foreground">Loading entry insights...</p>
       </div>
     )
   }
 
   if (!entry) {
     return (
-      <div className="container max-w-5xl mx-auto py-8 px-4 text-center">
-        <h2 className="text-2xl font-bold mb-4">Entry not found</h2>
-        <p className="text-muted-foreground mb-6">The entry you're looking for doesn't exist or has been removed.</p>
-        <Button variant="purple" size="lg" asChild>
-          <a href="/dashboard">Back to Dashboard</a>
+      <div className="container mx-auto px-4 py-8">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-6">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
         </Button>
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold">Entry Not Found</h2>
+          <p className="text-muted-foreground">We couldn\'t find the entry you were looking for.</p>
+          <Button onClick={() => router.push("/dashboard")} className="mt-4">
+            Go to Dashboard
+          </Button>
+        </div>
       </div>
     )
   }
 
+  const fluencyScoreData = {
+    overall: entry.score || 0,
+    level: determineFluencyLevel(entry.score || 0),
+    grammar: entry.rubric?.grammar || 0,
+    vocabulary: entry.rubric?.vocabulary || 0,
+    complexity: entry.rubric?.complexity || 0,
+    improvement: entry.explanation || "",
+    tone: entry.tone || "Neutral",
+  };
+
+  const grammarFeedbackItemsForComponent = (entry.grammar_suggestions || []).filter(item => !item.dismissed)
+    .map((suggestion, index) => ({
+      ...suggestion,
+      id: suggestion.id || `gram-${index}`,
+      suggested: suggestion.corrected,
+      explanation: suggestion.note,
+      type: "suggestion" as "suggestion" | "positive" | "error",
+      dismissed: suggestion.dismissed || false,
+    }));
+
+  const vocabularyItems = entry.new_words || [];
+
+  const vocabularyItemsForPanel = vocabularyItems.map(nw => ({
+    id: nw.id || String(Math.random()),
+    word: nw.term,
+    reading: nw.reading || undefined,
+    romaji: undefined,
+    partOfSpeech: nw.pos,
+    definition: nw.definition,
+    example: nw.example || "",
+    level: nw.proficiency || "unknown",
+    saved: nw.saved || false,
+  }));
+
   return (
-    <div className="container max-w-5xl mx-auto py-8 px-4">
-      {/* Header with back button */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" asChild className="hover:bg-fun-purple/10 rounded-full">
-            <a href="/dashboard">
-              <ArrowLeft className="h-5 w-5" />
-              <span className="sr-only">Back</span>
-            </a>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="container mx-auto max-w-4xl px-4 py-8"
+    >
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <Button variant="ghost" onClick={() => router.back()} className="flex items-center text-sm text-muted-foreground hover:text-primary">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Entries
+        </Button>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={handleCopyText}>
+            {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
+            {copied ? "Copied!" : "Copy Text"}
           </Button>
-          <h1 className="text-3xl font-bold">
-            <span className="fun-heading">Entry Insights</span> ✨
-          </h1>
-        </div>
-
-        <div className="flex space-x-2">
-          <Button variant="ghost" size="icon" onClick={handleCopyText} className="rounded-full hover:bg-fun-blue/10">
-            {copied ? <Check className="h-5 w-5 text-fun-green" /> : <Copy className="h-5 w-5 text-fun-blue" />}
-            <span className="sr-only">{copied ? "Copied" : "Copy text"}</span>
+          <Button variant="outline" size="sm" onClick={handleExportPDF}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
           </Button>
-
-          <Button variant="ghost" size="icon" onClick={handleExportPDF} className="rounded-full hover:bg-fun-purple/10">
-            <Download className="h-5 w-5 text-fun-purple" />
-            <span className="sr-only">Export to PDF</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleToggleFavorite}
-            className="rounded-full hover:bg-fun-yellow/10"
-          >
-            {isFavorite ? (
-              <Star className="h-5 w-5 text-fun-yellow fill-fun-yellow" />
-            ) : (
-              <StarOff className="h-5 w-5 text-muted-foreground" />
-            )}
-            <span className="sr-only">{isFavorite ? "Remove from favorites" : "Add to favorites"}</span>
+          <Button variant="outline" size="icon" onClick={handleToggleFavorite} title={entry.is_favorite ? "Remove from favorites" : "Add to favorites"}>
+            {entry.is_favorite ? <StarOff className="h-5 w-5 text-yellow-500 fill-yellow-500" /> : <Star className="h-5 w-5 text-muted-foreground" />}
           </Button>
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="grid gap-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <EntryViewer entry={entry} />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <TranslationPanel entry={entry} showTranslation={showTranslation} setShowTranslation={setShowTranslation} />
-        </motion.div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="md:col-span-2"
-          >
-            <GrammarFeedback feedback={entry.grammarFeedback} onDismiss={handleDismissGrammarFeedback} />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <FluencyScore score={entry.fluencyScore} />
-          </motion.div>
+      <div className="mb-8 p-6 bg-card border rounded-lg shadow">
+        <h1 className="text-3xl font-bold mb-2 text-primary">{entry.title}</h1>
+        <div className="flex items-center text-sm text-muted-foreground">
+          <span className="mr-1">{entry.languageEmoji}</span>
+          <span>{entry.language}</span>
+          <span className="mx-2">·</span>
+          <span>Written on {new Date(entry.created_at || Date.now()).toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          <VocabularyPanel vocabulary={entry.vocabulary} language={entry.language} onSaveWord={handleSaveVocabulary} />
-        </motion.div>
       </div>
-    </div>
+      
+      {/* ROW 1: Entry Viewer (Full Width) */}
+      <div className="mb-8">
+        <EntryViewer entry={{
+          title: entry.title || "Entry",
+          language: entry.language || "Unknown",
+          languageEmoji: entry.languageEmoji || "📝",
+          date: entry.created_at || new Date().toISOString(),
+          content: entry.content
+        }} />
+      </div>
+
+      {/* ROW 2: Translation Panel (Full Width) */}
+      <div className="mb-8">
+        <TranslationPanel entry={{
+            language: entry.language || "Unknown",
+            content: entry.content,
+            translation: entry.translation
+          }}
+          showTranslation={showTranslation}
+          setShowTranslation={setShowTranslation} />
+      </div>
+
+      {/* ROW 3: Fluency Score (1/2) & Summary/Notes (1/2) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div className="space-y-8"> {/* Allow stacking if other items were here */}
+          <FluencyScore score={fluencyScoreData} />
+        </div>
+        <div className="space-y-8">
+          {entry.explanation && entry.explanation.trim() !== "" && (
+            <Card className="border-fun-gray/20 shadow-fun rounded-3xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-fun-gray/10 to-fun-blue/5 pb-3">
+                <CardTitle className="text-xl fun-heading">Summary & Notes</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 text-sm text-muted-foreground prose max-w-none">
+                {entry.explanation.split('\\n').map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* ROW 4: Grammar Suggestions (Full Width) */}
+      <div className="mb-8">
+        <GrammarFeedback
+          feedback={grammarFeedbackItemsForComponent}
+          onDismiss={handleDismissGrammarFeedback}
+        />
+      </div>
+
+      {/* ROW 5: Vocabulary Panel (Full Width) */}
+      <div className="mb-8">
+        <VocabularyPanel
+          words={processedWords}
+          language={entry.language || "Unknown"}
+          entryId={entry.id}
+          onVocabularyUpdate={handleVocabularyUpdate}
+          isLoading={vocabLoading}
+        />
+      </div>
+
+    </motion.div>
   )
 }

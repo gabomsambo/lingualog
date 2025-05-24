@@ -1,0 +1,27 @@
+fastapi
+uvicorn[standard]
+pydantic
+sqlalchemy
+supabase
+httpx
+pytest
+requests
+python-jose[cryptography]
+google-generativeai
+tiktoken
+# Add other specific dependencies from your project below
+# e.g., specific database drivers if not covered by sqlalchemy or supabase
+# sentry-sdk # If you use Sentry for error tracking
+# python-dotenv # For .env file management, if not handled by pydantic-settings
+pydantic-settings
+# mistralclient # If you are using a dedicated mistral client.
+# langchain # If you are using langchain
+# transformers # If you use transformers directly and not via a high-level library
+# torch # If transformers require torch explicitly
+
+# For development and testing
+pytest-asyncio
+# coverage
+# mypy
+# ruff or flake8 or pylint # For linting
+# black or autopep8 # For formatting
