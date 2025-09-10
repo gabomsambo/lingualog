@@ -14,7 +14,7 @@ import { getVocabularyItems, deleteVocabularyItem, UserVocabularyItemResponse } 
 import { getLanguageEmoji } from "@/lib/utils"
 import Link from "next/link"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import LearnWordModal, { VocabWordData } from "./LearnWordModal"
+import LearnWordModal, { VocabWordData } from "@/components/LearnWordModal"
 
 export default function VocabularyPage() {
   const { toast } = useToast()
@@ -71,25 +71,40 @@ export default function VocabularyPage() {
   }, [allVocab, searchTerm, languageFilter])
 
   const handleOpenLearnModal = (item: UserVocabularyItemResponse) => {
-    // Construct vocabModalData ONLY with fields available from UserVocabularyItemResponse
-    // Other fields will be picked up from LearnWordModal's internal placeholderData
-    const vocabModalData: Partial<VocabWordData> = { // Use Partial<VocabWordData> as we are not providing all fields
+    // Construct vocabModalData with ALL fields from the enriched vocabulary item
+    const vocabModalData: Partial<VocabWordData> = {
       id: item.id,
       word: item.term,
-      romaji: item.reading || "", // Keep empty string if no reading, modal can decide to show/hide parentheses
+      term: item.term, // Include both for compatibility
+      romaji: item.reading || "",
+      language: item.language,
       definition: item.definition,
       exampleSentence: item.example_sentence,
+      example_sentence: item.example_sentence,
       partOfSpeech: item.part_of_speech,
-      // Map 'status' to 'frequency' if appropriate, otherwise let placeholder handle it.
-      // If item.status is not one of 'Common', 'Uncommon', 'Rare', it will be undefined and placeholder will be used.
+      part_of_speech: item.part_of_speech,
       frequency: ['Common', 'Uncommon', 'Rare'].includes(item.status || '') 
                    ? item.status as VocabWordData['frequency'] 
                    : undefined,
-      // Fields like userNote and tags might be relevant if they come from API in future
-      // For now, if they are not on UserVocabularyItemResponse, don't set them here to allow placeholders
-      // For example, if UserVocabularyItemResponse could have item.user_note or item.user_tags:
-      // userNote: item.user_note || undefined,
-      // tags: item.user_tags || undefined,
+      
+      // AI Enrichment fields - pass ALL enriched data to modal
+      ai_example_sentences: item.ai_example_sentences,
+      ai_definitions: item.ai_definitions,
+      ai_synonyms: item.ai_synonyms,
+      ai_antonyms: item.ai_antonyms,
+      ai_related_phrases: item.ai_related_phrases,
+      ai_conjugation_info: item.ai_conjugation_info,
+      ai_cultural_note: item.ai_cultural_note,
+      ai_pronunciation_guide: item.ai_pronunciation_guide,
+      ai_alternative_forms: item.ai_alternative_forms,
+      ai_common_mistakes: item.ai_common_mistakes,
+      ai_eli5_explanation: item.ai_eli5_explanation,
+      emotion_tone: item.emotion_tone,
+      mnemonic: item.mnemonic,
+      emoji: item.emoji,
+      source_model: item.source_model,
+      notes_user: item.notes_user,
+      tags: item.tags,
     };
 
     // Explicitly remove keys that are undefined, so they don\'t overwrite placeholders with undefined

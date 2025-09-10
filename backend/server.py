@@ -7,13 +7,14 @@ and generating AI feedback for language learning.
 import logging
 import os
 import sys
+import uuid
 from typing import List, Optional
 
 # Add current directory to path to make imports work
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from fastapi import FastAPI, HTTPException, status, Request
+from fastapi import FastAPI, HTTPException, status, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
@@ -25,7 +26,8 @@ from models import (
     UserVocabularyItemResponse
 )
 from app.models import JournalEntry # Corrected import for JournalEntry
-from feedback_engine import generate_feedback, analyze_entry
+# Old AI engines removed - now using Atomic Agents as primary system
+# from feedback_engine import generate_feedback, analyze_entry
 from database import (
     save_entry, 
     fetch_entries, 
@@ -52,6 +54,61 @@ logger.propagate = True # Ensure messages go to the root logger
 
 # Test log to see if basicConfig is working on startup
 logger.debug("Root logger configured, LinguaLog API logger set to DEBUG.")
+
+# --- Background Tasks ---
+
+async def enrich_vocabulary_in_background(item_id: str, user_id: uuid.UUID, language: str):
+    """
+    Background task to automatically enrich vocabulary when words are added.
+    This runs asynchronously after the user gets their success response.
+    """
+    logger.info(f"🤖 BACKGROUND TASK STARTED: Enriching vocabulary item {item_id} ({language}) for user {user_id}")
+    
+    try:
+        # Import here to avoid circular imports
+        import sys
+        import os
+        
+        # Add the app directory to Python path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        app_dir = os.path.join(current_dir, 'app')
+        if app_dir not in sys.path:
+            sys.path.insert(0, app_dir)
+        
+        logger.info(f"🔧 Importing enrichment service...")
+        from app.services.ai_enrichment_service import get_or_create_enriched_details_service
+        from app.dependencies import get_db_session, get_feedback_engine
+        
+        logger.info(f"🔧 Getting feedback engine...")
+        
+        feedback_engine = get_feedback_engine()
+        
+        logger.info(f"🚀 Calling enrichment service for item {item_id}...")
+        
+        # Create a dummy database session (not used by database functions but required by service signature)
+        mock_db = None
+        
+        # Trigger enrichment (this will create word_ai_cache entry)
+        enriched_data = await get_or_create_enriched_details_service(
+            item_id=uuid.UUID(item_id),
+            user_id=user_id,
+            language=language,
+            db=mock_db,  # Not used by the underlying database functions
+            feedback_engine=feedback_engine
+        )
+        
+        logger.info(f"✅ Background enrichment completed for vocabulary item {item_id}")
+        logger.info(f"📊 Generated {len(enriched_data.ai_example_sentences or [])} example sentences, "
+                   f"{len(enriched_data.ai_synonyms or [])} synonyms, "
+                   f"{len(enriched_data.ai_antonyms or [])} antonyms")
+        
+    except ImportError as e:
+        logger.error(f"❌ Import error in background enrichment for {item_id}: {str(e)}")
+        logger.error(f"📝 Check if all required modules are available")
+    except Exception as e:
+        logger.error(f"❌ Background enrichment failed for vocabulary item {item_id}: {str(e)}")
+        logger.error(f"📝 Full error details:", exc_info=True)
+        logger.error(f"📝 This is not critical - user can still click 'Learn It' to trigger enrichment manually")
 
 app = FastAPI(
     title="LinguaLog API",
@@ -117,8 +174,16 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         # Get user_id from request headers if present
         user_id = request.headers.get("X-User-ID")
         
-        # Generate feedback using the AI engine
-        analysis = await analyze_entry(entry.text, entry.language)
+        # Generate feedback using Atomic Agents (new primary system)
+        try:
+            from services.agent_service import analyze_entry_atomic_compat
+            logger.info(f"Using Atomic Agents for analysis: {len(entry.text)} chars, language: {entry.language}")
+            analysis = await analyze_entry_atomic_compat(entry.text, entry.language, user_id, "intermediate")
+        except Exception as e:
+            logger.warning(f"Atomic Agents failed, using mock fallback: {str(e)}")
+            # Fallback to mock system if atomic agents fail (old engines removed)
+            from feedback_engine import analyze_with_mock
+            analysis = analyze_with_mock(entry.text, entry.language)
         
         # Convert dictionary to Pydantic model for validation
         # Ensure all fields required by FeedbackResponse are present in analysis,
@@ -307,10 +372,11 @@ async def delete_entry_route(entry_id: str, request: Request):
 # --- Vocabulary Endpoints ---
 
 @app.post("/vocabulary", response_model=UserVocabularyItemResponse, status_code=status.HTTP_201_CREATED)
-async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Request):
+async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Request, background_tasks: BackgroundTasks):
     """
     Add a new word to the user's vocabulary.
     The user_id is extracted from the request headers.
+    Automatically triggers AI enrichment in the background.
     """
     user_id = request.headers.get("X-User-ID")
     if not user_id:
@@ -322,7 +388,22 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
         # Convert Pydantic model to dict for database function
         item_data = item.model_dump()
         saved_item = save_vocabulary_item(item_data=item_data, user_id=user_id)
-        return saved_item # FastAPI will serialize this dict to UserVocabularyItemResponse based on the model
+        
+        # 🚀 AUTOMATIC ENRICHMENT: Trigger background AI enrichment for the saved word
+        logger.info(f"📋 VOCABULARY SAVED: {item.term} ({item.language}) with ID {saved_item['id']}")
+        logger.info(f"🚀 TRIGGERING BACKGROUND ENRICHMENT for vocabulary item {saved_item['id']}")
+        
+        background_tasks.add_task(
+            enrich_vocabulary_in_background,
+            saved_item["id"],  # vocabulary item ID
+            uuid.UUID(user_id),  # user ID
+            item.language  # language
+        )
+        
+        logger.info(f"✅ Background enrichment task added for vocabulary item {saved_item['id']} ({item.term} in {item.language})")
+        logger.info(f"📝 User should see immediate success, enrichment will happen in background")
+        
+        return saved_item # User gets immediate response while enrichment happens in background
     except Exception as e:
         logger.error(f"Error adding vocabulary item for user {user_id}: {str(e)}")
         # Check for specific error types if needed, e.g., duplicate handling if not an upsert
@@ -336,7 +417,7 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
             detail=f"Could not save vocabulary item: {str(e)}"
         )
 
-@app.get("/vocabulary", response_model=List[UserVocabularyItemResponse], status_code=status.HTTP_200_OK)
+@app.get("/vocabulary", status_code=status.HTTP_200_OK)
 async def get_user_vocabulary_route(request: Request, language: Optional[str] = None):
     """
     Fetch all vocabulary items for the authenticated user, optionally filtered by language.
@@ -387,6 +468,70 @@ async def delete_vocabulary_item_route(item_id: str, request: Request):
 
 
 # TODO: Add user authentication middleware/dependencies
+
+@app.post("/log-entry-atomic", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
+async def create_log_entry_atomic(entry: JournalEntryRequest, request: Request):
+    """
+    Process a journal entry using Atomic Agents (experimental endpoint).
+    
+    This endpoint uses the new Atomic Agents framework for AI analysis
+    and runs in parallel with the existing system for comparison.
+    """
+    try:
+        # Import here to avoid startup issues if atomic agents aren't available
+        from services.agent_service import analyze_entry_atomic_compat
+        
+        user_id = request.headers.get("X-User-ID")
+        
+        logger.info(f"Processing entry with Atomic Agents: {len(entry.text)} chars, language: {entry.language}")
+        
+        # Generate feedback using Atomic Agents
+        analysis = await analyze_entry_atomic_compat(entry.text, entry.language)
+        
+        # Convert to FeedbackResponse format
+        feedback_response = FeedbackResponse(**{
+            "corrected": analysis.get("corrected", entry.text),
+            "rewritten": analysis.get("rewrite", entry.text),
+            "score": analysis.get("score", 0),
+            "tone": analysis.get("tone", "Neutral"),
+            "translation": analysis.get("translation", "Translation not available."),
+            "explanation": analysis.get("explanation", "No detailed explanation available."),
+            "rubric": analysis.get("rubric", {"grammar": 0, "vocabulary": 0, "complexity": 0}),
+            "grammar_suggestions": analysis.get("grammar_suggestions", []),
+            "new_words": analysis.get("new_words", [])
+        })
+        
+        # Save entry and feedback to Supabase (same as original endpoint)
+        try:
+            entry_data = {
+                "user_id": user_id,
+                "original_text": entry.text,
+                "title": entry.title,
+                "language": entry.language,
+                "corrected": feedback_response.corrected,
+                "rewrite": feedback_response.rewritten,
+                "score": feedback_response.score,
+                "tone": feedback_response.tone,
+                "translation": feedback_response.translation,
+                "explanation": feedback_response.explanation,
+                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
+                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else []
+            }
+            
+            saved_entry = save_entry(entry_data)
+            logger.info(f"Atomic Agents entry saved with ID: {saved_entry.get('id', 'unknown')}")
+        except Exception as e:
+            logger.error(f"Failed to save atomic agents entry to database: {str(e)}")
+        
+        return feedback_response
+        
+    except Exception as e:
+        logger.error(f"Error in atomic agents endpoint: {str(e)}")
+        # Fallback to original endpoint logic
+        logger.info("Falling back to original analysis method")
+        return await create_log_entry(entry, request)
+
 
 if __name__ == "__main__":
     import uvicorn

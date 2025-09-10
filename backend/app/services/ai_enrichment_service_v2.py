@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 from app.models import EnrichedWordDetailsResponse
 from app.feedback_engine import FeedbackEngine
-from database import fetch_vocabulary_item_by_id_and_user
+from database import fetch_user_vocabulary_item_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -169,10 +169,14 @@ async def update_user_vocabulary_with_enrichment(
         Updated vocabulary item or None if failed
     """
     try:
-        from database import create_supabase_client
+        from supabase import create_client
+        import os
         
-        # Use existing database infrastructure
-        supabase = create_supabase_client()
+        # Create Supabase client
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
         
         # Update the vocabulary item with enrichment data
         result = supabase.table("user_vocabulary").update(enrichment_data).eq("id", str(item_id)).eq("user_id", str(user_id)).execute()
@@ -215,7 +219,7 @@ async def get_or_create_enriched_details_service(
     logger.info(f"Starting enrichment service for item_id: {item_id}, user_id: {user_id}, language: {language}")
     
     # 1. Validate that the vocabulary item exists and belongs to the user
-    vocab_item = await fetch_vocabulary_item_by_id_and_user(item_id=item_id, user_id=user_id)
+    vocab_item = await fetch_user_vocabulary_item_by_id(user_id=user_id, item_id=item_id)
     if not vocab_item:
         logger.warning(f"Vocabulary item {item_id} not found for user {user_id}")
         raise HTTPException(

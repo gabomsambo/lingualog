@@ -5,7 +5,7 @@ from typing import List, Optional
 
 # Corrected import paths
 from app.models import EnrichedWordDetailsResponse, UserVocabularyItemResponse, MoreExamplesRequest, MoreExamplesResponse, ELI5Request, ELI5Response, MiniQuizRequest, MiniQuizResponse, User
-from app.services.ai_enrichment_service import get_or_create_enriched_details_service, generate_more_examples, explain_like_i_am_five, generate_mini_quiz
+from app.services.ai_enrichment_service import get_or_create_enriched_details_service
 from app.dependencies import get_db_session, get_current_active_user, get_feedback_engine
 
 # Need to import FeedbackEngine for type hinting if it's used directly as a type in router function signatures
@@ -53,7 +53,6 @@ async def get_enriched_vocabulary_item_details(
     request: Request, # To get user_id or other request context
     user_id: uuid.UUID = Depends(get_user_id_from_request), # Use Depends for cleaner injection and type safety
     db: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_active_user),
     feedback_engine: FeedbackEngine = Depends(get_feedback_engine)
 ):
     """
@@ -66,7 +65,7 @@ async def get_enriched_vocabulary_item_details(
     try:
         enriched_details = await get_or_create_enriched_details_service(
             item_id=item_id, 
-            user_id=current_user.id, 
+            user_id=user_id, 
             language=language,
             db=db,
             feedback_engine=feedback_engine

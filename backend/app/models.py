@@ -106,6 +106,10 @@ class WordAiCacheBase(BaseModel):
     ai_pronunciation_guide: Optional[str] = Field(None, description="Text-based pronunciation guide from AI (e.g., IPA or romaji).")
     ai_alternative_forms: Optional[List[str]] = Field(None, description="Alternative forms or spellings from AI.")
     ai_common_mistakes: Optional[List[Dict[str, str]]] = Field(None, description="Common mistakes learners make with this word, from AI.")
+    # New fields for comprehensive vocabulary enrichment
+    emotion_tone: Optional[str] = Field(None, description="Emotional tone or feeling associated with this word.")
+    mnemonic: Optional[str] = Field(None, description="Memory aid, metaphor, or mnemonic device for remembering this word.")
+    emoji: Optional[str] = Field(None, description="Emoji that represents the emotion or concept of this word.")
     source_model: Optional[str] = Field(None, description="AI model used to generate this cache entry.")
 
 class WordAiCacheCreate(WordAiCacheBase):
@@ -167,21 +171,36 @@ class MiniQuizResponse(BaseModel):
 
 class UserVocabularyItemBase(BaseModel):
     user_id: uuid.UUID
-    word: str = Field(..., max_length=255)
+    term: str = Field(..., max_length=255)
     language: str = Field(..., max_length=10, description="Language code, e.g., 'en', 'es', 'ja'")
     part_of_speech: Optional[str] = Field(None, max_length=50)
-    definition: Optional[str] = Field(None) # User's primary definition
-    example_sentence_user: Optional[str] = Field(None, description="User's own example sentence.")
-    translation_user: Optional[str] = Field(None, description="User's translation of the word/phrase.")
+    definition: Optional[str] = Field(None)
+    reading: Optional[str] = Field(None)  # Database field name
+    example_sentence: Optional[str] = Field(None)  # Database field name
+    status: Optional[str] = Field(None)  # Database field name
+    entry_id: Optional[uuid.UUID] = Field(None)  # Database field name
     learning_status: Optional[str] = Field("new", description="e.g., new, learning, known, mastered")
     familiarity_score: Optional[int] = Field(0, ge=0, le=10, description="User's self-assessed familiarity (0-10)")
     last_reviewed_at: Optional[datetime] = None
     next_review_due_at: Optional[datetime] = None
     tags: Optional[List[str]] = Field(None)
     notes_user: Optional[str] = Field(None, description="User's personal notes about the word.")
-    source_entry_id: Optional[uuid.UUID] = Field(None, description="Journal entry where this word was identified, if any.")
-    pronunciation_user: Optional[str] = Field(None, description="User's attempt or note on pronunciation.")
-    # AI-generated fields will be linked via word_ai_cache
+    
+    # AI Enrichment fields (now stored directly in user_vocabulary)
+    ai_example_sentences: Optional[List[str]] = Field(None)
+    ai_definitions: Optional[List[str]] = Field(None)
+    ai_synonyms: Optional[List[str]] = Field(None)
+    ai_antonyms: Optional[List[str]] = Field(None)
+    ai_related_phrases: Optional[List[str]] = Field(None)
+    ai_conjugation_info: Optional[Dict[str, Any]] = Field(None)
+    ai_cultural_note: Optional[str] = Field(None)
+    ai_pronunciation_guide: Optional[str] = Field(None)
+    ai_alternative_forms: Optional[List[str]] = Field(None)
+    ai_common_mistakes: Optional[List[str]] = Field(None)
+    emotion_tone: Optional[str] = Field(None)
+    mnemonic: Optional[str] = Field(None)
+    emoji: Optional[str] = Field(None)
+    source_model: Optional[str] = Field(None)
 
 class UserVocabularyItemCreate(UserVocabularyItemBase):
     pass

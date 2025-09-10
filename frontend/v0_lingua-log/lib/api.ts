@@ -137,6 +137,25 @@ export interface UserVocabularyItemCreate {
   example_sentence?: string;
   status?: string;
   entry_id?: string; 
+  
+  // AI Enrichment fields
+  ai_example_sentences?: string[];
+  ai_definitions?: any[];
+  ai_synonyms?: string[];
+  ai_antonyms?: string[];
+  ai_related_phrases?: string[];
+  ai_conjugation_info?: any;
+  ai_cultural_note?: string;
+  ai_pronunciation_guide?: string;
+  ai_alternative_forms?: string[];
+  ai_common_mistakes?: Array<{ mistake: string; correction: string; explanation?: string }>;
+  ai_eli5_explanation?: string;
+  emotion_tone?: string;
+  mnemonic?: string;
+  emoji?: string;
+  source_model?: string;
+  notes_user?: string;
+  tags?: string[];
 }
 
 export interface UserVocabularyItemResponse extends UserVocabularyItemCreate {
@@ -274,11 +293,15 @@ export interface EnrichedVocabDetails {
   ai_synonyms?: string[];
   ai_antonyms?: string[];
   ai_related_phrases?: string[];
-  ai_conjugation_info?: Record<string, any>; // More specific type if known for frontend use
+  ai_conjugation_info?: Record<string, any>; // Conjugation information for verbs/adjectives
   ai_cultural_note?: string;
   ai_pronunciation_guide?: string;
   ai_alternative_forms?: string[];
-  ai_common_mistakes?: Array<{ mistake: string; correction: string; explanation?: string }>; // Assuming structure
+  ai_common_mistakes?: Array<{ mistake: string; correction: string; explanation?: string }>;
+  // New fields for comprehensive vocabulary enrichment
+  emotion_tone?: string; // Emotional tone or feeling associated with the word
+  mnemonic?: string; // Memory aid, metaphor, or mnemonic device
+  emoji?: string; // Emoji representing the word's meaning or emotion
   source_model?: string;
   // Match this structure with VocabWordData where possible, or map it in the component
   // For example, VocabWordData uses 'eli5Explanation', this might come from one of these fields or be separate.
