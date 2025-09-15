@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   api:
     build:
@@ -10,6 +8,8 @@ services:
       - "8000:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPEN_AI_API_KEY=${OPEN_AI_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - PYTHONUNBUFFERED=1
@@ -34,6 +34,9 @@ services:
       - api
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend/v0_lingua-log:/app
+      - /app/node_modules
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

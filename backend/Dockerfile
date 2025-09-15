@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -25,9 +25,13 @@ ENV HUGGINGFACE_TOKEN=${PASSED_HUGGINGFACE_TOKEN}
 # Create directory for Mistral model
 RUN mkdir -p /app/mistral_models
 
-# Pre-authenticate with Hugging Face
+# Pre-authenticate with Hugging Face only if a token is provided
 RUN pip install huggingface_hub && \
-    python -c "import os; from huggingface_hub import login; token = os.getenv('HUGGINGFACE_TOKEN'); login(token=token)"
+    if [ -n "$HUGGINGFACE_TOKEN" ]; then \
+      python -c "import os; from huggingface_hub import login; token = os.getenv('HUGGINGFACE_TOKEN'); login(token=token)"; \
+    else \
+      echo "HUGGINGFACE_TOKEN not set; skipping Hugging Face login"; \
+    fi
 
 # Copy all files to the app directory
 COPY . .

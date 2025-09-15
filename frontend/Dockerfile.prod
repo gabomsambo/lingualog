@@ -1,0 +1,20 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY v0_lingua-log/package*.json ./
+
+# Install dependencies
+RUN npm install --legacy-peer-deps
+
+# Copy all source files
+COPY v0_lingua-log/ .
+
+# Build the application
+RUN npm run build
+
+EXPOSE 3000
+
+# Use production mode
+CMD ["npm", "run", "start"]

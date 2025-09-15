@@ -15,10 +15,9 @@ from typing import Dict, Any, Optional, List
 import httpx
 import asyncio
 
-# Old AI engines removed - keeping only mock functionality for fallback
-# from config import GEMINI_API_KEY, USE_MISTRAL
-# import mistral_engine # Import the module itself  
-# from gemini_engine import GeminiEngine
+from config import GEMINI_API_KEY, USE_MISTRAL
+import mistral_engine # Import the module itself
+from gemini_engine import GeminiEngine
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -28,8 +27,15 @@ OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-3.5-turbo"
 REQUEST_TIMEOUT = 15.0  # seconds
 
-# Old AI engines removed - Atomic Agents is now the primary system
-# gemini_ai_engine = None
+# Initialize Gemini engine if not using Mistral
+gemini_ai_engine = None
+if not USE_MISTRAL:
+    try:
+        gemini_ai_engine = GeminiEngine()
+        logger.info("GeminiEngine initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize GeminiEngine: {e}")
+        gemini_ai_engine = None # Ensure it's None if init fails
 
 # Prompts for word enrichment - can be refined or moved to a config/prompts file
 PROMPTS_WORD_ENRICHMENT = {
@@ -94,20 +100,46 @@ async def generate_feedback(entry_text: str, language: str) -> Dict[str, Any]:
 
 async def analyze_entry(text: str, language: str) -> Dict[str, Any]:
     """
-    DEPRECATED: Use Atomic Agents instead via services.agent_service.
-    
-    This function is kept only for fallback compatibility.
-    Primary AI analysis now uses Atomic Agents framework.
+    Generate comprehensive language feedback for a journal entry.
     
     Args:
         text: The journal entry text to analyze
         language: The language of the entry text
         
     Returns:
-        Dictionary with all feedback dimensions (mock data)
+        Dictionary with all feedback dimensions
     """
-    logger.warning("Using deprecated analyze_entry function - should use Atomic Agents instead")
-    return analyze_with_mock(text, language)
+    # Comment out the forced mock for actual testing
+    # logger.info("FORCED MOCK: Generating mock feedback data for debugging.")
+    # return analyze_with_mock(text, language)
+
+    try:
+        if USE_MISTRAL:
+            try:
+                logger.info("Generating feedback using Mistral model")
+                return mistral_engine.analyze_entry(text, language) # Pass language if/when mistral_engine supports it
+            except Exception as e:
+                logger.error(f"Error using Mistral: {str(e)}. Trying fallback.")
+                # Fall through to Gemini or mock if Mistral fails
+        
+        # Try Gemini if not using Mistral OR if Mistral failed and Gemini engine is available
+        if not USE_MISTRAL or (USE_MISTRAL and gemini_ai_engine): # Adjusted condition for fallback
+            if gemini_ai_engine:
+                try:
+                    logger.info("Generating feedback using Gemini model")
+                    return await gemini_ai_engine.analyze_text(text, language)
+                except Exception as e:
+                    logger.error(f"Error using Gemini API: {str(e)}. Falling back to mock data.")
+            else:
+                logger.warning("Gemini engine not initialized, and it was the selected or fallback option.")
+                
+        # Fall back to mock data as a last resort
+        logger.warning("Falling back to mock data as no primary AI engine is available or operational.")
+        return analyze_with_mock(text, language)
+        
+    except Exception as e:
+        logger.error(f"Critical error in analyze_entry: {str(e)}. Falling back to mock data.")
+        return analyze_with_mock(text, language)
 
 
 async def analyze_with_openai(text: str) -> Dict[str, Any]: # This function should be reviewed/removed if Gemini is the sole non-Mistral provider

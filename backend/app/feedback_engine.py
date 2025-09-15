@@ -4,14 +4,19 @@ from typing import Optional, List, Dict, Any
 from app.models import (
     AiFeedback, MiniQuizResponse, MiniQuizQuestion # Removed unused models
 )
+from agents import VocabularyEnrichmentAgent, QuizGenerationAgent
+from agents.schemas import Definition, CommonMistake
 # from config import get_settings # This import is not needed here
-from app.ai_engines.gemini_engine import GeminiEngine # Ensure GeminiEngine is imported
+from app.ai_engines.gemini_engine import GeminiEngine # Keep for journal analysis
 
 logger = logging.getLogger(__name__)
 
 class FeedbackEngine:
     def __init__(self, gemini_engine: GeminiEngine):
         self.gemini_engine = gemini_engine
+        # Initialize vocabulary agents
+        self.vocabulary_enrichment_agent = VocabularyEnrichmentAgent()
+        self.quiz_generation_agent = QuizGenerationAgent()
 
     async def generate_ai_feedback_for_entry(self, entry_text: str, language: str) -> AiFeedback:
         # ... (existing implementation for journal entry feedback - assumed to be here)
@@ -30,22 +35,44 @@ class FeedbackEngine:
     async def generate_word_enrichment_details(self, term: str, language: str) -> Dict[str, Any]:
         logger.info(f"FeedbackEngine: Generating word enrichment details for '{term}' in {language}.")
         try:
-            raw_ai_response = await self.gemini_engine.generate_word_enrichment_details_gemini(term, language)
-            # Ensure raw_ai_response is a dict. If Gemini returns None or error, handle it.
-            if not raw_ai_response:
-                logger.error(f"Gemini engine returned None for word enrichment of '{term}'.")
-                # Return a dict that conforms to WordAiCacheBase structure but indicates failure
-                return {
-                    "language": language,
-                    "ai_example_sentences": [],
-                    "ai_definitions": [],
-                    "ai_synonyms": [],
-                    "ai_antonyms": [],
-                    "ai_related_phrases": [],
-                    "ai_cultural_note": "AI enrichment failed to generate data.",
-                    # Populate other WordAiCacheBase fields with defaults
-                }
-            return raw_ai_response # Return the dictionary as expected by the service
+            # Use the VocabularyEnrichmentAgent instead of GeminiEngine
+            enrichment_result = await self.vocabulary_enrichment_agent.enrich_async(
+                term=term,
+                language=language,
+                context=None,  # Could be enhanced to pass context if available
+                user_level="intermediate"  # Could be made configurable
+            )
+            
+            # Convert the structured result to the dictionary format expected by the service
+            result_dict = {
+                "language": enrichment_result.language,
+                "ai_example_sentences": enrichment_result.ai_example_sentences,
+                "ai_definitions": [{
+                    "part_of_speech": defn.part_of_speech,
+                    "definition": defn.definition
+                } for defn in enrichment_result.ai_definitions],
+                "ai_synonyms": enrichment_result.ai_synonyms,
+                "ai_antonyms": enrichment_result.ai_antonyms,
+                "ai_related_phrases": enrichment_result.ai_related_phrases,
+                "ai_cultural_note": enrichment_result.ai_cultural_note,
+                "ai_pronunciation_guide": enrichment_result.ai_pronunciation_guide,
+                "ai_alternative_forms": enrichment_result.ai_alternative_forms,
+                "ai_common_mistakes": [{
+                    "mistake": mistake.mistake,
+                    "correction": mistake.correction,
+                    "explanation": mistake.explanation
+                } for mistake in enrichment_result.ai_common_mistakes],
+                "emotion_tone": enrichment_result.emotion_tone,
+                "mnemonic": enrichment_result.mnemonic,
+                "ai_conjugation_info": enrichment_result.ai_conjugation_info or {},
+                "emoji": enrichment_result.emoji,
+                "source_model": "gpt-4o-mini",  # Could be made configurable
+            }
+            
+            logger.info(f"Successfully enriched '{term}' with {len(enrichment_result.ai_definitions)} definitions, "
+                       f"{len(enrichment_result.ai_example_sentences)} examples")
+            return result_dict
+            
         except Exception as e:
             logger.error(f"Error processing AI response for word enrichment: {e}", exc_info=True)
             return {
@@ -56,23 +83,32 @@ class FeedbackEngine:
                 "ai_antonyms": [],
                 "ai_related_phrases": [],
                 "ai_cultural_note": f"Error generating AI details: {str(e)}",
+                "ai_pronunciation_guide": "",
+                "ai_alternative_forms": [],
+                "ai_common_mistakes": [],
+                "source_model": "gpt-4o-mini",
             }
 
     async def generate_additional_examples(self, word: str, language: str, existing_examples: Optional[List[str]] = None, target_audience_level: Optional[str] = "intermediate") -> List[str]:
         """Generates additional example sentences for a word."""
         logger.info(f"FeedbackEngine: Generating additional examples for '{word}' in {language}.")
         try:
-            prompt = f"Generate 3 diverse and natural-sounding example sentences for the word '{word}' in {language}."
-            if existing_examples:
-                prompt += f" Avoid examples similar to these: {'; '.join(existing_examples)}."
-            if target_audience_level:
-                prompt += f" The examples should be suitable for a {target_audience_level} learner."
+            # Use the QuizGenerationAgent for more examples
+            examples_result = await self.quiz_generation_agent.generate_more_examples_async(
+                word=word,
+                language=language,
+                existing_examples=existing_examples,
+                target_audience_level=target_audience_level,
+                num_examples=3
+            )
             
-            new_examples = await self.gemini_engine.generate_more_examples_gemini(word, language, existing_examples, target_audience_level, prompt_template=prompt)
-            if not new_examples:
-                logger.warning(f"GeminiEngine returned no new examples for '{word}'.")
+            if not examples_result.new_example_sentences:
+                logger.warning(f"QuizGenerationAgent returned no new examples for '{word}'.")
                 return []
-            return new_examples
+            
+            logger.info(f"Successfully generated {len(examples_result.new_example_sentences)} examples for '{word}'")
+            return examples_result.new_example_sentences
+            
         except Exception as e:
             logger.error(f"Error in FeedbackEngine generating additional examples for '{word}': {e}", exc_info=True)
             return []
@@ -81,12 +117,20 @@ class FeedbackEngine:
         """Generates an ELI5 explanation for a term."""
         logger.info(f"FeedbackEngine: Generating ELI5 for '{term}' in {language}.")
         try:
-            prompt = f"Explain the term '{term}' in {language} as if you were talking to a 5-year-old. Keep it simple, use analogies if possible, and make it short."
-            explanation = await self.gemini_engine.generate_eli5_explanation_gemini(term, language, prompt_template=prompt)
-            if not explanation:
-                logger.warning(f"GeminiEngine returned no ELI5 explanation for '{term}'.")
+            # Use the QuizGenerationAgent for ELI5 explanations
+            eli5_result = await self.quiz_generation_agent.explain_eli5_async(
+                term=term,
+                language=language,
+                context=None  # Could be enhanced to pass context if available
+            )
+            
+            if not eli5_result.explanation:
+                logger.warning(f"QuizGenerationAgent returned no ELI5 explanation for '{term}'.")
                 return "Could not generate an explanation at this time."
-            return explanation
+            
+            logger.info(f"Successfully generated ELI5 explanation for '{term}'")
+            return eli5_result.explanation
+            
         except Exception as e:
             logger.error(f"Error in FeedbackEngine generating ELI5 for '{term}': {e}", exc_info=True)
             return "Error generating explanation."
@@ -95,29 +139,39 @@ class FeedbackEngine:
         """Generates a mini-quiz related to the word."""
         logger.info(f"FeedbackEngine: Generating mini-quiz for '{word}' in {language}.")
         try:
-            prompt = f"Create a mini quiz with {num_questions} questions about the word '{word}' in {language}. Difficulty: {difficulty_level}. For each question, provide the question text, a list of 3-4 options, the 0-based index of the correct answer, and a brief explanation for the correct answer. Format the output as a JSON object with a 'quiz_title' (string) and a 'questions' (list of objects, where each object has 'question_text', 'options', 'correct_answer_index', 'explanation')."
+            # Use the QuizGenerationAgent for quiz generation
+            quiz_result = await self.quiz_generation_agent.generate_quiz_async(
+                word=word,
+                language=language,
+                num_questions=num_questions,
+                difficulty=difficulty_level
+            )
             
-            quiz_data_dict = await self.gemini_engine.generate_mini_quiz_gemini(word, language, difficulty_level, num_questions, prompt_template=prompt)
-            
-            if not quiz_data_dict or not quiz_data_dict.get("questions"):
-                logger.warning(f"GeminiEngine returned no or invalid quiz data for '{word}'. Dict: {quiz_data_dict}")
+            if not quiz_result.questions:
+                logger.warning(f"QuizGenerationAgent returned no questions for '{word}'.")
                 return None
             
+            # Convert from QuizGenerationOutputSchema to MiniQuizResponse
             questions = []
-            for q_data in quiz_data_dict.get("questions", []):
-                # Add validation here if Gemini might return malformed question data
+            for q in quiz_result.questions:
                 try:
-                    questions.append(MiniQuizQuestion(**q_data))
+                    questions.append(MiniQuizQuestion(
+                        question_text=q.question_text,
+                        options=q.options,
+                        correct_answer_index=q.correct_answer_index,
+                        explanation=q.explanation
+                    ))
                 except Exception as q_val_error:
-                    logger.error(f"Error validating question data from Gemini: {q_data}, error: {q_val_error}")
+                    logger.error(f"Error converting question data: {q}, error: {q_val_error}")
                     continue # Skip malformed question
             
             if not questions: # If all questions were malformed
-                logger.warning(f"No valid questions could be parsed for quiz on '{word}'.")
+                logger.warning(f"No valid questions could be converted for quiz on '{word}'.")
                 return None
 
+            logger.info(f"Successfully generated quiz for '{word}' with {len(questions)} questions")
             return MiniQuizResponse(
-                quiz_title=quiz_data_dict.get("quiz_title", f"Mini Quiz for '{word}'"),
+                quiz_title=quiz_result.quiz_title,
                 questions=questions
             )
 

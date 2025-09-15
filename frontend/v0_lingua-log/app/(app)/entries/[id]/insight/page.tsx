@@ -18,25 +18,25 @@ import { LoadingSpinner } from "@/components/loading-spinner"
 // Mock entry data
 const mockEntry = {
   id: "1",
-  title: "My day at the Japanese restaurant",
-  language: "Japanese",
-  languageCode: "ja",
-  languageEmoji: "🇯🇵",
+  title: "Mi día en el restaurante español",
+  language: "Spanish", 
+  languageCode: "es",
+  languageEmoji: "🇪🇸",
   date: "2025-04-21T14:30:00Z",
-  content: `今日は友達と日本のレストランに行きました。私たちは寿司とラーメンを食べました。とても美味しかったです！
+  content: `Hoy fui a un restaurante español con mis amigos. Comimos paella y tapas. ¡Estaba muy delicioso!
 
-レストランの雰囲気も素晴らしかったです。伝統的な日本の音楽が流れていて、壁には美しい絵が飾られていました。
+El ambiente del restaurante también era maravilloso. Sonaba música tradicional española y había cuadros hermosos en las paredes.
 
-私は日本語で注文しようとしましたが、少し緊張しました。でも、ウェイターはとても親切で、私の日本語を理解してくれました。彼は「日本語が上手ですね」と言ってくれました。とても嬉しかったです！
+Intenté ordenar en español, pero estaba un poco nervioso. Sin embargo, el camarero era muy amable y entendió mi español. Me dijo "¡Su español es muy bueno!" ¡Estaba muy feliz!
 
-次回は、もっと複雑な文章で注文してみたいです。日本語の勉強を続けます！`,
-  translation: `Today I went to a Japanese restaurant with my friends. We ate sushi and ramen. It was very delicious!
+La próxima vez, quiero intentar ordenar con frases más complejas. ¡Continuaré estudiando español!`,
+  translation: `Today I went to a Spanish restaurant with my friends. We ate paella and tapas. It was very delicious!
 
-The atmosphere of the restaurant was also wonderful. Traditional Japanese music was playing, and beautiful pictures were displayed on the walls.
+The atmosphere of the restaurant was also wonderful. Traditional Spanish music was playing and there were beautiful paintings on the walls.
 
-I tried to order in Japanese, but I was a little nervous. However, the waiter was very kind and understood my Japanese. He said "Your Japanese is good!" I was very happy!
+I tried to order in Spanish, but I was a little nervous. However, the waiter was very kind and understood my Spanish. He told me "Your Spanish is very good!" I was very happy!
 
-Next time, I want to try ordering with more complex sentences. I will continue studying Japanese!`,
+Next time, I want to try ordering with more complex phrases. I will continue studying Spanish!`,
   isFavorite: false,
   fluencyScore: {
     overall: 72,
@@ -49,34 +49,34 @@ Next time, I want to try ordering with more complex sentences. I will continue s
   grammarFeedback: [
     {
       id: "g1",
-      original: "私たちは寿司とラーメンを食べました。",
-      suggested: "私たちは寿司とラーメンを食べました。",
-      explanation: "This sentence is grammatically correct! Great job using the past tense form correctly.",
+      original: "Comimos paella y tapas.",
+      suggested: "Comimos paella y tapas.",
+      explanation: "This sentence is grammatically correct! Great job using the past tense correctly.",
       type: "positive",
       dismissed: false,
     },
     {
       id: "g2",
-      original: "レストランの雰囲気も素晴らしかったです。",
-      suggested: "レストランの雰囲気も素晴らしかったです。",
-      explanation: "Perfect use of the past tense adjective form. Well done!",
+      original: "El ambiente del restaurante también era maravilloso.",
+      suggested: "El ambiente del restaurante también era maravilloso.",
+      explanation: "Perfect use of the imperfect tense to describe past conditions. Well done!",
       type: "positive",
       dismissed: false,
     },
     {
       id: "g3",
-      original: "私は日本語で注文しようとしましたが、少し緊張しました。",
-      suggested: "私は日本語で注文しようとしましたが、少し緊張しました。",
-      explanation: "Excellent use of the 'try to do' form (〜しようとする) and connecting sentences with が.",
+      original: "Intenté ordenar en español, pero estaba un poco nervioso.",
+      suggested: "Intenté ordenar en español, pero estaba un poco nervioso.",
+      explanation: "Excellent use of contrasting ideas with 'pero' and correct verb tenses.",
       type: "positive",
       dismissed: false,
     },
     {
       id: "g4",
-      original: "次回は、もっと複雑な文章で注文してみたいです。",
-      suggested: "次回は、もっと複雑な文で注文してみたいです。",
+      original: "La próxima vez, quiero intentar ordenar con frases más complejas.",
+      suggested: "La próxima vez, quiero intentar pedir con frases más complejas.",
       explanation:
-        "Consider using 文 instead of 文章 here. 文 refers to a sentence, while 文章 refers to a passage or text.",
+        "Consider using 'pedir' instead of 'ordenar' in restaurant contexts. 'Pedir' is more commonly used for ordering food.",
       type: "suggestion",
       dismissed: false,
     },
@@ -84,45 +84,45 @@ Next time, I want to try ordering with more complex sentences. I will continue s
   vocabulary: [
     {
       id: "v1",
-      word: "雰囲気",
-      reading: "ふんいき",
-      romaji: "fun'iki",
+      word: "ambiente",
+      reading: "",
+      romaji: "",
       partOfSpeech: "noun",
-      definition: "atmosphere, ambiance",
-      example: "レストランの雰囲気も素晴らしかったです。",
+      definition: "atmosphere, environment",
+      example: "El ambiente del restaurante era maravilloso.",
       level: "intermediate",
       saved: false,
     },
     {
       id: "v2",
-      word: "緊張",
-      reading: "きんちょう",
-      romaji: "kinchō",
-      partOfSpeech: "noun, verb (する)",
-      definition: "tension, nervousness, to be nervous",
-      example: "私は少し緊張しました。",
-      level: "intermediate",
+      word: "correcto",
+      reading: "",
+      romaji: "",
+      partOfSpeech: "adjective",
+      definition: "correct, right, proper",
+      example: "Tu pronunciación es muy correcta.",
+      level: "beginner",
       saved: false,
     },
     {
       id: "v3",
-      word: "複雑",
-      reading: "ふくざつ",
-      romaji: "fukuzatsu",
-      partOfSpeech: "na-adjective",
+      word: "complejo",
+      reading: "",
+      romaji: "",
+      partOfSpeech: "adjective",
       definition: "complex, complicated",
-      example: "もっと複雑な文章で注文してみたいです。",
+      example: "Quiero intentar frases más complejas.",
       level: "intermediate",
       saved: false,
     },
     {
       id: "v4",
-      word: "注文",
-      reading: "ちゅうもん",
-      romaji: "chūmon",
-      partOfSpeech: "noun, verb (する)",
-      definition: "order, to order",
-      example: "私は日本語で注文しようとしました。",
+      word: "ordenar",
+      reading: "",
+      romaji: "",
+      partOfSpeech: "verb",
+      definition: "to order, to arrange",
+      example: "Intenté ordenar en español.",
       level: "beginner",
       saved: true,
     },
