@@ -29,9 +29,12 @@ export function UserNav() {
     async function loadProfile() {
       const profile = await getUserProfile();
       if (profile) {
-        setUserName(profile.username || profile.email.split('@')[0] || "User");
+        const displayName = profile.username || profile.email.split('@')[0] || "User";
+        setUserName(displayName);
         setUserEmail(profile.email || "user@example.com");
-        const nameForInitials = profile.username || profile.email.split('@')[0];
+        
+        // Generate initials
+        const nameForInitials = displayName;
         if (nameForInitials) {
           const parts = nameForInitials.split(' ');
           if (parts.length > 1) {
@@ -46,7 +49,32 @@ export function UserNav() {
         }
       }
     }
+    
+    // Load profile initially
     loadProfile();
+    
+    // Listen for profile updates from other components
+    const handleProfileUpdate = (event: any) => {
+      if (event.detail && event.detail.username) {
+        setUserName(event.detail.username);
+        // Update initials
+        const nameForInitials = event.detail.username;
+        const parts = nameForInitials.split(' ');
+        if (parts.length > 1) {
+          setUserInitials(parts[0][0].toUpperCase() + parts[parts.length - 1][0].toUpperCase());
+        } else if (parts[0] && parts[0].length > 0) {
+          setUserInitials(parts[0][0].toUpperCase() + (parts[0].length > 1 ? parts[0][1].toUpperCase() : ''));
+        } else {
+          setUserInitials("U");
+        }
+      }
+    };
+    
+    window.addEventListener('userProfileUpdated', handleProfileUpdate);
+    
+    return () => {
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -84,11 +112,17 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem className="rounded-xl cursor-pointer text-base py-2">
+          <DropdownMenuItem 
+            className="rounded-xl cursor-pointer text-base py-2"
+            onClick={() => router.push("/profile")}
+          >
             <User className="mr-2 h-5 w-5 text-fun-blue" />
             <span>Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="rounded-xl cursor-pointer text-base py-2">
+          <DropdownMenuItem 
+            className="rounded-xl cursor-pointer text-base py-2"
+            onClick={() => router.push("/settings")}
+          >
             <Settings className="mr-2 h-5 w-5 text-fun-purple" />
             <span>Settings</span>
           </DropdownMenuItem>

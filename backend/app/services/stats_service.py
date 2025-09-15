@@ -1,32 +1,82 @@
 from datetime import date, timedelta
 from typing import List, Dict, Tuple, Set
 from sqlalchemy.orm import Session # If using SQLAlchemy with Supabase client
-from supabase_py_async import AsyncClient as SupabaseAsyncClient # Or sync client if you use that
+from supabase import Client as SupabaseClient
 
 from app.schemas.stats_schemas import WordCountStat, LanguageStat, StreakData, UserStatsResponse
 
-async def get_daily_word_counts(db: SupabaseAsyncClient, user_id: str, days: int = 7) -> List[WordCountStat]:
+async def get_daily_word_counts(db: SupabaseClient, user_id: str, days: int = 7) -> List[WordCountStat]:
     """Fetches total word counts for the last N days for a given user."""
-    # TODO: Implement Supabase query
-    # Example: SELECT DATE_TRUNC('day', created_at) as entry_date, SUM(word_count) as total_words
-    # FROM journal_entries WHERE user_id = :user_id AND created_at >= :start_date
-    # GROUP BY entry_date ORDER BY entry_date DESC LIMIT :days;
-    pass
+    try:
+        # Get entries from the last N days
+        start_date = (date.today() - timedelta(days=days)).isoformat()
+        
+        response = db.table('journal_entries').select('original_text, created_at').eq('user_id', user_id).gte('created_at', start_date).execute()
+        
+        if not response.data:
+            return []
+        
+        # Group by date and count words
+        daily_counts = {}
+        for entry in response.data:
+            entry_date = entry['created_at'][:10]  # Extract date part
+            word_count = len(entry['original_text'].split()) if entry['original_text'] else 0
+            daily_counts[entry_date] = daily_counts.get(entry_date, 0) + word_count
+        
+        # Convert to WordCountStat objects
+        return [WordCountStat(date=date_str, count=count) for date_str, count in daily_counts.items()]
+    except Exception:
+        return []
 
-async def get_language_breakdown(db: SupabaseAsyncClient, user_id: str) -> Tuple[List[LanguageStat], int]:
+async def get_language_breakdown(db: SupabaseClient, user_id: str) -> Tuple[List[LanguageStat], int]:
     """Fetches language breakdown (counts and percentages) and total words for a user."""
-    # TODO: Implement Supabase query for counts per language
-    # Example: SELECT language, SUM(word_count) as total_words FROM journal_entries
-    # WHERE user_id = :user_id GROUP BY language;
-    # Calculate percentages and total words from the result.
-    pass
+    try:
+        response = db.table('journal_entries').select('tone, original_text').eq('user_id', user_id).execute()
+        
+        if not response.data:
+            return [], 0
+        
+        # Group by language (using tone field) and count words
+        language_counts = {}
+        total_words = 0
+        
+        for entry in response.data:
+            language = entry['tone'] or 'Other'
+            word_count = len(entry['original_text'].split()) if entry['original_text'] else 0
+            language_counts[language] = language_counts.get(language, 0) + word_count
+            total_words += word_count
+        
+        # Convert to LanguageStat objects with percentages
+        language_stats = []
+        for language, count in language_counts.items():
+            percentage = (count / total_words * 100) if total_words > 0 else 0
+            language_stats.append(LanguageStat(language=language, count=count, percentage=percentage))
+        
+        return language_stats, total_words
+    except Exception:
+        return [], 0
 
-async def get_all_entry_dates(db: SupabaseAsyncClient, user_id: str) -> List[date]:
+async def get_all_entry_dates(db: SupabaseClient, user_id: str) -> List[date]:
     """Fetches all unique dates on which the user made entries."""
-    # TODO: Implement Supabase query
-    # Example: SELECT DISTINCT DATE_TRUNC('day', created_at) as entry_date FROM journal_entries
-    # WHERE user_id = :user_id ORDER BY entry_date ASC;
-    pass
+    try:
+        response = db.table('journal_entries').select('created_at').eq('user_id', user_id).execute()
+        
+        if not response.data:
+            return []
+        
+        # Extract unique dates
+        unique_dates = set()
+        for entry in response.data:
+            entry_date_str = entry['created_at'][:10]  # Extract date part
+            try:
+                entry_date = date.fromisoformat(entry_date_str)
+                unique_dates.add(entry_date)
+            except ValueError:
+                continue
+        
+        return sorted(list(unique_dates))
+    except Exception:
+        return []
 
 def calculate_streaks(entry_dates: List[date], today: date = date.today()) -> Tuple[int, int]:
     """Calculates current and longest writing streaks from a list of unique entry dates."""
@@ -86,7 +136,7 @@ def calculate_streaks(entry_dates: List[date], today: date = date.today()) -> Tu
     return current_streak, longest_streak
 
 async def get_user_stats_service(
-    db: SupabaseAsyncClient, 
+    db: SupabaseClient, 
     user_id: str
 ) -> UserStatsResponse:
     """Orchestrates fetching and calculating all user stats."""

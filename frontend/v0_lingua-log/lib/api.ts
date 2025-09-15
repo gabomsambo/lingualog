@@ -403,4 +403,221 @@ export async function generateMiniQuiz(request: MiniQuizRequest): Promise<MiniQu
     throw new Error(errorData.detail || `Failed to generate mini quiz. Status: ${res.status}`);
   }
   return (await res.json()) as MiniQuizResponse;
+}
+
+// User Profile and Stats API
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProfileUpdate {
+  email?: string;
+  full_name?: string;
+}
+
+export interface UserStats {
+  wordCounts: Array<{
+    date: string;
+    count: number;
+  }>;
+  languageBreakdown: Array<{
+    language: string;
+    count: number;
+  }>;
+  streak: {
+    current: number;
+    longest: number;
+    totalWords: number;
+  };
+}
+
+export async function getUserProfile(): Promise<UserProfile> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  
+  const customHeaders: Record<string, string> = {
+    ...(authHeaders as Record<string, string>)
+  };
+
+  if (user && user.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+  
+  const res = await fetch(`${API_BASE}/user/profile`, {
+    method: "GET",
+    headers: customHeaders,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch profile. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to fetch profile. Status: ${res.status}`);
+  }
+  
+  return (await res.json()) as UserProfile;
+}
+
+export async function updateUserProfile(updateData: UserProfileUpdate): Promise<UserProfile> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  
+  const customHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(authHeaders as Record<string, string>)
+  };
+
+  if (user && user.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+  
+  const res = await fetch(`${API_BASE}/user/profile`, {
+    method: "PUT",
+    headers: customHeaders,
+    body: JSON.stringify(updateData),
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to update profile. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to update profile. Status: ${res.status}`);
+  }
+  
+  return (await res.json()) as UserProfile;
+}
+
+export async function getUserStats(): Promise<UserStats> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  
+  const customHeaders: Record<string, string> = {
+    ...(authHeaders as Record<string, string>)
+  };
+
+  if (user && user.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+  
+  const res = await fetch(`${API_BASE}/user/stats`, {
+    method: "GET",
+    headers: customHeaders,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch stats. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to fetch stats. Status: ${res.status}`);
+  }
+  
+  return (await res.json()) as UserStats;
+}
+
+// User Settings API
+
+export interface UserSettingsData {
+  id: string;
+  user_id: string;
+  native_language: string;
+  target_languages: string[];
+  email_notifications: boolean;
+  push_notifications: boolean;
+  daily_reminders: boolean;
+  weekly_progress: boolean;
+  reminder_time: string;
+  theme: string;
+  app_language: string;
+  sound_effects: boolean;
+  animations: boolean;
+  difficulty_level: string;
+  daily_goal: number;
+  weekly_goal: number;
+  auto_save: boolean;
+  show_hints: boolean;
+  public_profile: boolean;
+  share_progress: boolean;
+  analytics_opt_in: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSettingsUpdate {
+  native_language?: string;
+  target_languages?: string[];
+  email_notifications?: boolean;
+  push_notifications?: boolean;
+  daily_reminders?: boolean;
+  weekly_progress?: boolean;
+  reminder_time?: string;
+  theme?: string;
+  app_language?: string;
+  sound_effects?: boolean;
+  animations?: boolean;
+  difficulty_level?: string;
+  daily_goal?: number;
+  weekly_goal?: number;
+  auto_save?: boolean;
+  show_hints?: boolean;
+  public_profile?: boolean;
+  share_progress?: boolean;
+  analytics_opt_in?: boolean;
+}
+
+export async function getUserSettings(): Promise<UserSettingsData> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  
+  const customHeaders: Record<string, string> = {
+    ...(authHeaders as Record<string, string>)
+  };
+
+  if (user && user.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+  
+  const res = await fetch(`${API_BASE}/user/settings`, {
+    method: "GET",
+    headers: customHeaders,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch settings. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to fetch settings. Status: ${res.status}`);
+  }
+  
+  return (await res.json()) as UserSettingsData;
+}
+
+export async function updateUserSettings(updateData: UserSettingsUpdate): Promise<UserSettingsData> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  
+  const customHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(authHeaders as Record<string, string>)
+  };
+
+  if (user && user.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+  
+  const res = await fetch(`${API_BASE}/user/settings`, {
+    method: "PUT",
+    headers: customHeaders,
+    body: JSON.stringify(updateData),
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to update settings. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to update settings. Status: ${res.status}`);
+  }
+  
+  return (await res.json()) as UserSettingsData;
 } 

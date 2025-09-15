@@ -39,6 +39,52 @@ class LoginRequest(BaseModel):
     username: EmailStr # Assuming email is used as username
     password: str
 
+# --- User Settings Models ---
+class UserSettings(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    native_language: str = "en"
+    target_languages: List[str] = ["es"]
+    email_notifications: bool = True
+    push_notifications: bool = True
+    daily_reminders: bool = True
+    weekly_progress: bool = True
+    reminder_time: str = "09:00"
+    theme: str = "system"
+    app_language: str = "en"
+    sound_effects: bool = True
+    animations: bool = True
+    difficulty_level: str = "intermediate"
+    daily_goal: int = 100
+    weekly_goal: int = 700
+    auto_save: bool = True
+    show_hints: bool = True
+    public_profile: bool = False
+    share_progress: bool = False
+    analytics_opt_in: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+class UserSettingsUpdate(BaseModel):
+    native_language: Optional[str] = None
+    target_languages: Optional[List[str]] = None
+    email_notifications: Optional[bool] = None
+    push_notifications: Optional[bool] = None
+    daily_reminders: Optional[bool] = None
+    weekly_progress: Optional[bool] = None
+    reminder_time: Optional[str] = None
+    theme: Optional[str] = None
+    app_language: Optional[str] = None
+    sound_effects: Optional[bool] = None
+    animations: Optional[bool] = None
+    difficulty_level: Optional[str] = None
+    daily_goal: Optional[int] = None
+    weekly_goal: Optional[int] = None
+    auto_save: Optional[bool] = None
+    show_hints: Optional[bool] = None
+    public_profile: Optional[bool] = None
+    share_progress: Optional[bool] = None
+    analytics_opt_in: Optional[bool] = None
 
 # --- Journal Entry Models ---
 class JournalEntryBase(BaseModel):

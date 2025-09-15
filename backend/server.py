@@ -25,7 +25,7 @@ from models import (
     UserVocabularyItemCreate,
     UserVocabularyItemResponse
 )
-from app.models import JournalEntry # Corrected import for JournalEntry
+from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate # Corrected import for JournalEntry
 # Old AI engines removed - now using Atomic Agents as primary system
 # from feedback_engine import generate_feedback, analyze_entry
 from database import (
@@ -43,6 +43,8 @@ from database import (
 
 # Import the new router
 from app.routers import vocabulary_ai # Adjusted import path
+from app.services.stats_service import get_user_stats_service
+from app.schemas.stats_schemas import UserStatsResponse
 
 # Configure logger
 # Ensure basicConfig is called to set up the root logger handler and level
@@ -531,6 +533,266 @@ async def create_log_entry_atomic(entry: JournalEntryRequest, request: Request):
         # Fallback to original endpoint logic
         logger.info("Falling back to original analysis method")
         return await create_log_entry(entry, request)
+
+
+# User Profile and Stats Endpoints
+
+@app.get("/user/profile", response_model=User, status_code=status.HTTP_200_OK)
+async def get_user_profile(request: Request):
+    """
+    Get the current user's profile information.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User ID not provided"
+        )
+    
+    try:
+        # Get user from Supabase auth users table
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Get user profile from auth.users
+        response = supabase.auth.admin.get_user_by_id(user_id)
+        if not response.user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user = response.user
+        
+        # Get additional profile data from users table if it exists
+        profile_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        profile_data = profile_response.data[0] if profile_response.data else {}
+        
+        return User(
+            id=uuid.UUID(user.id),
+            email=user.email or "",
+            full_name=profile_data.get('username') or user.user_metadata.get('full_name'),
+            is_active=True,
+            is_superuser=False,
+            created_at=user.created_at,
+            updated_at=user.updated_at or user.created_at
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching user profile for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fetch user profile: {str(e)}"
+        )
+
+@app.put("/user/profile", response_model=User, status_code=status.HTTP_200_OK)
+async def update_user_profile(user_update: UserUpdate, request: Request):
+    """
+    Update the current user's profile information.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User ID not provided"
+        )
+    
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Update user metadata in auth.users if needed
+        update_data = {}
+        if user_update.email:
+            update_data['email'] = user_update.email
+        if user_update.full_name:
+            update_data['user_metadata'] = {'full_name': user_update.full_name}
+        
+        if update_data:
+            supabase.auth.admin.update_user_by_id(user_id, update_data)
+        
+        # Update username in users table (only username, never email)
+        if user_update.full_name:
+            # Use UPDATE instead of UPSERT to avoid setting email to null
+            update_response = supabase.table('users').update({
+                'username': user_update.full_name
+            }).eq('id', user_id).execute()
+            
+            # If no rows were updated, the user doesn't exist in users table
+            # Create the record with email from auth.users
+            if not update_response.data:
+                auth_user = supabase.auth.admin.get_user_by_id(user_id)
+                if auth_user.user and auth_user.user.email:
+                    supabase.table('users').insert({
+                        'id': user_id,
+                        'email': auth_user.user.email,
+                        'username': user_update.full_name
+                    }).execute()
+        
+        # Fetch and return updated user profile
+        return await get_user_profile(request)
+        
+    except Exception as e:
+        logger.error(f"Error updating user profile for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not update user profile: {str(e)}"
+        )
+
+@app.get("/user/stats", response_model=UserStatsResponse, status_code=status.HTTP_200_OK)
+async def get_user_stats(request: Request):
+    """
+    Get comprehensive statistics for the current user.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User ID not provided"
+        )
+    
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Use the existing stats service
+        stats = await get_user_stats_service(supabase, user_id)
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Error fetching user stats for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fetch user stats: {str(e)}"
+        )
+
+# User Settings Endpoints
+
+@app.get("/user/settings", response_model=UserSettings, status_code=status.HTTP_200_OK)
+async def get_user_settings(request: Request):
+    """
+    Get the current user's settings.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User ID not provided"
+        )
+    
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Get user settings from user_settings table
+        response = supabase.table('user_settings').select('*').eq('user_id', user_id).execute()
+        
+        if not response.data:
+            # Create default settings for new user
+            default_settings = {
+                'user_id': user_id,
+                'native_language': 'en',
+                'target_languages': ['es'],
+                'email_notifications': True,
+                'push_notifications': True,
+                'daily_reminders': True,
+                'weekly_progress': True,
+                'reminder_time': '09:00',
+                'theme': 'system',
+                'app_language': 'en',
+                'sound_effects': True,
+                'animations': True,
+                'difficulty_level': 'intermediate',
+                'daily_goal': 100,
+                'weekly_goal': 700,
+                'auto_save': True,
+                'show_hints': True,
+                'public_profile': False,
+                'share_progress': False,
+                'analytics_opt_in': True
+            }
+            
+            create_response = supabase.table('user_settings').insert(default_settings).execute()
+            if create_response.data:
+                settings_data = create_response.data[0]
+            else:
+                raise Exception("Failed to create default settings")
+        else:
+            settings_data = response.data[0]
+        
+        return UserSettings(
+            id=uuid.UUID(settings_data['id']),
+            user_id=uuid.UUID(settings_data['user_id']),
+            native_language=settings_data['native_language'],
+            target_languages=settings_data['target_languages'],
+            email_notifications=settings_data['email_notifications'],
+            push_notifications=settings_data['push_notifications'],
+            daily_reminders=settings_data['daily_reminders'],
+            weekly_progress=settings_data['weekly_progress'],
+            reminder_time=settings_data['reminder_time'],
+            theme=settings_data['theme'],
+            app_language=settings_data['app_language'],
+            sound_effects=settings_data['sound_effects'],
+            animations=settings_data['animations'],
+            difficulty_level=settings_data['difficulty_level'],
+            daily_goal=settings_data['daily_goal'],
+            weekly_goal=settings_data['weekly_goal'],
+            auto_save=settings_data['auto_save'],
+            show_hints=settings_data['show_hints'],
+            public_profile=settings_data['public_profile'],
+            share_progress=settings_data['share_progress'],
+            analytics_opt_in=settings_data['analytics_opt_in'],
+            created_at=settings_data['created_at'],
+            updated_at=settings_data['updated_at']
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching user settings for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fetch user settings: {str(e)}"
+        )
+
+@app.put("/user/settings", response_model=UserSettings, status_code=status.HTTP_200_OK)
+async def update_user_settings(settings_update: UserSettingsUpdate, request: Request):
+    """
+    Update the current user's settings.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="User ID not provided"
+        )
+    
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Prepare update data, only including non-None fields
+        update_data = {}
+        for field, value in settings_update.model_dump(exclude_none=True).items():
+            update_data[field] = value
+        
+        if not update_data:
+            # If no fields to update, just return current settings
+            return await get_user_settings(request)
+        
+        # Update settings in database
+        response = supabase.table('user_settings').update(update_data).eq('user_id', user_id).execute()
+        
+        if not response.data:
+            raise Exception("No settings found to update")
+        
+        # Return updated settings
+        return await get_user_settings(request)
+        
+    except Exception as e:
+        logger.error(f"Error updating user settings for user {user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not update user settings: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
