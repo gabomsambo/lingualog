@@ -17,13 +17,14 @@ import { LoadingSpinner } from "@/components/loading-spinner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getEntryById, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
 import type { Entry, GrammarSuggestion, NewWord, Rubric } from "@/types/entry"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 // Helper to determine fluency level based on score
-const determineFluencyLevel = (score: number): string => {
-  if (score >= 90) return "Advanced";
-  if (score >= 75) return "Intermediate";
-  if (score >= 50) return "Beginner";
-  return "Novice";
+const determineFluencyLevel = (score: number, t: any): string => {
+  if (score >= 90) return t('common.advanced');
+  if (score >= 75) return t('common.intermediate');
+  if (score >= 50) return t('common.beginner');
+  return t('common.novice');
 };
 
 // Helper to get language emoji (you might want to move this to a utils file)
@@ -58,6 +59,7 @@ export default function EntryInsightPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { t } = useLocale()
   const [loading, setLoading] = useState(true)
   const [entry, setEntry] = useState<Entry | null>(null)
   const [showTranslation, setShowTranslation] = useState(false)
@@ -70,7 +72,7 @@ export default function EntryInsightPage() {
   const loadFullEntryData = useCallback(async () => {
     if (!params.id || typeof params.id !== 'string') {
       setLoading(false)
-      toast({ title: "Error", description: "Invalid entry ID.", variant: "destructive" })
+      toast({ title: t('common.error'), description: t('common.invalidEntryId'), variant: "destructive" })
       router.push("/dashboard")
       return
     }
@@ -95,8 +97,8 @@ export default function EntryInsightPage() {
           id: fetchedEntryData.id,
           user_id: fetchedEntryData.user_id,
           content: fetchedEntryData.content || "", // Already correct and part of Entry type
-          title: fetchedEntryData.title || `Entry from ${new Date(fetchedEntryData.created_at || Date.now()).toLocaleDateString()}`,
-          language: fetchedEntryData.language || "Unknown",
+          title: fetchedEntryData.title || `${t('common.entry')} from ${new Date(fetchedEntryData.created_at || Date.now()).toLocaleDateString()}`,
+          language: fetchedEntryData.language || t('common.unknown'),
           languageCode: mapLanguageToCode(fetchedEntryData.language),
           languageEmoji: getLanguageEmoji(mapLanguageToCode(fetchedEntryData.language)),
           created_at: fetchedEntryData.created_at,
@@ -137,12 +139,12 @@ export default function EntryInsightPage() {
         setEntry(processedEntry)
         setIsFavorite(processedEntry.is_favorite || false)
       } else {
-        toast({ title: "Entry not found", description: "Could not find the requested entry.", variant: "destructive" })
+        toast({ title: t('common.entryNotFound'), description: t('common.couldNotFindEntry'), variant: "destructive" })
         router.push("/dashboard")
       }
     } catch (error) {
       console.error("Failed to load entry or vocabulary:", error)
-      toast({ title: "Error", description: "Failed to load entry details or vocabulary.", variant: "destructive" })
+      toast({ title: t('common.error'), description: t('common.failedToLoadEntry'), variant: "destructive" })
     } finally {
       setLoading(false)
       setVocabLoading(false)
@@ -175,7 +177,7 @@ export default function EntryInsightPage() {
     const newFavoriteStatus = !isFavorite;
     setIsFavorite(newFavoriteStatus);
     toast({
-      title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
+      title: newFavoriteStatus ? t('common.addedToFavorites') : t('common.removedFromFavorites'),
     });
     setEntry(prev => prev ? { ...prev, is_favorite: newFavoriteStatus } : null);
   };
@@ -238,7 +240,7 @@ export default function EntryInsightPage() {
 
   const fluencyScoreData = {
     overall: entry.score || 0,
-    level: determineFluencyLevel(entry.score || 0),
+    level: determineFluencyLevel(entry.score || 0, t),
     grammar: entry.rubric?.grammar || 0,
     vocabulary: entry.rubric?.vocabulary || 0,
     complexity: entry.rubric?.complexity || 0,
@@ -285,13 +287,13 @@ export default function EntryInsightPage() {
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm" onClick={handleCopyText}>
             {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
-            {copied ? "Copied!" : "Copy Text"}
+            {copied ? t('common.copied') : t('common.copyText')}
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF}>
             <Download className="mr-2 h-4 w-4" />
             Export PDF
           </Button>
-          <Button variant="outline" size="icon" onClick={handleToggleFavorite} title={entry.is_favorite ? "Remove from favorites" : "Add to favorites"}>
+          <Button variant="outline" size="icon" onClick={handleToggleFavorite} title={entry.is_favorite ? t('common.removeFromFavorites') : t('common.addToFavorites')}>
             {entry.is_favorite ? <StarOff className="h-5 w-5 text-yellow-500 fill-yellow-500" /> : <Star className="h-5 w-5 text-muted-foreground" />}
           </Button>
         </div>
@@ -310,8 +312,8 @@ export default function EntryInsightPage() {
       {/* ROW 1: Entry Viewer (Full Width) */}
       <div className="mb-8">
         <EntryViewer entry={{
-          title: entry.title || "Entry",
-          language: entry.language || "Unknown",
+          title: entry.title || t('common.entry'),
+          language: entry.language || t('common.unknown'),
           languageEmoji: entry.languageEmoji || "📝",
           date: entry.created_at || new Date().toISOString(),
           content: entry.content
@@ -321,7 +323,7 @@ export default function EntryInsightPage() {
       {/* ROW 2: Translation Panel (Full Width) */}
       <div className="mb-8">
         <TranslationPanel entry={{
-            language: entry.language || "Unknown",
+            language: entry.language || t('common.unknown'),
             content: entry.content,
             translation: entry.translation
           }}
@@ -362,7 +364,7 @@ export default function EntryInsightPage() {
       <div className="mb-8">
         <VocabularyPanel
           words={processedWords}
-          language={entry.language || "Unknown"}
+          language={entry.language || t('common.unknown')}
           entryId={entry.id}
           onVocabularyUpdate={handleVocabularyUpdate}
           isLoading={vocabLoading}

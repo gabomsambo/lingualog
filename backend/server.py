@@ -28,6 +28,10 @@ from models import (
 from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate # Corrected import for JournalEntry
 # Old AI engines removed - now using Atomic Agents as primary system
 # from feedback_engine import generate_feedback, analyze_entry
+
+# Import new language policy and prompt builder modules
+from lang_policy import resolve_effective, EffectiveSettings
+from prompt_builder import build_messages, extract_snapshot_data, validate_ai_response
 from database import (
     save_entry, 
     fetch_entries, 
@@ -56,6 +60,41 @@ logger.propagate = True # Ensure messages go to the root logger
 
 # Test log to see if basicConfig is working on startup
 logger.debug("Root logger configured, LinguaLog API logger set to DEBUG.")
+
+
+async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
+    """
+    Fetch user profile settings for language policy resolution.
+    
+    Args:
+        user_id: User ID to fetch settings for
+        
+    Returns:
+        Dictionary of user settings or None if not found/authenticated
+    """
+    if not user_id:
+        logger.info("No user_id provided, using default settings")
+        return None
+    
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        
+        # Get user settings from user_settings table
+        response = supabase.table('user_settings').select('*').eq('user_id', user_id).execute()
+        
+        if response.data:
+            settings_data = response.data[0]
+            logger.info(f"Fetched user settings for user {user_id}")
+            return settings_data
+        else:
+            logger.info(f"No settings found for user {user_id}, will use defaults")
+            return None
+            
+    except Exception as e:
+        logger.warning(f"Failed to fetch user settings for {user_id}: {str(e)}")
+        return None
+
 
 # --- Background Tasks ---
 
@@ -160,10 +199,10 @@ async def login(login_request: LoginRequest):
 @app.post("/log-entry", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_log_entry(entry: JournalEntryRequest, request: Request):
     """
-    Process a journal entry and generate AI feedback.
+    Process a journal entry and generate AI feedback using language policy resolution.
     
     Args:
-        entry: The journal entry text from the user
+        entry: The journal entry request with text and optional language overrides
         request: The request object containing user info (if available)
         
     Returns:
@@ -176,23 +215,61 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         # Get user_id from request headers if present
         user_id = request.headers.get("X-User-ID")
         
-        # Generate feedback using Atomic Agents (new primary system)
+        # Step 1: Fetch user profile settings
+        profile_settings = await fetch_user_profile_settings(user_id)
+        
+        # Step 2: Build request overrides from entry fields
+        request_overrides = {}
+        if entry.target_language:
+            request_overrides['target_language'] = entry.target_language
+        if entry.language:  # Use language field as target_language if target_language not specified
+            request_overrides['language'] = entry.language
+        if entry.ui_language:
+            request_overrides['ui_language'] = entry.ui_language
+        if entry.explanation_mode:
+            request_overrides['explanation_mode'] = entry.explanation_mode
+        if entry.strictness:
+            request_overrides['strictness'] = entry.strictness
+        if entry.formality:
+            request_overrides['formality'] = entry.formality
+        if entry.immersion_level is not None:
+            request_overrides['immersion_level'] = entry.immersion_level
+        
+        # Step 3: Resolve effective language settings
+        effective_settings = resolve_effective(profile_settings, request_overrides)
+        
+        # Step 4: Build system prompt and user message using language settings
+        system_prompt, user_payload = build_messages(entry.text, effective_settings)
+        
+        # Step 5: Generate feedback using Atomic Agents with custom prompts
         try:
             from services.agent_service import analyze_entry_atomic_compat
-            logger.info(f"Using Atomic Agents for analysis: {len(entry.text)} chars, language: {entry.language}")
-            analysis = await analyze_entry_atomic_compat(entry.text, entry.language, user_id, "intermediate")
+            logger.info(f"Using Atomic Agents with language policy: {len(entry.text)} chars, "
+                       f"L1={effective_settings.l1}, L2={effective_settings.l2}, "
+                       f"mode={effective_settings.explanation_mode}")
+            
+            # Use the resolved target language for analysis
+            target_lang = effective_settings.l2
+            proficiency = user_payload.get('proficiency_estimate', 'intermediate')
+            
+            analysis = await analyze_entry_atomic_compat(entry.text, target_lang, user_id, proficiency)
         except Exception as e:
             logger.warning(f"Atomic Agents failed, using mock fallback: {str(e)}")
-            # Fallback to mock system if atomic agents fail (old engines removed)
+            # Fallback to mock system if atomic agents fail
             from feedback_engine import analyze_with_mock
-            analysis = analyze_with_mock(entry.text, entry.language)
+            analysis = analyze_with_mock(entry.text, effective_settings.l2)
         
-        # Convert dictionary to Pydantic model for validation
-        # Ensure all fields required by FeedbackResponse are present in analysis,
-        # or provide defaults directly here if not handled by generate_feedback.
+        # Step 6: Validate AI response format
+        try:
+            validate_ai_response(analysis)
+        except ValueError as e:
+            logger.warning(f"AI response validation failed: {e}")
+            # Continue with potentially incomplete response
+        
+        # Step 7: Convert dictionary to Pydantic model for validation
         feedback_response = FeedbackResponse(**{
-            "corrected": analysis.get("corrected", entry.text), # Default to original if missing
-            "rewritten": analysis.get("rewrite", entry.text), # Default to original if missing
+            "corrected": analysis.get("corrected", entry.text),
+            "rewritten": analysis.get("rewrite", entry.text),
             "score": analysis.get("score", 0),
             "tone": analysis.get("tone", "Neutral"),
             "translation": analysis.get("translation", "Translation not available."),
@@ -202,26 +279,31 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
             "new_words": analysis.get("new_words", [])
         })
         
-        # Save entry and feedback to Supabase - this is optional and shouldn't fail the request
+        # Step 8: Save entry and feedback to Supabase with language snapshots
         try:
+            # Extract snapshot data for this entry
+            snapshot_data = extract_snapshot_data(effective_settings)
+            
             entry_data = {
-                "user_id": user_id,  # Will be None if not authenticated
+                "user_id": user_id,
                 "original_text": entry.text,
                 "title": entry.title,
-                "language": entry.language,
+                "language": entry.language or effective_settings.l2,
                 "corrected": feedback_response.corrected,
                 "rewrite": feedback_response.rewritten,
                 "score": feedback_response.score,
                 "tone": feedback_response.tone,
                 "translation": feedback_response.translation,
-                "explanation": feedback_response.explanation, # Added explanation
-                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None, # Serialize Rubric
-                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [], # Serialize List[Suggestion]
-                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [] # Serialize List[Word]
+                "explanation": feedback_response.explanation,
+                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
+                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+                # Add language snapshot data
+                **snapshot_data
             }
             
             saved_entry = save_entry(entry_data)
-            logger.info(f"Entry saved with ID: {saved_entry.get('id', 'unknown')}")
+            logger.info(f"Entry saved with ID: {saved_entry.get('id', 'unknown')} and language snapshots")
         except Exception as e:
             # Log the error but don't fail the request if database save fails
             logger.error(f"Failed to save entry to database: {str(e)}")
@@ -743,7 +825,15 @@ async def get_user_settings(request: Request):
             share_progress=settings_data['share_progress'],
             analytics_opt_in=settings_data['analytics_opt_in'],
             created_at=settings_data['created_at'],
-            updated_at=settings_data['updated_at']
+            updated_at=settings_data['updated_at'],
+            # New multilingual fields from migration
+            interface_lang=settings_data.get('interface_lang', 'en'),
+            native_lang=settings_data.get('native_lang', 'en'),
+            default_target_lang=settings_data.get('default_target_lang'),
+            explanation_mode=settings_data.get('explanation_mode', 'bilingual'),
+            immersion_level=settings_data.get('immersion_level', 1),
+            strictness=settings_data.get('strictness', 'medium'),
+            formality=settings_data.get('formality', 'neutral')
         )
         
     except Exception as e:

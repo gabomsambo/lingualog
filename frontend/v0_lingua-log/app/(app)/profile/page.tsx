@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { getUserProfile as getApiUserProfile, updateUserProfile, getUserStats, type UserProfile as ApiUserProfile, type UserStats } from "@/lib/api"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 // Interface for display purposes (with additional fields not in backend)
 interface DisplayUserProfile extends Omit<ApiUserProfile, 'id'> {
@@ -22,20 +23,24 @@ interface DisplayUserProfile extends Omit<ApiUserProfile, 'id'> {
   username?: string;
 }
 
-const recentAchievements = [
-  { id: 1, title: "First Entry", description: "Wrote your first journal entry", icon: "📝", date: "2024-01-15" },
-  { id: 2, title: "Vocabulary Master", description: "Learned 300+ vocabulary words", icon: "📚", date: "2024-09-10" },
-  { id: 3, title: "Streak Champion", description: "Maintained a 7-day streak", icon: "🔥", date: "2024-09-12" },
-  { id: 4, title: "Language Explorer", description: "Started learning a new language", icon: "🌍", date: "2024-09-01" }
-]
+// This will be moved inside the component to use translations
 
 export default function ProfilePage() {
   const { toast } = useToast()
+  const { t } = useLocale()
   const [userProfile, setUserProfile] = useState<DisplayUserProfile | null>(null)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedProfile, setEditedProfile] = useState<Partial<DisplayUserProfile>>({})
   const [isLoading, setIsLoading] = useState(true)
+
+  // Achievements with translations
+  const recentAchievements = [
+    { id: 1, title: t('common.firstEntry'), description: t('common.firstEntryDescription'), icon: "📝", date: "2024-01-15" },
+    { id: 2, title: t('common.vocabularyMaster'), description: t('common.vocabularyMasterDescription'), icon: "📚", date: "2024-09-10" },
+    { id: 3, title: t('common.streakChampion'), description: t('common.streakChampionDescription'), icon: "🔥", date: "2024-09-12" },
+    { id: 4, title: t('common.languageExplorer'), description: t('common.languageExplorerDescription'), icon: "🌍", date: "2024-09-01" }
+  ]
 
   useEffect(() => {
     async function loadProfileAndStats() {
@@ -65,7 +70,7 @@ export default function ProfilePage() {
       } catch (error) {
         console.error('Error loading profile and stats:', error)
         toast({
-          title: "Error loading profile",
+          title: t('common.errorLoadingProfile'),
           description: "Failed to load your profile data. Please try again.",
           variant: "destructive",
         })
@@ -115,7 +120,7 @@ export default function ProfilePage() {
     } catch (error) {
       console.error('Error updating profile:', error)
       toast({
-        title: "Error updating profile",
+        title: t('common.errorUpdatingProfile'),
         description: "Failed to update your profile. Please try again.",
         variant: "destructive",
       })
@@ -164,7 +169,7 @@ export default function ProfilePage() {
                   {/* Avatar Section */}
                   <div className="relative group">
                     <Avatar className="h-32 w-32 ring-4 ring-fun-purple/30 transition-all duration-300 group-hover:ring-fun-purple/70">
-                      <AvatarImage src="/mystical-forest-spirit.png" alt="Profile avatar" />
+                      <AvatarImage src="/mystical-forest-spirit.png" alt={t('common.profileAvatar')} />
                       <AvatarFallback className="bg-gradient-to-br from-fun-blue to-fun-purple text-white text-4xl">
                         {userProfile.email.charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -183,7 +188,7 @@ export default function ProfilePage() {
                     {isEditing ? (
                       <div className="space-y-4">
                         <div>
-                          <Label htmlFor="username">Display Name</Label>
+                          <Label htmlFor="username">{t('common.displayName')}</Label>
                           <Input
                             id="username"
                             value={editedProfile.username || ""}
@@ -192,10 +197,10 @@ export default function ProfilePage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="bio">Bio</Label>
+                          <Label htmlFor="bio">{t('common.bio')}</Label>
                           <Textarea
                             id="bio"
-                            placeholder="Tell us about your language learning journey..."
+                            placeholder={t('common.tellUsAboutJourney')}
                             value={(editedProfile as any).bio || ""}
                             onChange={(e) => setEditedProfile(prev => ({ ...prev, bio: e.target.value }))}
                             className="mt-1"
@@ -210,20 +215,20 @@ export default function ProfilePage() {
                         </h1>
                         <p className="text-xl text-muted-foreground mb-2">{userProfile.email}</p>
                         <p className="text-lg text-muted-foreground mb-4">
-                          {(userProfile as any).bio || "Language learner on an exciting journey! 🌟"}
+                          {(userProfile as any).bio || t('common.languageLearnerJourney')}
                         </p>
                         <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                           <Badge variant="outline" className="bg-fun-purple/10 text-fun-purple border-fun-purple/20">
                             <Languages className="mr-1 h-3 w-3" />
-                            Intermediate
+                            {t('common.intermediate')}
                           </Badge>
                           <Badge variant="outline" className="bg-fun-blue/10 text-fun-blue border-fun-blue/20">
                             <Calendar className="mr-1 h-3 w-3" />
-                            Joined {new Date(userProfile.created_at).toLocaleDateString()}
+                            {t('common.joined')} {new Date(userProfile.created_at).toLocaleDateString()}
                           </Badge>
                           <Badge variant="outline" className="bg-fun-pink/10 text-fun-pink border-fun-pink/20">
                             <Flame className="mr-1 h-3 w-3" />
-                            {userStats.streak.current} day streak
+                            {userStats.streak.current} {t('common.dayStreak')}
                           </Badge>
                         </div>
                       </>
@@ -235,16 +240,16 @@ export default function ProfilePage() {
                     {isEditing ? (
                       <>
                         <Button onClick={handleSaveProfile} className="bg-gradient-to-r from-fun-green to-fun-blue hover:shadow-lg">
-                          Save Changes
+                          {t('common.saveChanges')}
                         </Button>
                         <Button variant="outline" onClick={() => setIsEditing(false)}>
-                          Cancel
+                          {t('common.cancel')}
                         </Button>
                       </>
                     ) : (
                       <Button onClick={() => setIsEditing(true)} variant="outline" className="gap-2">
                         <Edit2 className="h-4 w-4" />
-                        Edit Profile
+                        {t('common.editProfile')}
                       </Button>
                     )}
                   </div>
@@ -253,7 +258,7 @@ export default function ProfilePage() {
                 {/* Level Progress */}
                 <div className="mt-6 p-4 bg-gradient-to-r from-fun-purple/5 to-fun-blue/5 rounded-2xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Current Streak</span>
+                    <span className="text-sm font-medium">{t('common.currentStreak')}</span>
                     <span className="text-sm text-muted-foreground">{userStats.streak.current} / {userStats.streak.longest} days</span>
                   </div>
                   <Progress value={(userStats.streak.current / Math.max(userStats.streak.longest, 1)) * 100} className="h-3" />
@@ -278,7 +283,7 @@ export default function ProfilePage() {
                   className="text-3xl font-bold text-fun-blue"
                   delay={0.1}
                 />
-                <p className="text-sm text-muted-foreground">Journal Entries</p>
+                <p className="text-sm text-muted-foreground">{t('common.journalEntries')}</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -296,7 +301,7 @@ export default function ProfilePage() {
                   className="text-3xl font-bold text-fun-purple"
                   delay={0.2}
                 />
-                <p className="text-sm text-muted-foreground">Words Learned</p>
+                <p className="text-sm text-muted-foreground">{t('common.wordsLearned')}</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -314,7 +319,7 @@ export default function ProfilePage() {
                   className="text-3xl font-bold text-fun-pink"
                   delay={0.3}
                 />
-                <p className="text-sm text-muted-foreground">Current Streak</p>
+                <p className="text-sm text-muted-foreground">{t('common.currentStreak')}</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -335,7 +340,7 @@ export default function ProfilePage() {
                     decimalPlaces={0}
                   />
                 </div>
-                <p className="text-sm text-muted-foreground">Languages</p>
+                <p className="text-sm text-muted-foreground">{t('common.languages')}</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -344,9 +349,9 @@ export default function ProfilePage() {
         {/* Detailed Sections */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="achievements">Achievements</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="overview">{t('common.overview')}</TabsTrigger>
+            <TabsTrigger value="achievements">{t('common.achievements')}</TabsTrigger>
+            <TabsTrigger value="activity">{t('common.activity')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -358,26 +363,26 @@ export default function ProfilePage() {
                     <Target className="h-5 w-5 text-fun-purple" />
                     Learning Goals
                   </CardTitle>
-                  <CardDescription>Your current language learning objectives</CardDescription>
+                  <CardDescription>{t('common.currentLanguageObjectives')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>Daily Writing Goal</span>
+                      <span>{t('common.dailyWritingGoal')}</span>
                       <span>7/10 days</span>
                     </div>
                     <Progress value={70} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>Weekly Vocabulary Goal</span>
+                      <span>{t('common.weeklyVocabularyGoal')}</span>
                       <span>18/25 words</span>
                     </div>
                     <Progress value={72} className="h-2" />
                   </div>
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span>Monthly Entry Goal</span>
+                      <span>{t('common.monthlyEntryGoal')}</span>
                       <span>12/20 entries</span>
                     </div>
                     <Progress value={60} className="h-2" />

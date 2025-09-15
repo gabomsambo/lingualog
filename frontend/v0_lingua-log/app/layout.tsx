@@ -2,9 +2,12 @@ import type React from "react"
 import { Nunito } from "next/font/google"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
+import { LocaleProvider } from "@/i18n/LocaleProvider"
+import { DevLanguageSwitcher } from "@/components/dev-language-switcher"
 import Script from "next/script"
 
 import "./globals.css"
+// import "../i18n/i18n" // Temporarily disabled for testing
 
 // Configure the Nunito font with all weights for a more rounded, playful look
 const nunito = Nunito({
@@ -28,10 +31,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${nunito.className} font-playful min-h-screen`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <LocaleProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+            {children}
+            <Toaster />
+            <DevLanguageSwitcher />
+          </ThemeProvider>
+        </LocaleProvider>
         
         {/* API URL fix script */}
         <Script src="/fix-api.js" strategy="afterInteractive" />

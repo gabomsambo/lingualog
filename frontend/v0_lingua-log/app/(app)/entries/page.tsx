@@ -17,14 +17,7 @@ import { getEntries, deleteEntry as apiDeleteEntry } from "@/lib/api"
 import { formatDate, getLanguageEmoji, getDisplayTitle, getExcerpt } from "@/lib/utils"
 import type { Entry } from "@/types/entry"
 import { useToast } from "@/components/ui/use-toast"
-
-// We'll use tone options since we don't have language in the new Entry type
-const toneOptions = [
-  { value: "all", label: "All Tones" },
-  { value: "Reflective", label: "💭 Reflective" },
-  { value: "Confident", label: "💪 Confident" },
-  { value: "Neutral", label: "⚖️ Neutral" },
-]
+import { useLocale } from "@/i18n/LocaleProvider"
 
 // Badge variants for tones
 const toneBadgeVariants: Record<string, "blue" | "green" | "default" | "outline" | "pink" | "purple" | "yellow"> = {
@@ -41,6 +34,15 @@ export default function EntriesPage() {
   const [toneFilter, setToneFilter] = useState("all")
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
+  const { t } = useLocale()
+
+  // Dynamic tone options using i18n
+  const toneOptions = [
+    { value: "all", label: t('common.all') + " " + t('feedback.tone') },
+    { value: "Reflective", label: "💭 " + t('feedback.tones.Reflective') },
+    { value: "Confident", label: "💪 " + t('feedback.tones.Confident') },
+    { value: "Neutral", label: "⚖️ " + t('feedback.tones.Neutral') },
+  ]
 
   useEffect(() => {
     async function fetchEntries() {
@@ -180,9 +182,9 @@ export default function EntriesPage() {
         className="mb-8"
       >
         <h1 className="text-4xl font-bold mb-2">
-          <span className="fun-heading">Your Journal Entries</span> 📚
+          <span className="fun-heading">{t('common.yourJournalEntries')}</span> 📚
         </h1>
-        <p className="text-xl text-muted-foreground">View everything you've written and track your growth.</p>
+        <p className="text-xl text-muted-foreground">{t('common.viewEverythingWritten')}</p>
       </motion.div>
 
       {/* Search and Filter Bar */}
@@ -209,7 +211,7 @@ export default function EntriesPage() {
                 onClick={() => setSearchTerm("")}
               >
                 <X className="h-5 w-5" />
-                <span className="sr-only">Clear search</span>
+                <span className="sr-only">{t('common.clearSearch')}</span>
               </Button>
             )}
           </div>
@@ -268,7 +270,7 @@ export default function EntriesPage() {
             className="text-center py-16"
           >
             <X className="h-16 w-16 mx-auto mb-6 text-red-500 opacity-70" />
-            <h2 className="text-2xl font-bold mb-3">Something went wrong</h2>
+            <h2 className="text-2xl font-bold mb-3">{t('common.somethingWentWrong')}</h2>
             <p className="text-muted-foreground text-lg mb-8">{error}</p>
             <Button
               variant="outline"
@@ -292,12 +294,12 @@ export default function EntriesPage() {
               // No entries at all
               <>
                 <Languages className="h-16 w-16 mx-auto mb-6 text-fun-purple opacity-70" />
-                <h2 className="text-2xl font-bold mb-3">No entries yet</h2>
-                <p className="text-muted-foreground text-lg mb-8">Start writing to begin your language journey! ✍️</p>
+                <h2 className="text-2xl font-bold mb-3">{t('common.noEntriesYet')}</h2>
+                <p className="text-muted-foreground text-lg mb-8">{t('common.startWritingJourney')}</p>
                 <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-fun-purple to-fun-pink">
                   <Link href="/entries/new">
                     <Plus className="mr-2 h-5 w-5" />
-                    Create First Entry
+                    {t('common.createFirstEntry')}
                   </Link>
                 </Button>
               </>
@@ -305,9 +307,9 @@ export default function EntriesPage() {
               // No entries matching filters
               <>
                 <Search className="h-16 w-16 mx-auto mb-6 text-fun-purple opacity-70" />
-                <h2 className="text-2xl font-bold mb-3">No matching entries</h2>
+                <h2 className="text-2xl font-bold mb-3">{t('common.noMatchingEntries')}</h2>
                 <p className="text-muted-foreground text-lg mb-8">
-                  Try adjusting your search or tone filter to find what you're looking for.
+                  {t('common.tryAdjustingFilters')}
                 </p>
                 <Button
                   variant="outline"

@@ -16,7 +16,13 @@ class JournalEntryRequest(BaseModel):
     title: str = Field("", description="The title of the journal entry")
     language: str = Field("", description="The language the journal entry is written in")
     
-    # TODO: Add additional fields as needed (target language, etc.)
+    # Optional language overrides for this specific entry
+    target_language: Optional[str] = Field(None, description="Override target language for this entry")
+    ui_language: Optional[str] = Field(None, description="UI language for this request")
+    explanation_mode: Optional[str] = Field(None, description="Override explanation mode (native_only, target_only, bilingual, smart)")
+    strictness: Optional[str] = Field(None, description="Override correction strictness (gentle, medium, strict, pedantic)")
+    formality: Optional[str] = Field(None, description="Override formality level (casual, neutral, formal, academic)")
+    immersion_level: Optional[int] = Field(None, description="Override immersion level (0-5)", ge=0, le=5)
 
     class Config:
         orm_mode = True

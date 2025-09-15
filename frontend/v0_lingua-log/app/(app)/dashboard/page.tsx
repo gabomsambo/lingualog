@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Confetti } from "@/components/confetti"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 // Badge variants for languages
 const languageBadgeVariants: Record<string, "pink" | "blue" | "purple" | "green" | "yellow" | "default" | "outline"> = {
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const [entries, setEntries] = useState<UserEntry[]>([])
   const [stats, setStats] = useState<UserStats | null>(null)
   const [showConfetti, setShowConfetti] = useState(false)
+  const { t } = useLocale()
   const [userName, setUserName] = useState("Friend")
   const { toast } = useToast()
 
@@ -60,16 +62,16 @@ export default function DashboardPage() {
 
         // Welcome toast
         toast({
-          title: "Welcome back! ✨",
-          description: "Ready to continue your language journey?",
+          title: t('common.welcomeBack'),
+          description: t('common.readyToContinue'),
           variant: "fun",
         });
       } catch (error) {
         console.error("Error loading user data:", error);
         setLoading(false);
         toast({
-          title: "Error loading data",
-          description: "Please try refreshing the page",
+          title: t('common.errorLoading'),
+          description: t('common.tryAgain'),
           variant: "destructive",
         });
       }
@@ -144,10 +146,10 @@ export default function DashboardPage() {
         >
           <div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
-              <span className="fun-heading">Hi {userName}! ✨</span>
+              <span className="fun-heading">{t('journal.greeting', { userName })}</span>
             </h1>
             <p className="text-xl text-muted-foreground">
-              You're on a <span className="font-bold text-fun-purple">{stats?.streak}-day</span> writing streak! 🔥
+              {t('journal.writingStreak', { streak: stats?.streak || 0 })}
             </p>
           </div>
 
@@ -158,7 +160,7 @@ export default function DashboardPage() {
               asChild
             >
               <Link href="/entries/new">
-                <Edit className="mr-2 h-5 w-5" /> Start New Entry
+                <Edit className="mr-2 h-5 w-5" /> {t('journal.startNewEntry')}
               </Link>
             </Button>
           </motion.div>
@@ -181,7 +183,7 @@ export default function DashboardPage() {
             <Card className="border-fun-mint/30 hover:border-fun-mint/50 transition-colors duration-300 rounded-3xl shadow-lg hover:shadow-xl overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fun-mint to-fun-blue"></div>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-medium">Words Written</CardTitle>
+                <CardTitle className="text-base font-medium">{t('common.wordsWritten')}</CardTitle>
                 <BookOpen className="h-5 w-5 text-fun-mint" />
               </CardHeader>
               <CardContent>
@@ -218,7 +220,7 @@ export default function DashboardPage() {
             <Card className="border-fun-blue/30 hover:border-fun-blue/50 transition-colors duration-300 rounded-3xl shadow-lg hover:shadow-xl overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fun-blue to-fun-purple"></div>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-medium">Languages Practiced</CardTitle>
+                <CardTitle className="text-base font-medium">{t('common.languagesPracticed')}</CardTitle>
                 <Languages className="h-5 w-5 text-fun-blue" />
               </CardHeader>
               <CardContent>
@@ -243,7 +245,7 @@ export default function DashboardPage() {
             <Card className="border-fun-purple/30 hover:border-fun-purple/50 transition-colors duration-300 rounded-3xl shadow-lg hover:shadow-xl overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-fun-purple to-fun-pink"></div>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-medium">Current Streak</CardTitle>
+                <CardTitle className="text-base font-medium">{t('common.currentStreak')}</CardTitle>
                 <Trophy className="h-5 w-5 text-fun-purple" />
               </CardHeader>
               <CardContent>
@@ -277,7 +279,7 @@ export default function DashboardPage() {
             asChild
             className="rounded-full border-fun-purple/30 hover:border-fun-purple/50"
           >
-            <Link href="/entries">View all</Link>
+            <Link href="/entries">{t('common.viewAll')}</Link>
           </Button>
         </div>
 
@@ -311,7 +313,7 @@ export default function DashboardPage() {
                       className="w-full rounded-full border-fun-purple/30 hover:border-fun-purple/50 hover:bg-fun-purple/5"
                       asChild
                     >
-                      <Link href={`/entries/${entry.id}`}>Read Entry</Link>
+                      <Link href={`/entries/${entry.id}`}>{t('common.readEntry')}</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -319,9 +321,9 @@ export default function DashboardPage() {
             ))
           ) : (
             <div className="col-span-3 text-center py-10">
-              <p className="text-muted-foreground mb-4">You haven't created any journal entries yet.</p>
+              <p className="text-muted-foreground mb-4">{t('common.noJournalEntriesYet')}</p>
               <Button asChild>
-                <Link href="/entries/new">Create Your First Entry</Link>
+                <Link href="/entries/new">{t('common.createYourFirstEntry')}</Link>
               </Button>
             </div>
           )}

@@ -15,9 +15,11 @@ import { getLanguageEmoji } from "@/lib/utils"
 import Link from "next/link"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import LearnWordModal, { VocabWordData } from "@/components/LearnWordModal"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export default function VocabularyPage() {
   const { toast } = useToast()
+  const { t } = useLocale()
   const [allVocab, setAllVocab] = useState<UserVocabularyItemResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -32,7 +34,7 @@ export default function VocabularyPage() {
       const items = await getVocabularyItems()
       setAllVocab(items || [])
     } catch (error: any) {
-      toast({ title: "Error fetching vocabulary", description: error.message, variant: "destructive" })
+      toast({ title: t('vocabulary.errorFetchingVocabulary'), description: error.message, variant: "destructive" })
       setAllVocab([])
     } finally {
       setIsLoading(false)
@@ -47,16 +49,16 @@ export default function VocabularyPage() {
     // Optimistic UI update can be added here if desired
     try {
       await deleteVocabularyItem(itemId)
-      toast({ title: "Vocabulary Item Deleted", description: `"${term}" removed from your vocabulary.` })
+      toast({ title: t('vocabulary.vocabularyItemDeleted'), description: `"${term}" ${t('vocabulary.vocabularyItemRemoved')}` })
       setAllVocab(prev => prev.filter(item => item.id !== itemId))
     } catch (error: any) {
-      toast({ title: "Error deleting item", description: error.message, variant: "destructive" })
+      toast({ title: t('vocabulary.errorDeletingItem'), description: error.message, variant: "destructive" })
     }
   }
 
   const availableLanguages = useMemo(() => {
     const languages = new Set(allVocab.map(item => item.language))
-    return [{ value: "all", label: "All Languages" }, ...Array.from(languages).sort().map(lang => ({ value: lang, label: lang }))]
+    return [{ value: "all", label: t('vocabulary.allLanguages') }, ...Array.from(languages).sort().map(lang => ({ value: lang, label: lang }))]
   }, [allVocab])
 
   const filteredVocab = useMemo(() => {
@@ -135,12 +137,12 @@ export default function VocabularyPage() {
           {item.part_of_speech && <p className="text-xs text-muted-foreground capitalize">{item.part_of_speech}</p>}
         </CardHeader>
         <CardContent className="flex-grow space-y-2 text-sm">
-          {item.definition && <div><strong>Definition:</strong> {item.definition}</div>}
+          {item.definition && <div><strong>{t('vocabulary.definition')}</strong> {item.definition}</div>}
           {item.example_sentence && (
             <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-md">
                 <p className="text-xs italic text-slate-500 dark:text-slate-400">
                     <Info size={12} className="inline mr-1"/> 
-                    Example: "{item.example_sentence}"
+                    {t('vocabulary.example')} "{item.example_sentence}"
                 </p>
             </div>
           )}
@@ -149,11 +151,11 @@ export default function VocabularyPage() {
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Link href={`/entries/${item.entry_id}`} className="text-xs text-blue-500 hover:underline inline-flex items-center">
-                           Source Entry <BookOpen size={12} className="ml-1"/>
+                           {t('vocabulary.sourceEntry')} <BookOpen size={12} className="ml-1"/>
                         </Link>
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-800 rounded-md">
-                        <p>View the journal entry where this word was saved.</p>
+                        <p>{t('vocabulary.viewJournalEntry')}</p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
@@ -166,7 +168,7 @@ export default function VocabularyPage() {
                 className="w-full rounded-md text-blue-600 border-blue-500 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-blue-900/50 hover:text-blue-700"
                 onClick={() => handleOpenLearnModal(item)}
             >
-                <BookOpen className="mr-2 h-4 w-4" /> Learn It
+                <BookOpen className="mr-2 h-4 w-4" /> {t('vocabulary.learnIt')}
             </Button>
             <Button 
                 variant="ghost" 
@@ -174,7 +176,7 @@ export default function VocabularyPage() {
                 className="w-full text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 rounded-md"
                 onClick={() => handleDeleteVocabItem(item.id, item.term)}
             >
-                <Trash2 className="mr-2 h-4 w-4" /> Remove
+                <Trash2 className="mr-2 h-4 w-4" /> {t('vocabulary.remove')}
             </Button>
         </CardFooter>
       </Card>
@@ -185,9 +187,9 @@ export default function VocabularyPage() {
     <div className="container max-w-5xl mx-auto py-8 px-4">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-8">
         <h1 className="text-4xl font-bold mb-2">
-            <span className="fun-heading">My Vocabulary</span> 📖
+            <span className="fun-heading">{t('vocabulary.myVocabulary')}</span> 📖
         </h1>
-        <p className="text-xl text-muted-foreground">Review and manage all the words you've saved.</p>
+        <p className="text-xl text-muted-foreground">{t('vocabulary.reviewAndManage')}</p>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="mb-8 p-4 bg-card border rounded-lg shadow-sm">
@@ -195,7 +197,7 @@ export default function VocabularyPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
-              placeholder="Search term, definition, example..."
+              placeholder={t('vocabulary.searchPlaceholder')}
               className="pl-10 fun-input h-12 text-base"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -210,7 +212,7 @@ export default function VocabularyPage() {
             <SelectTrigger className="w-full sm:w-[200px] h-12 fun-input text-base">
                 <div className="flex items-center">
                     <Languages className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder="Filter by language" />
+                    <SelectValue placeholder={t('vocabulary.filterByLanguage')} />
                 </div>
             </SelectTrigger>
             <SelectContent className="rounded-xl border-fun-purple/30">
@@ -224,19 +226,19 @@ export default function VocabularyPage() {
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
-            <LoadingSpinner text="Loading your vocabulary..." />
+            <LoadingSpinner text={t('vocabulary.loadingVocabulary')} />
         </div>
       ) : filteredVocab.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center py-16">
           <BookOpen className="h-16 w-16 mx-auto mb-6 text-fun-purple opacity-70" />
-          <h2 className="text-2xl font-bold mb-3">No Vocabulary Found</h2>
+          <h2 className="text-2xl font-bold mb-3">{t('vocabulary.noVocabularyFound')}</h2>
           {allVocab.length > 0 ? (
-            <p className="text-muted-foreground text-lg mb-8">Try adjusting your search or language filter.</p>
+            <p className="text-muted-foreground text-lg mb-8">{t('vocabulary.tryAdjustingSearch')}</p>
           ) : (
-            <p className="text-muted-foreground text-lg mb-8">Start saving words from your journal entries to build your vocabulary list!</p>
+            <p className="text-muted-foreground text-lg mb-8">{t('vocabulary.startSavingWords')}</p>
           )}
            <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-fun-purple to-fun-pink mt-4">
-            <Link href="/entries/new">Write a New Entry</Link>
+            <Link href="/entries/new">{t('vocabulary.writeNewEntry')}</Link>
           </Button>
         </motion.div>
       ) : (

@@ -4,7 +4,21 @@ import { getAuthHeaders, getUser } from "./auth";
 // Always use localhost for consistent access across browser and container
 export const API_BASE = "http://localhost:8000";
 
-export async function postLogEntry(text: string, title: string, language: string) {
+export interface JournalEntryOverrides {
+  target_language?: string;
+  ui_language?: string;
+  explanation_mode?: string;
+  strictness?: string;
+  formality?: string;
+  immersion_level?: number;
+}
+
+export async function postLogEntry(
+  text: string, 
+  title: string, 
+  language: string, 
+  overrides?: JournalEntryOverrides
+) {
   const authHeaders = await getAuthHeaders();
   const user = await getUser();
 
@@ -17,10 +31,18 @@ export async function postLogEntry(text: string, title: string, language: string
     customHeaders["X-User-ID"] = user.id;
   }
   
+  // Build request body with overrides
+  const requestBody = {
+    text,
+    title,
+    language,
+    ...(overrides || {})
+  };
+  
   const res = await fetch(`${API_BASE}/log-entry`, {
     method: "POST",
     headers: customHeaders,
-    body: JSON.stringify({ text, title, language }),
+    body: JSON.stringify(requestBody),
     credentials: "include",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -544,6 +566,14 @@ export interface UserSettingsData {
   analytics_opt_in: boolean;
   created_at: string;
   updated_at: string;
+  // New multilingual fields from migration
+  interface_lang: string;
+  native_lang: string;
+  default_target_lang?: string;
+  explanation_mode: string;
+  immersion_level: number;
+  strictness: string;
+  formality: string;
 }
 
 export interface UserSettingsUpdate {
@@ -566,6 +596,14 @@ export interface UserSettingsUpdate {
   public_profile?: boolean;
   share_progress?: boolean;
   analytics_opt_in?: boolean;
+  // New multilingual fields from migration
+  interface_lang?: string;
+  native_lang?: string;
+  default_target_lang?: string;
+  explanation_mode?: string;
+  immersion_level?: number;
+  strictness?: string;
+  formality?: string;
 }
 
 export async function getUserSettings(): Promise<UserSettingsData> {

@@ -5,12 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(dateString: string) {
+export function formatDate(dateString: string, locale: string = 'en') {
   const date = new Date(dateString)
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
   }).format(date)
 }
 
@@ -37,7 +36,7 @@ export function getDisplayTitle(title?: string, originalText?: string): string {
     const words = originalText.trim().split(/\s+/);
     return words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
   }
-  return "Untitled Entry"; // Fallback title
+  return "Untitled Entry"; // This should be i18n but utils is used without context
 }
 
 export function getExcerpt(text?: string, maxLength: number = 100): string {

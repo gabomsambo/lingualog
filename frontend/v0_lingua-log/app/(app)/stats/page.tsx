@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { WritingAnimation } from "@/components/writing-animation"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 // Badge variants for languages
 const languageBadgeVariants: Record<string, string> = {
@@ -45,6 +46,18 @@ const mockStats = {
 export default function StatsPage() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<typeof mockStats | null>(null)
+  const { t } = useLocale()
+  
+  // Function to get translated language name
+  const getTranslatedLanguageName = (language: string) => {
+    switch (language) {
+      case "Spanish": return t('common.spanish')
+      case "French": return t('common.french')
+      case "German": return t('common.german')
+      case "Japanese": return t('common.japanese')
+      default: return language
+    }
+  }
 
   useEffect(() => {
     // Simulate API call
@@ -63,10 +76,10 @@ export default function StatsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">
-          <span className="fun-heading">Your Learning Stats 📊</span>
-        </h2>
-        <p className="text-muted-foreground mt-2 text-lg">Track your language learning progress over time</p>
+          <h2 className="text-3xl font-bold tracking-tight">
+            <span className="fun-heading">{t('common.yourLearningStats')} 📊</span>
+          </h2>
+        <p className="text-muted-foreground mt-2 text-lg">{t('common.trackLanguageProgress')}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -127,9 +140,9 @@ export default function StatsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
                   <Languages className="mr-2 h-5 w-5 text-fun-blue" />
-                  Languages
+                  {t('common.languages')}
                 </CardTitle>
-                <CardDescription className="text-base">Breakdown of languages practiced</CardDescription>
+                <CardDescription className="text-base">{t('common.breakdownLanguagesPracticed')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-5">
@@ -137,10 +150,10 @@ export default function StatsPage() {
                     <div key={lang.language} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <Badge variant={languageBadgeVariants[lang.language] || "default"} className="mr-2">
-                            {lang.language}
+                          <Badge variant={languageBadgeVariants[lang.language] as any || "default"} className="mr-2">
+                            {getTranslatedLanguageName(lang.language)}
                           </Badge>
-                          <span className="text-base font-medium">{lang.count} words</span>
+                          <span className="text-base font-medium">{lang.count} {t('common.words')}</span>
                         </div>
                         <span className="text-base text-muted-foreground">{lang.percentage}%</span>
                       </div>
@@ -173,9 +186,9 @@ export default function StatsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
                   <Trophy className="mr-2 h-5 w-5 text-fun-purple" />
-                  Writing Streak
+                  {t('common.writingStreak')}
                 </CardTitle>
-                <CardDescription className="text-base">Your consistent writing progress</CardDescription>
+                <CardDescription className="text-base">{t('common.consistentWritingProgress')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col items-center justify-center h-[200px] text-center space-y-6">
@@ -199,11 +212,11 @@ export default function StatsPage() {
                   <div className="grid grid-cols-2 w-full gap-4 text-base">
                     <div className="bg-fun-blue/10 rounded-2xl p-4 text-center border-2 border-fun-blue/20">
                       <div className="font-bold text-xl">{stats.streak.longest}</div>
-                      <div className="text-muted-foreground">Longest streak</div>
+                      <div className="text-muted-foreground">{t('common.longestStreak')}</div>
                     </div>
                     <div className="bg-fun-pink/10 rounded-2xl p-4 text-center border-2 border-fun-pink/20">
                       <div className="font-bold text-xl">{stats.streak.total}</div>
-                      <div className="text-muted-foreground">Total words</div>
+                      <div className="text-muted-foreground">{t('common.totalWords')}</div>
                     </div>
                   </div>
                 </div>
@@ -215,7 +228,7 @@ export default function StatsPage() {
 
       {loading && (
         <div className="flex justify-center py-8">
-          <WritingAnimation text="Calculating your progress" />
+          <WritingAnimation text={t('common.calculatingProgress')} />
         </div>
       )}
     </div>

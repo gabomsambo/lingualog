@@ -36,19 +36,8 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { getUserProfile, type UserProfile } from "@/lib/user-service"
 import { getUserSettings, updateUserSettings, updateUserProfile, type UserSettingsData, type UserSettingsUpdate } from "@/lib/api"
-
-const languages = [
-  { code: "en", name: "English", flag: "🇺🇸" },
-  { code: "es", name: "Spanish", flag: "🇪🇸" },
-  { code: "fr", name: "French", flag: "🇫🇷" },
-  { code: "de", name: "German", flag: "🇩🇪" },
-  { code: "it", name: "Italian", flag: "🇮🇹" },
-  { code: "pt", name: "Portuguese", flag: "🇵🇹" },
-  { code: "ja", name: "Japanese", flag: "🇯🇵" },
-  { code: "ko", name: "Korean", flag: "🇰🇷" },
-  { code: "zh", name: "Chinese", flag: "🇨🇳" },
-  { code: "ru", name: "Russian", flag: "🇷🇺" },
-]
+import { useLocale } from "@/i18n/LocaleProvider"
+import { LANGUAGES, getUILanguages, getTargetLanguages } from "@/i18n/languages"
 
 interface SettingsState {
   // Account
@@ -84,10 +73,20 @@ interface SettingsState {
   publicProfile: boolean
   shareProgress: boolean
   analyticsOptIn: boolean
+  
+  // New multilingual fields
+  interfaceLanguage: string
+  nativeLang: string
+  defaultTargetLanguage: string
+  explanationMode: string
+  immersionLevel: number
+  strictness: string
+  formality: string
 }
 
 export default function SettingsPage() {
   const { toast } = useToast()
+  const { t, setUiLang } = useLocale()
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [settings, setSettings] = useState<SettingsState>({
     email: "",
@@ -112,6 +111,14 @@ export default function SettingsPage() {
     publicProfile: false,
     shareProgress: true,
     analyticsOptIn: true,
+    // New multilingual fields
+    interfaceLanguage: "en",
+    nativeLang: "en",
+    defaultTargetLanguage: "es",
+    explanationMode: "bilingual",
+    immersionLevel: 1,
+    strictness: "medium",
+    formality: "neutral",
   })
   
   const [showPassword, setShowPassword] = useState(false)
@@ -160,13 +167,21 @@ export default function SettingsPage() {
             publicProfile: settingsData.public_profile,
             shareProgress: settingsData.share_progress,
             analyticsOptIn: settingsData.analytics_opt_in,
+            // New multilingual fields
+            interfaceLanguage: settingsData.interface_lang,
+            nativeLang: settingsData.native_lang,
+            defaultTargetLanguage: settingsData.default_target_lang || "es",
+            explanationMode: settingsData.explanation_mode,
+            immersionLevel: settingsData.immersion_level,
+            strictness: settingsData.strictness,
+            formality: settingsData.formality,
           }))
         }
       } catch (error) {
         console.error('Error loading profile and settings:', error)
         toast({
-          title: "Error loading settings",
-          description: "Failed to load your settings. Please try again.",
+          title: t('common.errorLoading'),
+          description: t('common.tryAgain'),
           variant: "destructive",
         })
       } finally {
@@ -194,8 +209,8 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     if (!userSettingsData) {
       toast({
-        title: "Error",
-        description: "Settings not loaded yet. Please try again.",
+        title: t('common.error'),
+        description: t('common.notLoadedYet'),
         variant: "destructive",
       })
       return
@@ -203,6 +218,15 @@ export default function SettingsPage() {
 
     setIsSaving(true)
     try {
+      // If interface language changed, apply it immediately
+      if (settings.interfaceLanguage !== userSettingsData.interface_lang) {
+        try {
+          await setUiLang(settings.interfaceLanguage)
+        } catch (error) {
+          console.error('Error changing interface language:', error)
+        }
+      }
+
       // Map frontend state format to API format
       const updateData: UserSettingsUpdate = {
         native_language: settings.nativeLanguage,
@@ -224,6 +248,14 @@ export default function SettingsPage() {
         public_profile: settings.publicProfile,
         share_progress: settings.shareProgress,
         analytics_opt_in: settings.analyticsOptIn,
+        // New multilingual fields
+        interface_lang: settings.interfaceLanguage,
+        native_lang: settings.nativeLang,
+        default_target_lang: settings.defaultTargetLanguage,
+        explanation_mode: settings.explanationMode,
+        immersion_level: settings.immersionLevel,
+        strictness: settings.strictness,
+        formality: settings.formality,
       }
 
       const updatedSettings = await updateUserSettings(updateData)
@@ -252,17 +284,17 @@ export default function SettingsPage() {
       setHasChanges(false)
       
       toast({
-        title: "Settings Saved! ✨",
+        title: t('settings.settingsSaved'),
         description: settings.username !== userProfile?.username 
-          ? "Your settings and display name have been updated! You may need to refresh to see the name change everywhere."
-          : "Your preferences have been updated successfully.",
+          ? t('settings.settingsAndNameUpdated')
+          : t('settings.settingsUpdated'),
         variant: "fun",
       })
     } catch (error) {
       console.error('Error saving settings:', error)
       toast({
-        title: "Error saving settings",
-        description: "Failed to save your settings. Please try again.",
+        title: t('common.errorSaving'),
+        description: t('common.tryAgain'),
         variant: "destructive",
       })
     } finally {
@@ -272,16 +304,16 @@ export default function SettingsPage() {
 
   const handleExportData = () => {
     toast({
-      title: "Export Started 📦",
-      description: "Your data export will be ready shortly. Check your email!",
+      title: t('settings.exportStarted'),
+      description: t('settings.dataExportReady'),
       variant: "fun",
     })
   }
 
   const handleDeleteAccount = () => {
     toast({
-      title: "Account Deletion",
-      description: "Please contact support to delete your account.",
+      title: t('settings.accountDeletion'),
+      description: t('settings.contactSupportToDelete'),
       variant: "destructive",
     })
   }
@@ -292,7 +324,7 @@ export default function SettingsPage() {
         <div className="flex justify-center items-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fun-purple mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading settings...</p>
+            <p className="text-muted-foreground">{t('settings.loadingSettings')}</p>
           </div>
         </div>
       </div>
@@ -305,7 +337,7 @@ export default function SettingsPage() {
         <div className="flex justify-center items-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fun-purple mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading your settings...</p>
+            <p className="text-muted-foreground">{t('settings.loadingYourSettings')}</p>
           </div>
         </div>
       </div>
@@ -324,10 +356,10 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-fun-purple to-fun-blue bg-clip-text text-transparent">
-                Settings
+                {t('settings.settings')}
               </h1>
               <p className="text-xl text-muted-foreground mt-2">
-                Customize your LinguaLog experience
+                {t('settings.customizeExperience')}
               </p>
             </div>
             
@@ -338,7 +370,7 @@ export default function SettingsPage() {
                 className="bg-gradient-to-r from-fun-green to-fun-blue hover:shadow-lg gap-2"
               >
                 <Save className="h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? t('settings.saving') : t('settings.saveChanges')}
               </Button>
             )}
           </div>
@@ -349,23 +381,23 @@ export default function SettingsPage() {
           <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
             <TabsTrigger value="account" className="gap-2">
               <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Account</span>
+              <span className="hidden sm:inline">{t('settings.account')}</span>
             </TabsTrigger>
             <TabsTrigger value="languages" className="gap-2">
               <Languages className="h-4 w-4" />
-              <span className="hidden sm:inline">Languages</span>
+              <span className="hidden sm:inline">{t('settings.languages')}</span>
             </TabsTrigger>
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Notifications</span>
+              <span className="hidden sm:inline">{t('settings.notifications')}</span>
             </TabsTrigger>
             <TabsTrigger value="preferences" className="gap-2">
               <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Preferences</span>
+              <span className="hidden sm:inline">{t('settings.preferences')}</span>
             </TabsTrigger>
             <TabsTrigger value="privacy" className="gap-2">
               <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Privacy</span>
+              <span className="hidden sm:inline">{t('settings.privacy')}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -375,28 +407,28 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="h-5 w-5 text-fun-blue" />
-                  Account Information
+                  {t('settings.accountInformation')}
                 </CardTitle>
-                <CardDescription>Manage your account details and security</CardDescription>
+                <CardDescription>{t('settings.manageAccountDetails')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email">{t('settings.emailAddress')}</Label>
                     <Input
                       id="email"
                       type="email"
                       value={settings.email}
                       readOnly
                       className="mt-1 bg-muted"
-                      title="Contact support to change your email address"
+                      title={t('settings.contactSupportToChangeEmail')}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Contact support to change your email address
+                      {t('settings.contactSupportToChangeEmail')}
                     </p>
                   </div>
                   <div>
-                    <Label htmlFor="username">Display Name</Label>
+                    <Label htmlFor="username">{t('settings.displayName')}</Label>
                     <Input
                       id="username"
                       value={settings.username}
@@ -407,7 +439,7 @@ export default function SettingsPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{t('settings.password')}</Label>
                   <div className="mt-1">
                     <Input
                       id="password"
@@ -415,7 +447,7 @@ export default function SettingsPage() {
                       value="••••••••••••"
                       readOnly
                       className="bg-muted"
-                      title="Use 'Change Password' button to update your password"
+                      title={t('settings.changePassword')}
                     />
                     <Button
                       type="button"
@@ -424,13 +456,13 @@ export default function SettingsPage() {
                       className="mt-2"
                       onClick={() => {
                         toast({
-                          title: "Change Password",
-                          description: "Password change feature coming soon - contact support for now",
+                          title: t('settings.changePasswordFeature'),
+                          description: t('settings.passwordChangeComingSoon'),
                           variant: "default",
                         })
                       }}
                     >
-                      Change Password
+                      {t('settings.changePassword')}
                     </Button>
                   </div>
                 </div>
@@ -440,64 +472,69 @@ export default function SettingsPage() {
 
           {/* Language Settings */}
           <TabsContent value="languages" className="space-y-6">
-            <Card className="border-fun-purple/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-fun-purple" />
-                  Language Preferences
-                </CardTitle>
-                <CardDescription>Set your native language and learning targets</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label htmlFor="native-language">Native Language</Label>
-                  <Select value={settings.nativeLanguage} onValueChange={(value) => updateSetting("nativeLanguage", value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languages.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
-                          <div className="flex items-center gap-2">
-                            <span>{lang.flag}</span>
-                            <span>{lang.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Target Languages</Label>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {settings.targetLanguages.map((langCode) => {
-                        const lang = languages.find(l => l.code === langCode)
-                        return lang ? (
-                          <Badge key={langCode} variant="outline" className="gap-2">
-                            <span>{lang.flag}</span>
-                            <span>{lang.name}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={() => removeTargetLanguage(langCode)}
-                            >
-                              ×
-                            </Button>
-                          </Badge>
-                        ) : null
-                      })}
+            <div className="grid gap-6">
+              {/* Core Language Settings */}
+              <Card className="border-fun-purple/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-fun-purple" />
+                    {t('settings.language')} {t('settings.preferences')}
+                  </CardTitle>
+                  <CardDescription>{t('settings.nativeLanguageDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="interface-language">{t('settings.interfaceLanguage')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.interfaceLanguageDesc')}</p>
+                      <Select value={settings.interfaceLanguage} onValueChange={(value) => updateSetting("interfaceLanguage", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getUILanguages().map((lang) => (
+                            <SelectItem key={lang.code} value={lang.code}>
+                              <div className="flex items-center gap-2">
+                                <span>{lang.flag}</span>
+                                <span>{lang.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    
-                    <Select onValueChange={addTargetLanguage}>
+
+                    <div>
+                      <Label htmlFor="native-language">{t('settings.nativeLanguage')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.nativeLanguageDesc')}</p>
+                      <Select value={settings.nativeLang} onValueChange={(value) => updateSetting("nativeLang", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANGUAGES.map((lang) => (
+                            <SelectItem key={lang.code} value={lang.code}>
+                              <div className="flex items-center gap-2">
+                                <span>{lang.flag}</span>
+                                <span>{lang.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="default-target-language">{t('settings.defaultTargetLanguage')}</Label>
+                    <p className="text-sm text-muted-foreground mb-2">{t('settings.defaultTargetLanguageDesc')}</p>
+                    <Select value={settings.defaultTargetLanguage} onValueChange={(value) => updateSetting("defaultTargetLanguage", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Add a language to learn" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {languages
-                          .filter(lang => !settings.targetLanguages.includes(lang.code) && lang.code !== settings.nativeLanguage)
+                        {getTargetLanguages()
+                          .filter(lang => lang.code !== settings.nativeLang)
                           .map((lang) => (
                             <SelectItem key={lang.code} value={lang.code}>
                               <div className="flex items-center gap-2">
@@ -509,28 +546,135 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div>
-                  <Label>App Interface Language</Label>
-                  <Select value={settings.appLanguage} onValueChange={(value) => updateSetting("appLanguage", value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languages.slice(0, 5).map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
-                          <div className="flex items-center gap-2">
-                            <span>{lang.flag}</span>
-                            <span>{lang.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+                  <div>
+                    <Label>{t('settings.immersionLevel')}: {settings.immersionLevel}/3</Label>
+                    <p className="text-sm text-muted-foreground mb-2">{t('settings.immersionLevelDesc')}</p>
+                    <div className="space-y-3">
+                      <Slider
+                        value={[settings.immersionLevel]}
+                        onValueChange={(value) => updateSetting("immersionLevel", value[0])}
+                        max={3}
+                        min={0}
+                        step={1}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>0: {t('journal.immersionNativeFirst')}</span>
+                        <span>1: {t('journal.immersionGuidedBilingual')}</span>
+                        <span>2: {t('journal.immersionBalanced')}</span>
+                        <span>3: {t('journal.immersionImmersive')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>{t('settings.targetLanguagesLegacy')}</Label>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {settings.targetLanguages.map((langCode) => {
+                          const lang = LANGUAGES.find(l => l.code === langCode)
+                          return lang ? (
+                            <Badge key={langCode} variant="outline" className="gap-2">
+                              <span>{lang.flag}</span>
+                              <span>{lang.name}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => removeTargetLanguage(langCode)}
+                              >
+                                ×
+                              </Button>
+                            </Badge>
+                          ) : null
+                        })}
+                      </div>
+                      
+                      <Select onValueChange={addTargetLanguage}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('settings.addLanguageToLearn')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANGUAGES
+                            .filter(lang => !settings.targetLanguages.includes(lang.code) && lang.code !== settings.nativeLanguage)
+                            .map((lang) => (
+                              <SelectItem key={lang.code} value={lang.code}>
+                                <div className="flex items-center gap-2">
+                                  <span>{lang.flag}</span>
+                                  <span>{lang.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Advanced Language Settings */}
+              <Card className="border-fun-blue/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-fun-blue" />
+                    {t('settings.advancedSettings')}
+                  </CardTitle>
+                  <CardDescription>{t('settings.fineTuneExperience')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t('settings.explanationMode')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.explanationModeDesc')}</p>
+                      <Select value={settings.explanationMode} onValueChange={(value) => updateSetting("explanationMode", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="native_only">{t('journal.explanationNativeOnly')}</SelectItem>
+                          <SelectItem value="target_only">{t('journal.explanationTargetOnly')}</SelectItem>
+                          <SelectItem value="bilingual">{t('journal.explanationBilingual')}</SelectItem>
+                          <SelectItem value="smart">{t('journal.explanationSmart')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>{t('settings.strictness')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.strictnessDesc')}</p>
+                      <Select value={settings.strictness} onValueChange={(value) => updateSetting("strictness", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gentle">{t('settings.strictnessGentle')}</SelectItem>
+                          <SelectItem value="medium">{t('settings.strictnessMedium')}</SelectItem>
+                          <SelectItem value="strict">{t('settings.strictnessStrict')}</SelectItem>
+                          <SelectItem value="pedantic">{t('settings.strictnessPedantic')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>{t('settings.formality')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.formalityDesc')}</p>
+                      <Select value={settings.formality} onValueChange={(value) => updateSetting("formality", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="casual">{t('settings.formalityCasual')}</SelectItem>
+                          <SelectItem value="neutral">{t('settings.formalityNeutral')}</SelectItem>
+                          <SelectItem value="formal">{t('settings.formalityFormal')}</SelectItem>
+                          <SelectItem value="academic">{t('settings.formalityAcademic')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Notification Settings */}
@@ -539,9 +683,9 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="h-5 w-5 text-fun-pink" />
-                  Notification Preferences
+                  {t('settings.notificationPreferences')}
                 </CardTitle>
-                <CardDescription>Choose how and when you'd like to be notified</CardDescription>
+                <CardDescription>{t('settings.chooseHowNotified')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
@@ -549,8 +693,8 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Mail className="h-5 w-5 text-fun-blue" />
                       <div>
-                        <Label>Email Notifications</Label>
-                        <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                        <Label>{t('settings.emailNotifications')}</Label>
+                        <p className="text-sm text-muted-foreground">{t('settings.receiveUpdatesViaEmail')}</p>
                       </div>
                     </div>
                     <Switch 
@@ -563,8 +707,8 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Smartphone className="h-5 w-5 text-fun-purple" />
                       <div>
-                        <Label>Push Notifications</Label>
-                        <p className="text-sm text-muted-foreground">Receive push notifications on your device</p>
+                        <Label>{t('settings.pushNotifications')}</Label>
+                        <p className="text-sm text-muted-foreground">{t('settings.receivePushNotifications')}</p>
                       </div>
                     </div>
                     <Switch 
@@ -577,8 +721,8 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Bell className="h-5 w-5 text-fun-pink" />
                       <div>
-                        <Label>Daily Reminders</Label>
-                        <p className="text-sm text-muted-foreground">Get reminded to practice daily</p>
+                        <Label>{t('settings.dailyReminders')}</Label>
+                        <p className="text-sm text-muted-foreground">{t('settings.getRemindedToPractice')}</p>
                       </div>
                     </div>
                     <Switch 
@@ -591,8 +735,8 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Target className="h-5 w-5 text-fun-green" />
                       <div>
-                        <Label>Weekly Progress</Label>
-                        <p className="text-sm text-muted-foreground">Get weekly progress summaries</p>
+                        <Label>{t('settings.weeklyProgress')}</Label>
+                        <p className="text-sm text-muted-foreground">{t('settings.getWeeklyProgressSummaries')}</p>
                       </div>
                     </div>
                     <Switch 
@@ -604,7 +748,7 @@ export default function SettingsPage() {
 
                 {settings.dailyReminders && (
                   <div>
-                    <Label htmlFor="reminder-time">Daily Reminder Time</Label>
+                    <Label htmlFor="reminder-time">{t('settings.dailyReminderTime')}</Label>
                     <Input
                       id="reminder-time"
                       type="time"
@@ -626,13 +770,13 @@ export default function SettingsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5 text-fun-green" />
-                    Learning Preferences
+                    {t('settings.learningPreferences')}
                   </CardTitle>
-                  <CardDescription>Customize your learning experience</CardDescription>
+                  <CardDescription>{t('settings.customizeLearningExperience')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label>Difficulty Level</Label>
+                    <Label>{t('settings.difficultyLevel')}</Label>
                     <Select value={settings.difficultyLevel} onValueChange={(value) => updateSetting("difficultyLevel", value)}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
@@ -646,7 +790,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <Label>Daily Entry Goal: {settings.dailyGoal} {settings.dailyGoal === 1 ? 'entry' : 'entries'}</Label>
+                    <Label>{t('settings.dailyEntryGoal')}: {settings.dailyGoal} {settings.dailyGoal === 1 ? t('settings.entry') : t('settings.entries')}</Label>
                     <Slider
                       value={[settings.dailyGoal]}
                       onValueChange={(value) => updateSetting("dailyGoal", value[0])}
@@ -658,7 +802,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <Label>Weekly Vocabulary Goal: {settings.weeklyGoal} words</Label>
+                    <Label>{t('settings.weeklyVocabularyGoal')}: {settings.weeklyGoal} {t('settings.words')}</Label>
                     <Slider
                       value={[settings.weeklyGoal]}
                       onValueChange={(value) => updateSetting("weeklyGoal", value[0])}
@@ -671,14 +815,14 @@ export default function SettingsPage() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>Auto-save entries</Label>
+                      <Label>{t('settings.autoSaveEntries')}</Label>
                       <Switch 
                         checked={settings.autoSave} 
                         onCheckedChange={(checked) => updateSetting("autoSave", checked)}
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <Label>Show learning hints</Label>
+                      <Label>{t('settings.showLearningHints')}</Label>
                       <Switch 
                         checked={settings.showHints} 
                         onCheckedChange={(checked) => updateSetting("showHints", checked)}
@@ -693,13 +837,13 @@ export default function SettingsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Settings className="h-5 w-5 text-fun-blue" />
-                    App Preferences
+                    {t('settings.appPreferences')}
                   </CardTitle>
-                  <CardDescription>Customize the app's look and feel</CardDescription>
+                  <CardDescription>{t('settings.customizeAppLookAndFeel')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label>Theme</Label>
+                    <Label>{t('settings.theme')}</Label>
                     <Select value={settings.theme} onValueChange={(value) => updateSetting("theme", value)}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
@@ -708,19 +852,19 @@ export default function SettingsPage() {
                         <SelectItem value="light">
                           <div className="flex items-center gap-2">
                             <Sun className="h-4 w-4" />
-                            Light
+                            {t('settings.light')}
                           </div>
                         </SelectItem>
                         <SelectItem value="dark">
                           <div className="flex items-center gap-2">
                             <Moon className="h-4 w-4" />
-                            Dark
+                            {t('settings.dark')}
                           </div>
                         </SelectItem>
                         <SelectItem value="system">
                           <div className="flex items-center gap-2">
                             <Settings className="h-4 w-4" />
-                            System
+                            {t('settings.system')}
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -731,7 +875,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {settings.soundEffects ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                        <Label>Sound effects</Label>
+                        <Label>{t('settings.soundEffects')}</Label>
                       </div>
                       <Switch 
                         checked={settings.soundEffects} 
@@ -739,7 +883,7 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <Label>Animations</Label>
+                      <Label>{t('settings.animations')}</Label>
                       <Switch 
                         checked={settings.animations} 
                         onCheckedChange={(checked) => updateSetting("animations", checked)}
@@ -759,15 +903,15 @@ export default function SettingsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Shield className="h-5 w-5 text-fun-purple" />
-                    Privacy Settings
+                    {t('settings.privacySettings')}
                   </CardTitle>
-                  <CardDescription>Control your privacy and data sharing preferences</CardDescription>
+                  <CardDescription>{t('settings.controlPrivacyDataSharing')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Public Profile</Label>
-                      <p className="text-sm text-muted-foreground">Allow others to see your profile</p>
+                      <Label>{t('settings.publicProfile')}</Label>
+                      <p className="text-sm text-muted-foreground">{t('settings.allowOthersToSeeProfile')}</p>
                     </div>
                     <Switch 
                       checked={settings.publicProfile} 
@@ -777,8 +921,8 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Share Progress</Label>
-                      <p className="text-sm text-muted-foreground">Share your learning progress publicly</p>
+                      <Label>{t('settings.shareProgress')}</Label>
+                      <p className="text-sm text-muted-foreground">{t('settings.shareLearningProgressPublicly')}</p>
                     </div>
                     <Switch 
                       checked={settings.shareProgress} 
@@ -788,8 +932,8 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label>Analytics & Insights</Label>
-                      <p className="text-sm text-muted-foreground">Help improve the app with usage analytics</p>
+                      <Label>{t('settings.analyticsInsights')}</Label>
+                      <p className="text-sm text-muted-foreground">{t('settings.helpImproveAppWithAnalytics')}</p>
                     </div>
                     <Switch 
                       checked={settings.analyticsOptIn} 
@@ -804,33 +948,33 @@ export default function SettingsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Download className="h-5 w-5 text-fun-pink" />
-                    Data Management
+                    {t('settings.dataManagement')}
                   </CardTitle>
-                  <CardDescription>Export or delete your data</CardDescription>
+                  <CardDescription>{t('settings.exportOrDeleteData')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium">Export Your Data</h4>
+                      <h4 className="font-medium">{t('settings.exportYourData')}</h4>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Download all your journal entries, vocabulary, and progress data
+                        {t('settings.downloadAllData')}
                       </p>
                       <Button onClick={handleExportData} variant="outline" className="gap-2">
                         <Download className="h-4 w-4" />
-                        Export Data
+                        {t('settings.exportData')}
                       </Button>
                     </div>
 
                     <Separator />
 
                     <div>
-                      <h4 className="font-medium text-destructive">Danger Zone</h4>
+                      <h4 className="font-medium text-destructive">{t('settings.dangerZone')}</h4>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Permanently delete your account and all associated data
+                        {t('settings.permanentlyDeleteAccount')}
                       </p>
                       <Button onClick={handleDeleteAccount} variant="destructive" className="gap-2">
                         <Trash2 className="h-4 w-4" />
-                        Delete Account
+                        {t('settings.deleteAccount')}
                       </Button>
                     </div>
                   </div>

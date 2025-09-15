@@ -1,0 +1,18 @@
+{
+  "settings": "الإعدادات",
+  "language": "اللغة",
+  "theme": "المظهر",
+  "notifications": "الإشعارات",
+  "privacy": "الخصوصية",
+  "account": "الحساب",
+  "profile": "الملف الشخصي",
+  "preferences": "التفضيلات",
+  "general": "عام",
+  "appearance": "المظهر",
+  "lightMode": "الوضع الفاتح",
+  "darkMode": "الوضع المظلم",
+  "systemMode": "وضع النظام",
+  "targetLanguage": "اللغة المستهدفة",
+  "nativeLanguage": "اللغة الأم",
+  "learningGoals": "أهداف التعلم"
+}

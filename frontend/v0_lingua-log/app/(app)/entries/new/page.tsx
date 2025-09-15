@@ -3,8 +3,11 @@
 import { motion } from "framer-motion"
 
 import { JournalEditor } from "@/components/journal-editor"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export default function NewEntryPage() {
+  const { t } = useLocale()
+
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
       {/* Page Header */}
@@ -15,10 +18,10 @@ export default function NewEntryPage() {
         className="mb-8 text-center"
       >
         <h1 className="text-4xl md:text-5xl font-bold mb-3">
-          <span className="fun-heading">New Journal Entry ✍️</span>
+          <span className="fun-heading">{t('journal.newEntry')} ✍️</span>
         </h1>
         <p className="text-xl text-muted-foreground">
-          Reflect on your day, practice your skills, and grow your language journey!
+          {t('journal.writeEntry')}
         </p>
       </motion.div>
 

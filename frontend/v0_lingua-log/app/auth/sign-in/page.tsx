@@ -15,6 +15,7 @@ import { Confetti } from "@/components/confetti"
 
 // Import the auth functions
 import { signInWithEmail, signIn } from "@/lib/auth"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -27,13 +28,14 @@ export default function SignInPage() {
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { t } = useLocale()
 
   const handleMagicLinkSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
 
     if (!email) {
-      setError("Please enter your email address")
+      setError(t('auth.emailRequired'))
       return
     }
 
@@ -50,14 +52,14 @@ export default function SignInPage() {
         setShowConfetti(true)
 
         toast({
-          title: "Magic link sent! 🪄",
-          description: "Check your email for a login link",
+          title: t('auth.magicLinkSent'),
+          description: t('auth.checkEmailDescription'),
           variant: "default",
         })
       }
     } catch (err: unknown) {
       setIsLoading(false)
-      setError("Failed to send login link. Please try again.")
+      setError(t('auth.failedToSendLink'))
       console.error(err)
     }
   }
@@ -115,14 +117,14 @@ export default function SignInPage() {
             <Sparkles className="h-10 w-10 text-blue-500" />
           </div>
           <CardTitle className="text-2xl font-bold text-center">
-            {showPasswordForm ? "Sign In with Password" : "Welcome to LinguaLog"}
+            {showPasswordForm ? t('auth.signInWithPassword') : t('auth.welcomeToLinguaLog')}
           </CardTitle>
           <CardDescription className="text-center">
             {magicLinkSent 
-              ? "Check your email for the login link"
+              ? t('auth.checkEmailForLink')
               : showPasswordForm
-                ? "Enter your credentials to access your account"
-                : "Let's continue your language journey!"}
+                ? t('auth.enterCredentials')
+                : t('auth.continueLanguageJourney')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -134,17 +136,17 @@ export default function SignInPage() {
           
           {magicLinkSent ? (
             <div className="p-3 text-sm bg-blue-50 text-primary rounded-lg border border-blue-200">
-              Magic link sent! Check your email to complete login.
+              {t('auth.magicLinkSent')} {t('auth.checkEmailDescription')}
             </div>
           ) : showPasswordForm ? (
             <form onSubmit={handlePasswordSubmit}>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email-password">Email</Label>
+                  <Label htmlFor="email-password">{t('auth.email')}</Label>
                   <Input
                     id="email-password"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -152,7 +154,7 @@ export default function SignInPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">{t('auth.password')}</Label>
                   <div className="relative">
                     <Input
                       id="password"

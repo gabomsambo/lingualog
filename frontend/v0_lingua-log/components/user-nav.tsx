@@ -16,10 +16,12 @@ import { useToast } from "@/components/ui/use-toast"
 import { LogOut, Settings, User } from "lucide-react"
 import { useState, useEffect } from "react"
 import { getUserProfile, type UserProfile } from "@/lib/user-service"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export function UserNav() {
   const router = useRouter()
   const { toast } = useToast()
+  const { t } = useLocale()
   const [showEmoji, setShowEmoji] = useState(false)
   const [userName, setUserName] = useState("User")
   const [userEmail, setUserEmail] = useState("user@example.com")
@@ -81,8 +83,8 @@ export function UserNav() {
     setShowEmoji(true)
 
     toast({
-      title: "See you soon! 👋",
-      description: "You have been logged out successfully",
+      title: t('common.signOut') + " 👋",
+      description: t('auth.accountCreated'),
       variant: "fun",
     })
 
@@ -117,20 +119,20 @@ export function UserNav() {
             onClick={() => router.push("/profile")}
           >
             <User className="mr-2 h-5 w-5 text-fun-blue" />
-            <span>Profile</span>
+            <span>{t('common.profile')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem 
             className="rounded-xl cursor-pointer text-base py-2"
             onClick={() => router.push("/settings")}
           >
             <Settings className="mr-2 h-5 w-5 text-fun-purple" />
-            <span>Settings</span>
+            <span>{t('common.settings')}</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="rounded-xl cursor-pointer text-base py-2">
           <LogOut className="mr-2 h-5 w-5 text-fun-pink" />
-          <span>Log out</span>
+          <span>{t('common.signOut')}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

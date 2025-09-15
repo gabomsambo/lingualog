@@ -17,6 +17,7 @@ import { LoadingDots } from "@/components/loading-dots"
 
 // Import the auth function
 import { signUp } from "@/lib/auth"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -27,6 +28,7 @@ export default function SignUpPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const { toast } = useToast()
+  const { t } = useLocale()
 
   // Password strength calculation
   const calculatePasswordStrength = (password: string): number => {
@@ -49,10 +51,10 @@ export default function SignUpPage() {
 
   const getPasswordStrengthText = () => {
     if (passwordStrength === 0) return ""
-    if (passwordStrength <= 25) return "Weak"
-    if (passwordStrength <= 50) return "Fair"
-    if (passwordStrength <= 75) return "Good"
-    return "Strong"
+    if (passwordStrength <= 25) return t('auth.passwordWeak')
+    if (passwordStrength <= 50) return t('auth.passwordFair')
+    if (passwordStrength <= 75) return t('auth.passwordGood')
+    return t('auth.passwordStrong')
   }
 
   const getPasswordStrengthColor = () => {
@@ -67,12 +69,12 @@ export default function SignUpPage() {
     setError("")
 
     if (!email || !password) {
-      setError("Email and password are required")
+      setError(t('auth.emailAndPasswordRequired'))
       return
     }
 
     if (passwordStrength < 50) {
-      setError("Please use a stronger password")
+      setError(t('auth.useStrongerPassword'))
       return
     }
 
@@ -90,8 +92,8 @@ export default function SignUpPage() {
       
       if (success && user) {
         toast({
-          title: "Account created! ✨",
-          description: "Welcome to LinguaLog! Your language journey begins now.",
+          title: t('auth.accountCreated'),
+          description: t('auth.welcomeToLinguaLogJourney'),
           variant: "default",
         })
         
@@ -103,9 +105,9 @@ export default function SignUpPage() {
       
       // Handle different error types
       if (err.message.includes("already registered")) {
-        setError("This email is already registered. Please use another email or sign in.")
+        setError(t('auth.emailAlreadyRegistered'))
       } else {
-        setError(err.message || "Failed to create account. Please try again.")
+        setError(err.message || t('auth.failedToCreateAccount'))
       }
       
       console.error("Signup error:", err)
@@ -119,9 +121,9 @@ export default function SignUpPage() {
           <Sparkles className="h-10 w-10 text-pastel-purple animate-pulse-gentle" />
         </div>
         <CardTitle className="text-2xl font-bold text-center">
-          <span className="heading-underline">Join LinguaLog</span>
+          <span className="heading-underline">{t('auth.joinLinguaLog')}</span>
         </CardTitle>
-        <CardDescription className="text-center">Create your account and start your language journey</CardDescription>
+        <CardDescription className="text-center">{t('auth.createAccountAndStart')}</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -131,28 +133,28 @@ export default function SignUpPage() {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="name">Name (optional)</Label>
+            <Label htmlFor="name">{t('auth.nameOptional')}</Label>
             <Input
               id="name"
               type="text"
-              placeholder="Your name"
+              placeholder={t('auth.yourName')}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="name@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -173,13 +175,13 @@ export default function SignUpPage() {
                 ) : (
                   <Eye className="h-4 w-4 text-muted-foreground" />
                 )}
-                <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                <span className="sr-only">{showPassword ? t('auth.hidePassword') : t('auth.showPassword')}</span>
               </Button>
             </div>
             {password && (
               <div className="space-y-1 mt-2">
                 <div className="flex justify-between text-xs">
-                  <span>Password strength:</span>
+                  <span>{t('auth.passwordStrength')}</span>
                   <span
                     className={
                       passwordStrength <= 25
@@ -196,7 +198,7 @@ export default function SignUpPage() {
                 </div>
                 <Progress value={passwordStrength} className="h-1.5" indicatorClassName={getPasswordStrengthColor()} />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Use 8+ characters with a mix of letters, numbers & symbols
+                  {t('auth.passwordRequirements')}
                 </p>
               </div>
             )}
@@ -207,19 +209,19 @@ export default function SignUpPage() {
             {isLoading ? (
               <div className="flex items-center justify-center">
                 <LoadingDots />
-                <span className="ml-2">Creating account</span>
+                <span className="ml-2">{t('auth.creatingAccount')}</span>
               </div>
             ) : (
               <div className="flex items-center justify-center">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Create Account
+                {t('auth.createAccount')}
               </div>
             )}
           </Button>
           <div className="text-center text-sm">
-            Already have an account?{" "}
+            {t('auth.alreadyHaveAccount')}{" "}
             <Link href="/auth/sign-in" className="text-primary hover:underline font-medium">
-              Sign in
+              {t('auth.signIn')}
             </Link>
           </div>
         </CardFooter>

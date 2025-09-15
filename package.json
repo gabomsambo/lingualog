@@ -9,8 +9,7 @@
     "lint": "next lint",
     "e2e": "playwright test"
   },
-  "dependencies": {
-  },
   "devDependencies": {
+    "@playwright/test": "^1.55.0"
   }
-} 
+}

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import type React from "react"
 import { MainNav } from "@/components/main-nav"
 import { UserNav } from "@/components/user-nav"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export default function AppGroupLayout({
   children,
@@ -15,6 +16,7 @@ export default function AppGroupLayout({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { t } = useLocale();
 
   useEffect(() => {
     async function checkAuth() {
@@ -65,7 +67,7 @@ export default function AppGroupLayout({
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex">
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-fun-blue via-fun-purple to-fun-pink bg-clip-text text-transparent">
-              LinguaLog
+              {t('common.appTitle')}
             </h1>
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">

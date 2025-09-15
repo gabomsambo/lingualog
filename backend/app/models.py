@@ -64,6 +64,14 @@ class UserSettings(BaseModel):
     analytics_opt_in: bool = True
     created_at: datetime
     updated_at: datetime
+    # New multilingual fields from migration
+    interface_lang: str = "en"
+    native_lang: str = "en" 
+    default_target_lang: Optional[str] = None
+    explanation_mode: str = "bilingual"
+    immersion_level: int = 1
+    strictness: str = "medium"
+    formality: str = "neutral"
 
 class UserSettingsUpdate(BaseModel):
     native_language: Optional[str] = None
@@ -85,6 +93,14 @@ class UserSettingsUpdate(BaseModel):
     public_profile: Optional[bool] = None
     share_progress: Optional[bool] = None
     analytics_opt_in: Optional[bool] = None
+    # New multilingual fields from migration
+    interface_lang: Optional[str] = None
+    native_lang: Optional[str] = None
+    default_target_lang: Optional[str] = None
+    explanation_mode: Optional[str] = None
+    immersion_level: Optional[int] = None
+    strictness: Optional[str] = None
+    formality: Optional[str] = None
 
 # --- Journal Entry Models ---
 class JournalEntryBase(BaseModel):

@@ -1,0 +1,20 @@
+{
+  "newEntry": "إدخال جديد",
+  "writeEntry": "اكتب إدخال يوميتك...",
+  "saveEntry": "حفظ الإدخال",
+  "editEntry": "تعديل الإدخال",
+  "deleteEntry": "حذف الإدخال",
+  "entryTitle": "عنوان الإدخال",
+  "entryContent": "محتوى الإدخال",
+  "entries": "الإدخالات",
+  "myEntries": "إدخالاتي",
+  "todaysEntry": "إدخال اليوم",
+  "recentEntries": "الإدخالات الحديثة",
+  "allEntries": "جميع الإدخالات",
+  "entryAnalysis": "تحليل الإدخال",
+  "wordCount": "عدد الكلمات",
+  "charactersCount": "عدد الأحرف",
+  "insights": "رؤى",
+  "vocabulary": "المفردات",
+  "submitAndAnalyze": "إرسال وتحليل"
+}

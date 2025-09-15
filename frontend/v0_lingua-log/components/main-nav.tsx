@@ -6,28 +6,30 @@ import { BookText, BarChart2, Bookmark } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useLocale } from "@/i18n/LocaleProvider"
 
 export function MainNav() {
   const pathname = usePathname()
+  const { t } = useLocale()
 
   const routes = [
     {
       href: "/dashboard",
-      label: "Dashboard",
+      label: t('common.dashboard'),
       icon: <BookText className="mr-2 h-5 w-5" />,
       active: pathname === "/dashboard",
       variant: "green" as const,
     },
     {
       href: "/vocabulary",
-      label: "Vocabulary",
+      label: t('common.vocabulary'),
       icon: <Bookmark className="mr-2 h-5 w-5" />,
       active: pathname === "/vocabulary",
       variant: "blue" as const,
     },
     {
       href: "/stats",
-      label: "Statistics",
+      label: t('common.statistics'),
       icon: <BarChart2 className="mr-2 h-5 w-5" />,
       active: pathname === "/stats",
       variant: "purple" as const,
