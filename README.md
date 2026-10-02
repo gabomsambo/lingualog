@@ -79,7 +79,9 @@ cp .env.example .env
 cp frontend/v0_lingua-log/.env.example frontend/v0_lingua-log/.env.local
 ```
 
-`make dev` will auto-populate local Supabase keys into those files.
+`make dev` creates those files from the templates if missing and only updates the Supabase URL/key entries,
+so any other values you set (AI keys, ports, CORS origins) are preserved. Override the Supabase CLI command with
+`make dev SUPABASE_NPX="supabase"` if you have it installed globally.
 
 Root `.env`:
 
