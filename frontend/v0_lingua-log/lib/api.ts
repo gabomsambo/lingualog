@@ -49,7 +49,7 @@ export async function postLogEntry(
   return (await res.json()) as Entry;
 }
 
-export async function getEntries() {
+export async function getEntries(language?: string) {
   const authHeaders = await getAuthHeaders();
   const user = await getUser();
 
@@ -60,8 +60,14 @@ export async function getEntries() {
   if (user && user.id) {
     customHeaders["X-User-ID"] = user.id;
   }
-  
-  const res = await fetch(`${API_BASE}/entries`, { 
+
+  // Build URL with optional language query parameter
+  const url = new URL(`${API_BASE}/entries`);
+  if (language) {
+    url.searchParams.append('language', language);
+  }
+
+  const res = await fetch(url.toString(), {
     method: "GET",
     credentials: "include",
     headers: customHeaders as HeadersInit

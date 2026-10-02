@@ -418,11 +418,11 @@ export function JournalEditor() {
 
       {/* Render the v0 TranslationModal */}
       {result && (
-        <TranslationModal 
+        <TranslationModal
           isOpen={isTranslationModalOpen}
           onClose={handleCloseTranslationModal}
           entryContent={text} // Pass the original text content
-          entryLanguage={language} // Pass the language the entry was written in
+          entryLanguage={targetLanguage} // Pass the language the entry was written in
         />
       )}
     </div>

@@ -568,48 +568,52 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <Label>{t('settings.targetLanguagesLegacy')}</Label>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {settings.targetLanguages.map((langCode) => {
-                          const lang = LANGUAGES.find(l => l.code === langCode)
-                          return lang ? (
-                            <Badge key={langCode} variant="outline" className="gap-2">
-                              <span>{lang.flag}</span>
-                              <span>{lang.name}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                                onClick={() => removeTargetLanguage(langCode)}
-                              >
-                                ×
-                              </Button>
-                            </Badge>
-                          ) : null
-                        })}
+                  {/* Deprecated: Target Languages array UI - Hidden but kept for backward compatibility */}
+                  {/* Language switching is now done via "Default Target Language" above */}
+                  {false && (
+                    <div>
+                      <Label>{t('settings.targetLanguagesLegacy')}</Label>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {settings.targetLanguages.map((langCode) => {
+                            const lang = LANGUAGES.find(l => l.code === langCode)
+                            return lang ? (
+                              <Badge key={langCode} variant="outline" className="gap-2">
+                                <span>{lang.flag}</span>
+                                <span>{lang.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                                  onClick={() => removeTargetLanguage(langCode)}
+                                >
+                                  ×
+                                </Button>
+                              </Badge>
+                            ) : null
+                          })}
+                        </div>
+
+                        <Select onValueChange={addTargetLanguage}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('settings.addLanguageToLearn')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LANGUAGES
+                              .filter(lang => !settings.targetLanguages.includes(lang.code) && lang.code !== settings.nativeLanguage)
+                              .map((lang) => (
+                                <SelectItem key={lang.code} value={lang.code}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{lang.flag}</span>
+                                    <span>{lang.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      
-                      <Select onValueChange={addTargetLanguage}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('settings.addLanguageToLearn')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LANGUAGES
-                            .filter(lang => !settings.targetLanguages.includes(lang.code) && lang.code !== settings.nativeLanguage)
-                            .map((lang) => (
-                              <SelectItem key={lang.code} value={lang.code}>
-                                <div className="flex items-center gap-2">
-                                  <span>{lang.flag}</span>
-                                  <span>{lang.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 

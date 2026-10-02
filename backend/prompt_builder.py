@@ -252,22 +252,23 @@ def _get_explanation_language_snapshot(effective: EffectiveSettings) -> str:
 
 def _estimate_proficiency_level(effective: EffectiveSettings) -> str:
     """
-    Estimate proficiency level based on settings.
-    
+    Estimate proficiency level based on immersion setting.
+
+    Valid immersion levels: 0-3
+    Returns: beginner, elementary, intermediate, or advanced
+
     This is a heuristic based on immersion level and other settings.
     """
     immersion = effective.immersion_level
-    
-    if immersion <= 1:
-        return "beginner"
+
+    if immersion == 0:
+        return "beginner"         # Native-First users are beginners
+    elif immersion == 1:
+        return "elementary"       # Guided Bilingual
     elif immersion == 2:
-        return "elementary"
-    elif immersion == 3:
-        return "intermediate"
-    elif immersion == 4:
-        return "advanced"
-    else:  # immersion == 5
-        return "advanced"
+        return "intermediate"     # Balanced Immersion
+    else:  # immersion == 3
+        return "advanced"         # Full Immersion users are advanced
 
 
 # Alternative system prompts for different contexts

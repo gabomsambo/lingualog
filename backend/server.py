@@ -319,16 +319,17 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
 
 @app.get("/entries", status_code=status.HTTP_200_OK)
-async def get_entries(request: Request):
+async def get_entries(request: Request, language: Optional[str] = None):
     """
-    Retrieve journal entries for the authenticated user.
-    
+    Retrieve journal entries for the authenticated user, optionally filtered by language.
+
     Args:
         request: The request object containing user info (if available)
-        
+        language: Optional language filter (e.g., 'es', 'fr', 'ja') to show only entries in that language
+
     Returns:
         List of journal entries with their feedback
-    
+
     Raises:
         HTTPException: If there's an error retrieving entries
     """
@@ -340,14 +341,14 @@ async def get_entries(request: Request):
             # Depending on desired behavior, you might allow fetching all if admin, etc.
             logger.warning("Attempted to fetch entries without X-User-ID header.")
             # Option 1: Return empty list
-            return [] 
+            return []
             # Option 2: Raise an error
             # raise HTTPException(
             #     status_code=status.HTTP_401_UNAUTHORIZED,
             #     detail="User ID not provided"
             # )
 
-        entries = fetch_entries(user_id=user_id)
+        entries = fetch_entries(user_id=user_id, language=language)
         return entries
     except Exception as e:
         logger.error(f"Error fetching entries: {str(e)}")

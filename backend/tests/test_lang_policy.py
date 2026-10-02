@@ -134,18 +134,18 @@ class TestOverridesPrecedence:
             'explanation_mode': 'smart',
             'strictness': 'gentle',
             'formality': 'casual',
-            'immersion_level': 4
+            'immersion_level': 3
         }
-        
+
         effective = resolve_effective(profile, None)
-        
+
         # Profile values should override defaults
         assert effective.l1 == 'ja'  # Not default 'en'
         assert effective.l2 == 'ko'  # Not default 'es'
         assert effective.ui_language == 'ja'  # Not default 'en'
         assert effective.strictness == 'gentle'  # Not default 'medium'
         assert effective.formality == 'casual'  # Not default 'neutral'
-        assert effective.immersion_level == 4  # Not default 1
+        assert effective.immersion_level == 3  # Not default 1
     
     def test_defaults_when_no_profile(self):
         """Test that defaults are used when no profile is provided."""
@@ -212,11 +212,11 @@ class TestExplanationInstructions:
         effective = EffectiveSettings(
             l1='en', l2='fr', explanation_mode='target_only',
             translation_policy='omit', strictness='strict',
-            formality='formal', immersion_level=4, ui_language='en'
+            formality='formal', immersion_level=3, ui_language='en'
         )
-        
+
         instruction = explanation_instruction(effective)
-        
+
         assert 'French only' in instruction
         assert 'thorough in corrections' in instruction
         assert 'formal, academic tone' in instruction
@@ -366,25 +366,25 @@ class TestIntegration:
             'default_target_lang': 'en',
             'interface_lang': 'ja',
             'explanation_mode': 'smart',
-            'immersion_level': 4,
+            'immersion_level': 3,
             'strictness': 'strict',
             'formality': 'academic'
         }
-        
+
         # User wants stricter feedback for this entry
         overrides = {
             'strictness': 'pedantic'
         }
-        
+
         effective = resolve_effective(profile, overrides)
-        
+
         assert effective.l1 == 'ja'
         assert effective.l2 == 'en'
-        assert effective.explanation_mode == 'target_only'  # Immersion level 4
+        assert effective.explanation_mode == 'target_only'  # Immersion level 3 (Full Immersion)
         assert effective.translation_policy == 'omit'
         assert effective.strictness == 'pedantic'  # Override worked
         assert effective.formality == 'academic'
-        
+
         # Test instruction generation
         instruction = explanation_instruction(effective)
         assert 'English only' in instruction  # Uses target language due to high immersion

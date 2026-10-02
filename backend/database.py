@@ -171,30 +171,35 @@ def save_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         raise
 
 
-def fetch_entries(user_id: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+def fetch_entries(user_id: Optional[str] = None, language: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
     """
-    Return journal entries filtered by user_id, ordered by newest first.
-    
+    Return journal entries filtered by user_id and optionally by language, ordered by newest first.
+
     Args:
         user_id: The ID of the user whose entries to fetch (None for all entries)
+        language: Filter by target_language (e.g., 'es', 'fr', 'ja') - None for all languages
         limit: Maximum number of entries to return (default 20)
-        
+
     Returns:
         List of journal entry records with feedback
-        
+
     Raises:
         Exception: If the database operation fails
     """
     try:
         # Create Supabase client
         supabase = create_supabase_client()
-        
+
         # Build the query
         query = supabase.table(JOURNAL_ENTRIES_TABLE).select("*")
-        
+
         # Filter by user_id if provided
         if user_id:
             query = query.eq("user_id", user_id)
+
+        # Filter by language if provided
+        if language:
+            query = query.eq("target_language", language)
             
         # Apply limit
         query = query.limit(limit)

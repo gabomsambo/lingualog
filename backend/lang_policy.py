@@ -27,19 +27,18 @@ class EffectiveSettings:
     translation_policy: str  # When/how to provide translations
     strictness: str  # Correction strictness level
     formality: str  # Formality level for corrections
-    immersion_level: int  # Immersion level 1-5
+    immersion_level: int  # Immersion level 0-3
     ui_language: str  # Interface language for this request
 
 
-# Immersion level mapping
+# Immersion level mapping (0-3)
 # Format: level -> (explanation_language, translation_policy)
+# Matches plan specification from MULTI_LINGUAL_PROBLEM.md
 IMMERSION_MAP = {
-    0: ('native', 'L2_to_L1'),     # Level 0: Maximum native language support
-    1: ('native', 'on_demand'),    # Level 1: Native explanations, translations on demand
-    2: ('bilingual', 'on_demand'), # Level 2: Bilingual explanations, translations on demand
-    3: ('target', 'omit'),         # Level 3: Target language only, no translations
-    4: ('target', 'omit'),         # Level 4: Advanced target language
-    5: ('target', 'omit'),         # Level 5: Near-native immersion
+    0: ('native', 'L2_to_L1'),     # Level 0: Native-First - Maximum L1 support, always show translations
+    1: ('native', 'on_demand'),    # Level 1: Guided Bilingual - L1 explanations, translations on-demand
+    2: ('bilingual', 'on_demand'), # Level 2: Balanced Immersion - Bilingual explanations, translations on-demand
+    3: ('target', 'omit'),         # Level 3: Full Immersion - L2 only, no translations
 }
 
 # Default settings fallback
@@ -234,7 +233,7 @@ def explanation_instruction(effective: EffectiveSettings) -> str:
     # Add immersion context
     if effective.immersion_level <= 1:
         instruction_parts.append("The learner is a beginner, so be extra clear and supportive.")
-    elif effective.immersion_level >= 4:
+    elif effective.immersion_level >= 3:
         instruction_parts.append("The learner is advanced, so you can use more sophisticated language.")
     
     instruction = " ".join(instruction_parts)
@@ -327,7 +326,7 @@ def validate_effective_settings(effective: EffectiveSettings) -> bool:
         raise ValueError(f"Invalid translation_policy: {effective.translation_policy}")
     
     # Validate immersion level
-    if not (0 <= effective.immersion_level <= 5):
-        raise ValueError(f"Invalid immersion_level: {effective.immersion_level} (must be 0-5)")
+    if not (0 <= effective.immersion_level <= 3):
+        raise ValueError(f"Invalid immersion_level: {effective.immersion_level} (must be 0-3)")
     
     return True

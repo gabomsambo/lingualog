@@ -22,7 +22,7 @@ class JournalEntryRequest(BaseModel):
     explanation_mode: Optional[str] = Field(None, description="Override explanation mode (native_only, target_only, bilingual, smart)")
     strictness: Optional[str] = Field(None, description="Override correction strictness (gentle, medium, strict, pedantic)")
     formality: Optional[str] = Field(None, description="Override formality level (casual, neutral, formal, academic)")
-    immersion_level: Optional[int] = Field(None, description="Override immersion level (0-5)", ge=0, le=5)
+    immersion_level: Optional[int] = Field(None, description="Override immersion level (0-3)", ge=0, le=3)
 
     class Config:
         orm_mode = True

@@ -1,0 +1,165 @@
+# AGENTS.md
+
+This project is an AI-powered language learning journal with comprehensive feedback, vocabulary enrichment, and multilingual support through Atomic Agents.
+
+## Architecture Overview
+
+Two main components:
+- **backend**: FastAPI server with Atomic Agents (journal analysis, vocabulary enrichment, quiz generation)
+- **frontend**: Next.js 15 App Router with React 18, TypeScript, and Supabase integration
+
+## Development Environment
+
+### Quick Start Commands
+
+```bash
+# Backend API
+cd backend && python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.server:app --reload --port 8000
+
+# Frontend
+cd frontend && npm install && npm run dev
+```
+
+### Docker Setup (Recommended)
+
+```bash
+# Start full stack (API + Frontend)
+docker-compose up
+
+# Services available at:
+# - Frontend: http://localhost:5173
+# - API: http://localhost:8000
+```
+
+### Testing
+
+```bash
+# Backend tests
+cd backend && pytest
+
+# Frontend tests
+cd frontend && npm test
+```
+
+## Core Technologies
+
+- **Agent Framework**: Atomic Agents 2.1.0+ with OpenAI GPT-4o-mini
+- **API**: FastAPI 0.115.0+ with background tasks
+- **Database**: Supabase (PostgreSQL) - no vector/RAG functionality
+- **Frontend**: Next.js 15.2.4 + React 18.3.1 + TypeScript 5
+- **UI Library**: shadcn/ui (Radix UI) + Tailwind CSS 3.4.17
+- **i18n**: i18next + react-i18next (en, es, ar, he with RTL support)
+- **AI Models**: Atomic Agents (primary), Gemini (fallback), optional Mistral-7B
+
+## Code Style
+
+- **Python**: PEP8, type hints required, Pydantic for validation
+- **TypeScript**: Functional components, interfaces over types, strict mode
+- **Line length**: 100-120 characters max
+- **Comments**: Minimal - code should be self-documenting
+
+## Environment Configuration
+
+### Backend `.env`:
+```bash
+SUPABASE_URL=your-supabase-url
+SUPABASE_SERVICE_KEY=your-service-key
+OPENAI_API_KEY=your-openai-key
+USE_MISTRAL=false  # Optional Mistral model
+MISTRAL_MODEL_PATH=/path/to/model  # If USE_MISTRAL=true
+HUGGINGFACE_TOKEN=your-token  # If USE_MISTRAL=true
+```
+
+### Frontend `.env.local`:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_API_BASE=http://localhost:8000
+```
+
+## Key Integration Points
+
+- **Frontend ↔ Backend**: REST API with auth via `X-User-ID` header
+- **Backend ↔ Supabase**: Direct client for auth + CRUD operations
+- **Backend ↔ Atomic Agents**: Journal analysis, vocabulary enrichment, quiz generation
+- **Frontend ↔ Supabase**: Direct client for auth state management
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`
+
+## Core Agent Workflows
+
+### Journal Entry Flow
+1. User submits text via `/log-entry` with language settings
+2. `JournalAnalysisAgent` analyzes grammar, fluency, tone
+3. Returns corrected text, rewrite, rubric, translations, new words
+4. Saves to `journal_entries` table with flattened AI feedback
+5. Background task enriches new vocabulary items
+
+### Vocabulary Enrichment Flow
+1. User adds word or system extracts from journal
+2. `/ai/vocabulary/{id}/enrich` endpoint called
+3. `VocabularyEnrichmentAgent` generates definitions, examples, synonyms, cultural notes
+4. Results stored directly in `user_vocabulary` columns (no separate cache)
+5. Frontend displays enriched data in LearnWordModal
+
+### Language Policy Resolution
+1. `lang_policy.py` merges user settings + request overrides
+2. Resolves L1 (native) and L2 (target) languages
+3. Applies immersion level, strictness, formality, explanation mode
+4. Controls translation visibility and feedback language
+
+## Security
+
+- Never commit secrets or `.env` files
+- Use environment variables for all credentials
+- Validate inputs with Pydantic models
+- User ownership verified in all database queries
+- Auth tokens managed by Supabase
+
+## Documentation
+
+Key reference files:
+- `backend/MISTRAL_INTEGRATION.md` - Optional Mistral model setup
+- `backend/example_mistral.py` - Mistral usage examples
+- `frontend/README.md` - Frontend-specific docs
+- `PRPs/` - Product requirement plans (if using Archon workflow)
+
+## Common Issues
+
+- **CORS errors**: Check `NEXT_PUBLIC_API_BASE` matches backend URL
+- **Auth failures**: Verify Supabase keys and `X-User-ID` header
+- **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
+- **Port conflicts**: 8000 (backend), 5173 (frontend dev)
+- **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
+- **i18n missing keys**: Add to `/frontend/locales/{lang}/{namespace}.json`
+- **Database migrations**: Run Supabase migrations in `/supabase/migrations/`
+
+## Database Schema Quick Reference
+
+### `journal_entries`
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.)
+- Foreign key: `user_id`
+
+### `user_vocabulary`
+- Stores user's vocabulary items with AI enrichment columns
+- Unique constraint: `(user_id, term, language)`
+- AI fields: `ai_definitions`, `ai_example_sentences`, `ai_synonyms`, `ai_antonyms`, `ai_cultural_note`, `ai_pronunciation_guide`, `emotion_tone`, `mnemonic`, `emoji`
+
+### `user_settings`
+- Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode`, `strictness`, `formality`, `immersion_level`
+
+## API Endpoint Reference
+
+- `POST /login` - Magic link authentication
+- `POST /log-entry` - Submit journal entry with AI feedback
+- `GET /entries` - Fetch user journal entries
+- `GET /entries/{id}` - Get single entry
+- `DELETE /entries/{id}` - Delete entry
+- `POST /vocabulary` - Add vocabulary item
+- `GET /vocabulary` - Fetch user vocabulary
+- `DELETE /vocabulary/{id}` - Delete vocabulary item
+- `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
+- `GET /user/profile` - Get user profile
+- `PATCH /user/settings` - Update user settings
+- `GET /user/stats` - Get user statistics

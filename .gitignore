@@ -20,6 +20,8 @@ frontend/v0_lingua-log/.next/
 frontend/v0_lingua-log/out/
 frontend/v0_lingua-log/build/
 
+.claude/
+
 # General Python
 __pycache__/
 *.py[cod]
@@ -53,3 +55,11 @@ build/
 .coverage
 coverage.xml
 htmlcov/ 
+# Local environments, dependencies and build artifacts
+venv/
+.venv*/
+node_modules/
+test-results/
+*.egg-info/
+*.tsbuildinfo
+.DS_Store
