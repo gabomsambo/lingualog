@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { LocaleProvider } from "@/i18n/LocaleProvider"
 import { DevLanguageSwitcher } from "@/components/dev-language-switcher"
-import Script from "next/script"
 
 import "./globals.css"
 // import "../i18n/i18n" // Temporarily disabled for testing
@@ -39,8 +38,6 @@ export default function RootLayout({
           </ThemeProvider>
         </LocaleProvider>
         
-        {/* API URL fix script */}
-        <Script src="/fix-api.js" strategy="afterInteractive" />
       </body>
     </html>
   )

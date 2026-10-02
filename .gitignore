@@ -2,8 +2,8 @@
 .env
 *.env
 .env.*
-#!**/.env.example # Allow .env.example files in any directory - trying alternative
-!*.env.example # Broadly allow any .env.example file
+!*.env.example
+!**/.env.example
 !/.env.template
 
 # Backend specific
@@ -19,8 +19,11 @@ frontend/v0_lingua-log/node_modules/
 frontend/v0_lingua-log/.next/
 frontend/v0_lingua-log/out/
 frontend/v0_lingua-log/build/
+supabase/.branches/
+supabase/.temp/
 
 .claude/
+.chrome-profile/
 
 # General Python
 __pycache__/

@@ -76,7 +76,7 @@ HUGGINGFACE_TOKEN=your-token  # If USE_MISTRAL=true
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NEXT_PUBLIC_API_BASE=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ## Key Integration Points
@@ -127,7 +127,7 @@ Key reference files:
 
 ## Common Issues
 
-- **CORS errors**: Check `NEXT_PUBLIC_API_BASE` matches backend URL
+- **CORS errors**: Check `NEXT_PUBLIC_API_URL` matches backend URL
 - **Auth failures**: Verify Supabase keys and `X-User-ID` header
 - **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
 - **Port conflicts**: 8000 (backend), 5173 (frontend dev)

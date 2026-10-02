@@ -2,8 +2,14 @@ import { createClient } from '@supabase/supabase-js'
 import type { Entry } from "@/types/entry"
 
 // Supabase client setup
-const supabaseUrl = 'https://plspwcusgvfaghiskuyc.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsc3B3Y3VzZ3ZmYWdoaXNrdXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1MjQ0OTYsImV4cCI6MjA2MjEwMDQ5Nn0.iJcMz6Gw6N9Iob4_6LQ9Da7O7MsqbUaEp-sLIQnxGSM'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    "Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+  )
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
