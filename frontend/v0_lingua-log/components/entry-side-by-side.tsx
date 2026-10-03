@@ -419,6 +419,12 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
                       <MobileLabel>{t("feedback.howToWriteIt")}</MobileLabel>
                       {!entry.corrected || failed ? (
                         index === 0 ? <span className="text-sm text-muted-foreground">{t("feedback.noCorrectionYet")}</span> : null
+                      ) : !corrected.trim() ? (
+                        <span className="text-sm italic text-muted-foreground" data-testid="corrected-merged">
+                          {correctedRows.slice(0, index).some((row) => row.trim())
+                            ? t("feedback.mergedIntoAbove")
+                            : t("feedback.mergedIntoBelow")}
+                        </span>
                       ) : (
                         <p lang={l2} dir={l2Dir} className="font-serif text-base leading-relaxed" data-testid="corrected">
                           {diffWords(sentence, corrected).map((part, k) => (

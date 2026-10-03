@@ -99,7 +99,9 @@ export function JournalEditor() {
   const loadResultEntry = async (entryId: string) => {
     try {
       const saved = await getEntryById(entryId)
-      setResultEntry(saved ? toSideBySideEntry(saved) : null)
+      const next = saved ? toSideBySideEntry(saved) : null
+      setResultEntry(next)
+      if (next && next.analysisStatus !== "failed") setError(null)
     } catch (loadError) {
       console.error("Failed to load the saved entry:", loadError)
     }
@@ -113,6 +115,9 @@ export function JournalEditor() {
     
     setIsSubmitting(true)
     setError(null)
+    setResult(null)
+    setResultEntry(null)
+    setSavedEntryId(null)
     
     try {
       console.log("Submitting entry to API...")

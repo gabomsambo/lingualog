@@ -130,6 +130,22 @@ describe("EntrySideBySide layout", () => {
     expect(screen.getByTestId("ambiguities")).toHaveTextContent("Did you mean embarrassed or pregnant?")
   })
 
+  it("marks a sentence the correction merged into its neighbour instead of striking it out", () => {
+    renderEntry(0, {
+      corrected:
+        "Mi hermana está muy aburrida hoy porque está lloviendo y quiero que ella venga conmigo al cine. Estoy muy avergonzada porque olvidé su cumpleaños.",
+    })
+    const rows = screen.getAllByTestId("sbs-row")
+    expect(rows).toHaveLength(3)
+    const merged = screen.getAllByTestId("corrected-merged")
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toHaveTextContent(/merged into the sentence (above|below)/i)
+    const mergedRow = rows.findIndex((row) => within(row).queryByTestId("corrected-merged"))
+    expect(within(rows[mergedRow]).queryByTestId("corrected")).toBeNull()
+    expect(merged[0]).toHaveTextContent(mergedRow === 0 ? "Merged into the sentence below" : "Merged into the sentence above")
+    expect(screen.getAllByTestId("corrected")).toHaveLength(2)
+  })
+
   it("switches to the native rewrite as one block with idiom glosses", async () => {
     renderEntry(0)
     fireEvent.click(screen.getByRole("button", { name: "Native" }))
