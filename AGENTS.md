@@ -45,25 +45,7 @@ cd frontend/v0_lingua-log && npm test
 Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.env.example` (copy to `.env.local`).
 `make dev` fills in the local Supabase URL/keys. Optional Mistral deps: `backend/requirements-optional-mistral.txt`.
 
-### Backend `.env`:
-```bash
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-service-key
-GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL_FEEDBACK=gemini-3.8-flash
-GEMINI_THINKING_LEVEL=low
-AI_PROVIDER=gemini  # set to "mock" for offline tests
-USE_MISTRAL=false  # Optional Mistral model
-MISTRAL_MODEL_PATH=/path/to/model  # If USE_MISTRAL=true
-HUGGINGFACE_TOKEN=your-token  # If USE_MISTRAL=true
-```
-
-### Frontend `.env.local`:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NEXT_PUBLIC_API_BASE=http://localhost:8000
-```
+Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
 
 ## Key Integration Points
 
@@ -78,10 +60,10 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000
 
 ### Journal Entry Flow
 1. User submits text via `/log-entry` with language settings
-2. `JournalAnalysisAgent` analyzes grammar, fluency, tone
+2. `backend/ai/gemini.py` makes one stateless structured Gemini call (prompt built in `prompt_builder.py`)
 3. Returns corrected text, rewrite, rubric, grammar notes, new words
-4. Saves to `journal_entries` table with flattened AI feedback
-5. Background task enriches new vocabulary items
+4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`); returns the entry `id`
+5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
 
 ### Vocabulary Enrichment Flow
 1. User adds word or system extracts from journal
@@ -125,7 +107,7 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.)
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code`
 - Foreign key: `user_id`
 
 ### `user_vocabulary`

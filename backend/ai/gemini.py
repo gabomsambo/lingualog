@@ -98,7 +98,7 @@ async def generate_structured(
                 ),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError as exc:
+        except asyncio.TimeoutError:
             logger.warning("Gemini request timed out after %.1fs", timeout)
             last_error = GeminiError(
                 "ai_timeout",
