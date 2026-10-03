@@ -146,6 +146,18 @@ describe("EntrySideBySide layout", () => {
     expect(screen.getAllByTestId("corrected")).toHaveLength(2)
   })
 
+  it("strikes out a sentence the correction removed and says so", () => {
+    renderEntry(0, {
+      corrected:
+        "Mi hermana está muy aburrida hoy porque está lloviendo. Estoy muy avergonzada porque olvidé su cumpleaños.",
+    })
+    const rows = screen.getAllByTestId("sbs-row")
+    expect(screen.queryAllByTestId("corrected-merged")).toHaveLength(0)
+    const removed = within(rows[1]).getByTestId("corrected-removed")
+    expect(removed).toHaveTextContent("Removed in the correction")
+    expect(within(within(rows[1]).getByTestId("corrected")).getByText(/viene/).tagName).toBe("DEL")
+  })
+
   it("switches to the native rewrite as one block with idiom glosses", async () => {
     renderEntry(0)
     fireEvent.click(screen.getByRole("button", { name: "Native" }))

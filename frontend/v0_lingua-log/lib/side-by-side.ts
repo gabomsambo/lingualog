@@ -185,6 +185,34 @@ export function alignSentences(source: string[], target: string[]): string[] {
   return rows.map((parts) => parts.join(" "))
 }
 
+export type EmptyRowFate = "merged_above" | "merged_below" | "removed"
+
+/**
+ * Explain an empty aligned corrected row: merged into the nearest corrected neighbour that shares
+ * words with the source sentence (the one sharing more), otherwise removed in the correction.
+ */
+export function emptyRowFate(source: string[], correctedRows: string[], index: number): EmptyRowFate {
+  const words = wordSet(source[index] ?? "")
+  const shared = (row: string | undefined) => {
+    if (!row) return 0
+    let count = 0
+    wordSet(row).forEach((word) => {
+      if (words.has(word)) count += 1
+    })
+    return count
+  }
+  let above: string | undefined
+  for (let i = index - 1; i >= 0 && above === undefined; i--) if (correctedRows[i]?.trim()) above = correctedRows[i]
+  let below: string | undefined
+  for (let i = index + 1; i < correctedRows.length && below === undefined; i++) {
+    if (correctedRows[i]?.trim()) below = correctedRows[i]
+  }
+  const up = shared(above)
+  const down = shared(below)
+  if (!up && !down) return "removed"
+  return up >= down ? "merged_above" : "merged_below"
+}
+
 export type DiffKind = "same" | "del" | "ins"
 export interface DiffPart {
   kind: DiffKind

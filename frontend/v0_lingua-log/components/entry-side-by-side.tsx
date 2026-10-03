@@ -19,6 +19,7 @@ import {
   alignSentences,
   cleanLiteralReading,
   diffWords,
+  emptyRowFate,
   htmlToText,
   locateSuggestions,
   noteTexts,
@@ -396,6 +397,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
 
             {sentences.map((sentence, index) => {
               const corrected = correctedRows[index] || ""
+              const fate = corrected.trim() ? null : emptyRowFate(sentences, correctedRows, index)
               return (
                 <div key={index} className="group contents" data-testid="sbs-row">
                   <div
@@ -419,13 +421,12 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
                       <MobileLabel>{t("feedback.howToWriteIt")}</MobileLabel>
                       {!entry.corrected || failed ? (
                         index === 0 ? <span className="text-sm text-muted-foreground">{t("feedback.noCorrectionYet")}</span> : null
-                      ) : !corrected.trim() ? (
+                      ) : !corrected.trim() && fate !== "removed" ? (
                         <span className="text-sm italic text-muted-foreground" data-testid="corrected-merged">
-                          {correctedRows.slice(0, index).some((row) => row.trim())
-                            ? t("feedback.mergedIntoAbove")
-                            : t("feedback.mergedIntoBelow")}
+                          {fate === "merged_above" ? t("feedback.mergedIntoAbove") : t("feedback.mergedIntoBelow")}
                         </span>
                       ) : (
+                        <>
                         <p lang={l2} dir={l2Dir} className="font-serif text-base leading-relaxed" data-testid="corrected">
                           {diffWords(sentence, corrected).map((part, k) => (
                             <Fragment key={k}>
@@ -440,6 +441,12 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
                             </Fragment>
                           ))}
                         </p>
+                        {fate === "removed" && (
+                          <span className="text-sm italic text-muted-foreground" data-testid="corrected-removed">
+                            {t("feedback.removedInCorrection")}
+                          </span>
+                        )}
+                        </>
                       )}
                     </div>
                   )}

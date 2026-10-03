@@ -5,6 +5,7 @@ import {
   cleanLiteralReading,
   htmlToText,
   diffWords,
+  emptyRowFate,
   locateSuggestions,
   noteTexts,
   splitParagraphs,
@@ -200,5 +201,24 @@ describe("htmlToText", () => {
       "'Embarazada' means \"pregnant\".",
     )
     expect(htmlToText("Plain note.")).toBe("Plain note.")
+  })
+})
+
+describe("emptyRowFate", () => {
+  const source = ["Yo tengo un perro.", "El perro es grande.", "Y el perro es negro.", "Me gusta mucho."]
+
+  it("points down when the sentence merged into the row below", () => {
+    const rows = ["Tengo un perro.", "", "El perro es grande y negro.", "Me gusta mucho."]
+    expect(emptyRowFate(source, rows, 1)).toBe("merged_below")
+  })
+
+  it("points up when the sentence merged into the row above", () => {
+    const rows = ["Tengo un perro.", "El perro es grande y negro.", "", "Me gusta mucho."]
+    expect(emptyRowFate(source, rows, 2)).toBe("merged_above")
+  })
+
+  it("reports a removal when no neighbour shares its words", () => {
+    const rows = ["Tengo un perro.", "", "Lo adoro.", "Me gusta mucho."]
+    expect(emptyRowFate(["Tengo un perro.", "Hace sol hoy.", "Lo adoro.", "Me gusta mucho."], rows, 1)).toBe("removed")
   })
 })
