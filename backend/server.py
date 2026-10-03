@@ -61,6 +61,10 @@ logger.propagate = True # Ensure messages go to the root logger
 # Test log to see if basicConfig is working on startup
 logger.debug("Root logger configured, LinguaLog API logger set to DEBUG.")
 
+def _parse_cors_origins() -> List[str]:
+    origins = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
+    return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
 
 async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
     """
@@ -161,7 +165,7 @@ app = FastAPI(
 # Currently using permissive settings for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Specific origin for credentials
+    allow_origins=_parse_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

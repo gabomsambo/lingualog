@@ -66,58 +66,92 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 18+
-- Supabase account
-- Minimum 16GB RAM (for Mistral model)
-- GPU with 8GB+ VRAM recommended for faster model inference
+- Docker
+- Python 3.12+
+- Node.js 22 (for `npx supabase`)
 
 ### Environment Variables
 
-Create a `.env` file in the root directory with:
-
-```
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-service-key
-
-# AI Model configuration
-USE_MISTRAL=true
-MISTRAL_MODEL_PATH=/path/to/model/directory  # Optional, defaults to $HOME/mistral_models/7B-Instruct-v0.3
-HUGGINGFACE_TOKEN=your-huggingface-token  # Required for accessing the Mistral model
-OPENAI_API_KEY=your-openai-key  # Only needed if USE_MISTRAL=false or as fallback
-```
-
-### Backend Setup
+Copy these templates:
 
 ```bash
-# Install dependencies
+cp .env.example .env
+cp frontend/v0_lingua-log/.env.example frontend/v0_lingua-log/.env.local
+```
+
+`make dev` creates those files from the templates if missing and only updates the Supabase URL/key entries,
+so any other values you set (AI keys, ports, CORS origins) are preserved. Override the Supabase CLI command with
+`make dev SUPABASE_NPX="supabase"` if you have it installed globally.
+
+Root `.env`:
+
+```
+SUPABASE_URL=http://host.docker.internal:54321
+SUPABASE_SERVICE_KEY=<local-service-role-key>
+OPENAI_API_KEY=
+OPEN_AI_API_KEY=
+GEMINI_API_KEY=
+USE_MISTRAL=false
+API_PORT=8000
+WEB_PORT=3000
+NEXT_PUBLIC_API_URL=http://localhost:8000
+CORS_ALLOW_ORIGINS=http://localhost:3000
+```
+
+Frontend `frontend/v0_lingua-log/.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<local-anon-key>
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+### One-command local start (recommended)
+
+```bash
+make dev
+```
+
+This command will:
+- start local Supabase with the CLI
+- write local env values
+- on first run, `supabase db reset --local` (migrations + seed); afterwards only pending migrations
+  are applied, so your data is kept
+- build/start backend + frontend containers
+
+Endpoints after startup:
+- App: `http://localhost:3000`
+- API docs: `http://localhost:8000/docs`
+- Supabase Studio (table browser): `http://127.0.0.1:54323`
+
+To wipe the local database back to the seed data, run `make reset-db`.
+
+Demo login for local Supabase seed data:
+- Email: `demo@lingualog.dev`
+- Password: `DemoPass123!`
+
+### Manual backend setup
+
+```bash
 cd backend
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Run the FastAPI server
-uvicorn backend.server:app --reload
+uvicorn server:app --reload --port 8000
 ```
 
-### Frontend Setup
+### Manual frontend setup
 
 ```bash
-# Install dependencies
-cd frontend
-npm install
-
-# Run the development server
+cd frontend/v0_lingua-log
+npm install --legacy-peer-deps
 npm run dev
 ```
 
-### Docker Setup (Recommended)
+### Stop local stack
 
 ```bash
-# Start the complete environment (API + Frontend)
-docker-compose up
-
-# The services will be available at:
-# - Frontend: http://localhost:5173
-# - API: http://localhost:8000
+make stop
 ```
 
 ## 🧪 Testing
@@ -130,14 +164,13 @@ make test
 make test-backend
 
 # Run frontend tests
-cd frontend
+cd frontend/v0_lingua-log
 npm test
 ```
 
 ## 📚 Documentation
 
-- [Mistral-7B-Instruct-v0.3 Integration](backend/MISTRAL_INTEGRATION.md): Instructions for using the Mistral model in LinguaLog
-- [Example Script](backend/example_mistral.py): Demonstrates Mistral model usage for text generation and translation
+- Optional Mistral dependencies: `backend/requirements-optional-mistral.txt`
 
 ## 📈 Project Status
 

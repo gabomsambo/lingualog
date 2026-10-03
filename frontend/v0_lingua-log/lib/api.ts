@@ -1,8 +1,11 @@
 import { Entry } from "@/types/entry";
 import { getAuthHeaders, getUser } from "./auth";
 
-// Always use localhost for consistent access across browser and container
-export const API_BASE = "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE) {
+  throw new Error("Missing NEXT_PUBLIC_API_URL environment variable.");
+}
 
 export interface JournalEntryOverrides {
   target_language?: string;

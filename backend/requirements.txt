@@ -2,24 +2,19 @@ fastapi>=0.115.0
 uvicorn>=0.34.0
 python-dotenv>=1.0.0
 pytest>=8.0.0
+pytest-asyncio>=0.23.0
 pydantic>=2.0.0
 supabase==2.5.0
 httpx>=0.25.0
 httpx[http2]
 email-validator>=2.0.0
-# Mistral model requirements
-transformers>=4.42.0
-huggingface_hub>=0.20.3
-torch>=2.0.0
 protobuf>=3.20.0
-sentencepiece>=0.1.99
 pytest-cov
-accelerate
 google-generativeai>=0.7.0
-# SQLAlchemy and related drivers
 sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-asyncpg>=0.29.0
+greenlet>=3.0.0
 python-jose>=3.3.0
 # Atomic Agents for AI functionality
 atomic-agents>=2.1.0
+openai>=1.0.0
+instructor>=1.6.0

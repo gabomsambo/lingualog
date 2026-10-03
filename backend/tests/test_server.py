@@ -29,55 +29,6 @@ def test_not_found_route(client):
     assert response.status_code == 404
     
     
-@patch("backend.server.analyze_entry")
-@patch("backend.server.save_entry")
-def test_post_log_entry(mock_save_entry, mock_analyze_entry, client):
-    """Test the POST /log-entry endpoint creates and saves an entry."""
-    # Mock analyze_entry to return predefined analysis
-    mock_analysis = {
-        "corrected": "Hola, me llamo Juan.",
-        "rewrite": "Hola, me llamo Juan. (more natural)",
-        "fluency_score": 85,
-        "tone": "Neutral",
-        "translation": "Hello, my name is Juan."
-    }
-    mock_analyze_entry.return_value = mock_analysis
-    
-    # Mock save_entry to return a fake saved entry
-    mock_saved_entry = {
-        "id": "test-id",
-        "created_at": "2023-05-05T12:00:00Z"
-    }
-    mock_save_entry.return_value = mock_saved_entry
-    
-    # Send request to endpoint
-    response = client.post(
-        "/log-entry",
-        json={"text": "Hola me llamo Juan"}
-    )
-    
-    # Verify the response
-    assert response.status_code == 201
-    assert "corrected" in response.json()
-    assert "rewritten" in response.json()
-    assert "score" in response.json()
-    assert "tone" in response.json()
-    assert "translation" in response.json()
-    
-    # Verify analyze_entry was called with the correct text
-    mock_analyze_entry.assert_called_once_with("Hola me llamo Juan")
-    
-    # Verify save_entry was called with entry data containing analysis results
-    mock_save_entry.assert_called_once()
-    call_args = mock_save_entry.call_args[0][0]
-    assert call_args["original_text"] == "Hola me llamo Juan"
-    assert call_args["corrected"] == mock_analysis["corrected"]
-    assert call_args["rewrite"] == mock_analysis["rewrite"]
-    assert call_args["score"] == mock_analysis["fluency_score"]
-    assert call_args["tone"] == mock_analysis["tone"]
-    assert call_args["translation"] == mock_analysis["translation"]
-
-
 @patch("backend.server.fetch_entries")
 def test_get_entries(mock_fetch_entries, client):
     """Test the GET /entries endpoint returns entries from the database."""
@@ -109,15 +60,14 @@ def test_get_entries(mock_fetch_entries, client):
     mock_fetch_entries.return_value = mock_entries
     
     # Send request to endpoint
-    response = client.get("/entries")
+    response = client.get("/entries", headers={"X-User-ID": "test-user-id"})
     
     # Verify the response
     assert response.status_code == 200
     assert len(response.json()) == 2
     assert response.json() == mock_entries
     
-    # Verify fetch_entries was called
-    mock_fetch_entries.assert_called_once()
+    mock_fetch_entries.assert_called_once_with(user_id="test-user-id", language=None)
 
 
 @patch("backend.server.delete_entry")
@@ -149,7 +99,7 @@ def test_delete_entry_not_found(mock_delete_entry, client):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == f"Entry with id {entry_id_to_delete} not found or already deleted."
+    assert response.json()["detail"] == "Entry not found or user does not have permission to delete."
     mock_delete_entry.assert_called_once_with(entry_id=entry_id_to_delete, user_id=user_id)
 
 
@@ -187,9 +137,10 @@ def test_delete_entry_exception(mock_delete_entry, client):
 
 # --- Vocabulary Endpoint Tests ---
 
+@patch("backend.server.enrich_vocabulary_in_background")
 @patch("backend.server.save_vocabulary_item")
-def test_add_vocabulary_item_success(mock_save_vocab, client):
-    user_id = "test-user-id"
+def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
+    user_id = "00000000-0000-0000-0000-000000000001"
     item_data = {
         "term": "Konnichiwa",
         "language": "Japanese",

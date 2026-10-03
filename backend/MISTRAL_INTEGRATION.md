@@ -16,17 +16,12 @@ The integration allows LinguaLog to use Mistral-7B-Instruct-v0.3, a powerful ope
 
 ### Dependencies
 
-All required dependencies are included in the `requirements.txt` file. To install them, run:
+The Mistral dependencies are optional and not installed by the default `requirements.txt` or backend Docker image.
+Install them with:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-optional-mistral.txt
 ```
-
-Key dependencies include:
-- `transformers>=4.42.0`
-- `huggingface_hub>=0.20.3`
-- `torch>=2.0.0`
-- `mistral_inference>=0.0.10`
 
 ### Model Download
 

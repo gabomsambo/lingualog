@@ -10,37 +10,17 @@ Two main components:
 
 ## Development Environment
 
-### Quick Start Commands
+Setup, env templates, and the local Supabase workflow are owned by `README.md` (Setup & Installation).
 
 ```bash
-# Backend API
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.server:app --reload --port 8000
+# Full local stack: Supabase CLI + API + frontend (demo login seeded)
+make dev        # App :3000, API :8000, Supabase Studio :54323
+make reset-db   # Wipe local DB back to seed data
+make stop
 
-# Frontend
-cd frontend && npm install && npm run dev
-```
-
-### Docker Setup (Recommended)
-
-```bash
-# Start full stack (API + Frontend)
-docker-compose up
-
-# Services available at:
-# - Frontend: http://localhost:5173
-# - API: http://localhost:8000
-```
-
-### Testing
-
-```bash
-# Backend tests
-cd backend && pytest
-
-# Frontend tests
-cd frontend && npm test
+# Tests
+make test-backend
+cd frontend/v0_lingua-log && npm test
 ```
 
 ## Core Technologies
@@ -62,22 +42,8 @@ cd frontend && npm test
 
 ## Environment Configuration
 
-### Backend `.env`:
-```bash
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-service-key
-OPENAI_API_KEY=your-openai-key
-USE_MISTRAL=false  # Optional Mistral model
-MISTRAL_MODEL_PATH=/path/to/model  # If USE_MISTRAL=true
-HUGGINGFACE_TOKEN=your-token  # If USE_MISTRAL=true
-```
-
-### Frontend `.env.local`:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NEXT_PUBLIC_API_BASE=http://localhost:8000
-```
+Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.env.example` (copy to `.env.local`).
+`make dev` fills in the local Supabase URL/keys. Optional Mistral deps: `backend/requirements-optional-mistral.txt`.
 
 ## Key Integration Points
 
@@ -122,18 +88,18 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000
 Key reference files:
 - `backend/MISTRAL_INTEGRATION.md` - Optional Mistral model setup
 - `backend/example_mistral.py` - Mistral usage examples
-- `frontend/README.md` - Frontend-specific docs
+- `supabase/MIGRATION_README.md` - Local Supabase migrations and seed
 - `PRPs/` - Product requirement plans (if using Archon workflow)
 
 ## Common Issues
 
-- **CORS errors**: Check `NEXT_PUBLIC_API_BASE` matches backend URL
+- **CORS errors**: Check `NEXT_PUBLIC_API_URL` matches backend URL and `CORS_ALLOW_ORIGINS` includes the frontend origin
 - **Auth failures**: Verify Supabase keys and `X-User-ID` header
 - **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
-- **Port conflicts**: 8000 (backend), 5173 (frontend dev)
+- **Port conflicts**: 8000 (backend), 3000 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
 - **i18n missing keys**: Add to `/frontend/locales/{lang}/{namespace}.json`
-- **Database migrations**: Run Supabase migrations in `/supabase/migrations/`
+- **Database migrations**: See `supabase/MIGRATION_README.md`
 
 ## Database Schema Quick Reference
 

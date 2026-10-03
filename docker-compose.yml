@@ -2,26 +2,24 @@ services:
   api:
     build:
       context: ./backend
-      args:
-        - PASSED_HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPEN_AI_API_KEY=${OPEN_AI_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - PYTHONUNBUFFERED=1
-      - USE_MISTRAL=${USE_MISTRAL}
+      - USE_MISTRAL=${USE_MISTRAL:-false}
       - USE_TRANSFORMERS_ONLY=false
-      - MISTRAL_MODEL_PATH=/app/mistral_models
-      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000}
     command: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
-      - mistral_models:/app/mistral_models
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - app-network
 
@@ -29,11 +27,11 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     depends_on:
       - api
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     volumes:
       - ./frontend/v0_lingua-log:/app
       - /app/node_modules
@@ -46,7 +44,3 @@ services:
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  mistral_models:
-    driver: local 
