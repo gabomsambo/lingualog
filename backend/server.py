@@ -48,7 +48,7 @@ from database import (
 )
 
 # Gemini tutor adapter
-from ai.schemas import JournalFeedback
+from ai.schemas import GeminiJournalFeedback, JournalFeedback
 from ai.gemini import (
     generate_structured,
     mock_generate_structured,
@@ -150,9 +150,10 @@ async def _analyze_with_provider(text: str, effective: EffectiveSettings) -> Jou
         return await mock_generate_structured(
             system_prompt, user_message, JournalFeedback, entry_text=text
         )
-    return await generate_structured(
-        system_prompt, user_message, JournalFeedback, timeout=30.0
+    result = await generate_structured(
+        system_prompt, user_message, GeminiJournalFeedback, timeout=30.0
     )
+    return JournalFeedback.model_validate({**result.model_dump(), "is_mock": False})
 
 
 # --- Background Tasks ---
@@ -502,7 +503,7 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         result = await _analyze_with_provider(entry["content"], effective_settings)
     except GeminiError as e:
         logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
-        if entry.get("analysis_status") not in ("ok", "mock"):
+        if entry.get("analysis_status") not in ("ok", "mock", "legacy"):
             try:
                 update_entry_analysis(
                     entry_id,
@@ -711,7 +712,10 @@ async def create_log_entry_atomic(entry: JournalEntryRequest, request: Request):
                 "explanation": feedback_response.explanation,
                 "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
                 "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
-                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else []
+                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+                "analysis_status": "legacy",
+                "analysis_model": "atomic-agents",
+                "analysis_error_code": None,
             }
             
             saved_entry = save_entry(entry_data)

@@ -125,6 +125,24 @@ async def test_generate_structured_5xx_after_retry(schema):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", [400, 401, 403, 404])
+async def test_generate_structured_client_errors_are_unconfigured(schema, status_code):
+    """Bad key, permission, or model-name errors are not transient and are not retried."""
+    client = MagicMock()
+    client.aio.models.generate_content = MagicMock(return_value=asyncio.Future())
+    client.aio.models.generate_content.return_value.set_exception(
+        genai.errors.APIError(code=status_code, response_json={"code": status_code, "status": "ERROR"})
+    )
+
+    with patch.object(genai, "Client", return_value=client):
+        with pytest.raises(GeminiError) as exc_info:
+            await generate_structured("sys", "user", schema, timeout=5.0)
+
+    assert exc_info.value.code == "ai_unconfigured"
+    assert client.aio.models.generate_content.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_generate_structured_timeout(schema):
     """A timeout should raise ai_timeout."""
     client = MagicMock()

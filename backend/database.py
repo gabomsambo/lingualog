@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Table name constant
 JOURNAL_ENTRIES_TABLE = "journal_entries"
+ANALYSIS_STATUSES = frozenset({"ok", "failed", "mock", "legacy"})
 USER_VOCABULARY_TABLE = "user_vocabulary"
 WORD_AI_CACHE_TABLE = "word_ai_cache" # New table name constant
 
@@ -152,6 +153,11 @@ def save_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     Raises:
         Exception: If the database operation fails
     """
+    if entry.get("analysis_status") not in ANALYSIS_STATUSES:
+        raise ValueError(
+            f"analysis_status must be one of {sorted(ANALYSIS_STATUSES)}, got {entry.get('analysis_status')!r}"
+        )
+
     try:
         # Create Supabase client
         supabase = create_supabase_client()

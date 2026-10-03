@@ -378,3 +378,74 @@ def test_retry_with_mock_provider_stores_mock_status(client):
     update_call = mock_update.call_args[0][2]
     assert update_call["analysis_status"] == "mock"
     assert update_call["analysis_model"] == "mock"
+
+
+def _post_entry_capturing_prompt(client, immersion_level):
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", return_value={"id": "entry-1"}):
+            with patch(
+                "server.generate_structured",
+                new=AsyncMock(return_value=sample_feedback("Hola")),
+            ) as mock_generate:
+                response = client.post(
+                    "/log-entry",
+                    json={
+                        "text": "Hola mundo",
+                        "target_language": "es",
+                        "immersion_level": immersion_level,
+                    },
+                    headers={"X-User-ID": "user-1"},
+                )
+    assert response.status_code == 201
+    return mock_generate.call_args[0]
+
+
+@pytest.mark.parametrize(
+    "level,proficiency",
+    [(0, "beginner"), (1, "elementary"), (2, "intermediate"), (3, "advanced")],
+)
+def test_gemini_prompt_includes_immersion_and_proficiency(client, level, proficiency):
+    _system_prompt, user_message, _schema = _post_entry_capturing_prompt(client, level)
+
+    assert f"Immersion level: {level}" in user_message
+    assert f"Estimated proficiency: {proficiency}" in user_message
+
+
+def test_gemini_is_not_asked_for_is_mock_and_cannot_set_it(client):
+    gemini_output = sample_feedback("Hola", is_mock=True)
+
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", return_value={"id": "entry-1"}) as mock_save:
+            with patch(
+                "server.generate_structured", new=AsyncMock(return_value=gemini_output)
+            ) as mock_generate:
+                response = client.post(
+                    "/log-entry",
+                    json={"text": "Hola"},
+                    headers={"X-User-ID": "user-1"},
+                )
+
+    response_schema = mock_generate.call_args[0][2]
+    assert "is_mock" not in response_schema.model_json_schema()["properties"]
+    assert response.status_code == 201
+    assert response.json()["is_mock"] is False
+    saved = mock_save.call_args[0][0]
+    assert saved["analysis_status"] == "ok"
+    assert saved["analysis_model"] == "gemini-3.8-flash"
+
+
+def test_retry_failure_keeps_legacy_feedback(client):
+    response, mock_update = _retry_failure(client, "legacy")
+
+    assert response.status_code == 503
+    mock_update.assert_not_called()
+
+
+def test_save_entry_requires_explicit_analysis_status():
+    import database
+
+    with patch.object(database, "create_supabase_client") as mock_client:
+        with pytest.raises(ValueError):
+            database.save_entry({"user_id": "user-1", "original_text": "Hola"})
+
+    mock_client.assert_not_called()

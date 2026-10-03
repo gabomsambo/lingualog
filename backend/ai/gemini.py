@@ -44,6 +44,8 @@ def _error_code_from_status(status: Optional[int]) -> str:
     """Map an HTTP status to a stable error code."""
     if status == 429:
         return "ai_quota_exhausted"
+    if status in (400, 401, 403, 404):
+        return "ai_unconfigured"
     if status and 500 <= status < 600:
         return "ai_unavailable"
     return "ai_unavailable"

@@ -144,7 +144,9 @@ def build_user_message(entry_text: str, effective: EffectiveSettings) -> str:
         "native_language": effective.l1,
         "explanation_mode": effective.explanation_mode,
         "strictness": effective.strictness,
-        "formality": effective.formality
+        "formality": effective.formality,
+        "immersion_level": effective.immersion_level,
+        "proficiency": _estimate_proficiency_level(effective),
     }
 
     message = f"""Please analyze this journal entry:
@@ -158,6 +160,8 @@ CONTEXT:
 - Explanation style: {effective.explanation_mode}
 - Correction level: {effective.strictness}
 - Tone: {effective.formality}
+- Immersion level: {effective.immersion_level} (0 = native-first, 3 = full immersion)
+- Estimated proficiency: {_estimate_proficiency_level(effective)}
 
 Please provide your analysis as a JSON object following the specified format."""
     

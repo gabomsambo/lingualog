@@ -62,7 +62,7 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 1. User submits text via `/log-entry` with language settings
 2. `backend/ai/gemini.py` makes one stateless structured Gemini call (prompt built in `prompt_builder.py`)
 3. Returns corrected text, rewrite, rubric, grammar notes, new words
-4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`); returns the entry `id`
+4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`; pre-migration rows are `legacy`); returns the entry `id`
 5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
 
 ### Vocabulary Enrichment Flow
