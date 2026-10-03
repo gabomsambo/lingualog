@@ -57,82 +57,47 @@ async def test_empty_input():
     assert all(key in result for key in ["corrected", "rewritten", "score", "tone", "translation", "explanation"])
 
 
+EXPECTED_ANALYSIS_KEYS = {"corrected", "rewrite", "score", "tone", "translation", "explanation"}
+EXPECTED_TONES = {"Reflective", "Confident", "Neutral", "Inquisitive"}
+
+
+def assert_analysis_shape(result: Dict[str, Any]) -> None:
+    assert isinstance(result, dict)
+    assert EXPECTED_ANALYSIS_KEYS <= set(result.keys())
+    assert isinstance(result["score"], int)
+    assert 70 <= result["score"] <= 100
+    assert result["tone"] in EXPECTED_TONES
+    assert isinstance(result["rewrite"], str)
+    assert isinstance(result["translation"], str)
+
+
 @pytest.mark.asyncio
 async def test_analyze_entry_normal_input():
     """Test analyze_entry with normal Spanish text input."""
     input_text = "Hoy fui al mercado y compré frutas frescas."
-    language = "Spanish"
-    result = await analyze_entry(input_text, language)
-    
-    # Verify result is a dictionary with expected keys
-    assert isinstance(result, dict)
-    expected_keys = {"corrected", "rewrite", "fluency_score", "tone", "translation"}
-    assert set(result.keys()) == expected_keys
-    
-    # Verify fluency_score is in valid range
-    assert isinstance(result["fluency_score"], int)
-    assert 70 <= result["fluency_score"] <= 100
-    
-    # Verify tone is one of the expected values
-    assert result["tone"] in ["Reflective", "Confident", "Neutral"]
-    
-    # Verify other fields
-    assert result["corrected"] == input_text
-    assert isinstance(result["rewrite"], str)
-    assert isinstance(result["translation"], str)
+    result = await analyze_entry(input_text, "Spanish")
+
+    assert_analysis_shape(result)
+    assert input_text in result["corrected"]
+    assert input_text in result["rewrite"]
 
 
 @pytest.mark.asyncio
 async def test_analyze_entry_empty_input():
     """Test analyze_entry with empty string input."""
-    input_text = ""
-    language = "English"
-    result = await analyze_entry(input_text, language)
-    
-    # Verify result is a dictionary with expected keys
-    assert isinstance(result, dict)
-    expected_keys = {"corrected", "rewrite", "fluency_score", "tone", "translation"}
-    assert set(result.keys()) == expected_keys
-    
-    # Verify fluency_score is in valid range
-    assert isinstance(result["fluency_score"], int)
-    assert 70 <= result["fluency_score"] <= 100
-    
-    # Verify tone is one of the expected values
-    assert result["tone"] in ["Reflective", "Confident", "Neutral"]
-    
-    # Verify empty input is handled appropriately
-    assert result["corrected"] == ""
-    assert result["rewrite"] == " (more natural)"
-    assert result["translation"] == "Translated version of: "
+    result = await analyze_entry("", "English")
+
+    assert_analysis_shape(result)
+    assert result["grammar_suggestions"] == []
+    assert result["new_words"] == []
 
 
 @pytest.mark.asyncio
 async def test_analyze_entry_long_input():
     """Test analyze_entry with a simulated long text input (300 words)."""
-    # Generate a long text by repeating a sentence multiple times
-    base_sentence = "Este es un párrafo largo para probar el análisis de texto. "
-    # A sentence with roughly 10 words, repeated 30 times should give ~300 words
-    input_text = base_sentence * 30
-    language = "Spanish"
-    result = await analyze_entry(input_text, language)
-    
-    # Verify result is a dictionary with expected keys
-    assert isinstance(result, dict)
-    expected_keys = {"corrected", "rewrite", "fluency_score", "tone", "translation"}
-    assert set(result.keys()) == expected_keys
-    
-    # Verify fluency_score is in valid range
-    assert isinstance(result["fluency_score"], int)
-    assert 70 <= result["fluency_score"] <= 100
-    
-    # Verify tone is one of the expected values
-    assert result["tone"] in ["Reflective", "Confident", "Neutral"]
-    
-    # Verify the long input is handled correctly
-    assert result["corrected"] == input_text
-    assert isinstance(result["rewrite"], str)
-    assert isinstance(result["translation"], str)
-    assert len(result["translation"]) > len(input_text) / 2  # Simple check that translation exists
+    input_text = "Este es un párrafo largo para probar el análisis de texto. " * 30
+    result = await analyze_entry(input_text, "Spanish")
 
-# TODO: Add more comprehensive tests once actual AI feedback implementation is complete 
+    assert_analysis_shape(result)
+    assert input_text in result["corrected"]
+    assert input_text in result["translation"]

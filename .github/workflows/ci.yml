@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with: { python-version: "3.12" }
       - name: Install backend deps
         run: |
           cd backend
@@ -25,8 +25,12 @@ jobs:
         run: |
           cd backend
           pytest -q
-      - name: Install & type‑check frontend
+      - name: Install & build frontend
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          NEXT_PUBLIC_API_URL: http://localhost:8000
         run: |
-          cd frontend
-          npm ci
-          npm run type-check 
+          cd frontend/v0_lingua-log
+          npm ci --legacy-peer-deps
+          npm run build
