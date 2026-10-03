@@ -33,4 +33,5 @@ jobs:
         run: |
           cd frontend/v0_lingua-log
           npm ci --legacy-peer-deps
+          npm test
           npm run build

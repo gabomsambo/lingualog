@@ -1,5 +1,6 @@
 import { Entry } from "@/types/entry";
 import { getAuthHeaders, getUser } from "./auth";
+import type { LearningPolicySnapshot } from "./side-by-side";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -48,8 +49,68 @@ export async function postLogEntry(
     body: JSON.stringify(requestBody),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw await apiError(res);
   return (await res.json()) as Entry;
+}
+
+/** An API failure with its status and parsed `detail` (e.g. 503 `{code, entry_id, message}`). */
+export class ApiError extends Error {
+  status: number;
+  detail: any;
+
+  constructor(status: number, body: string, detail: any) {
+    super(body);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function apiError(res: Response): Promise<ApiError> {
+  const body = await res.text();
+  let detail: any = null;
+  try {
+    detail = JSON.parse(body)?.detail ?? null;
+  } catch {
+    detail = null;
+  }
+  return new ApiError(res.status, body, detail);
+}
+
+async function userHeaders(json = false): Promise<Record<string, string>> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  const headers: Record<string, string> = {
+    ...(json ? { "Content-Type": "application/json" } : {}),
+    ...(authHeaders as Record<string, string>),
+  };
+  if (user?.id) {
+    headers["X-User-ID"] = user.id;
+  }
+  return headers;
+}
+
+/** Re-run AI analysis for a saved entry (POST /entries/{id}/analyze). */
+export async function analyzeEntry(entryId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/entries/${entryId}/analyze`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+}
+
+/** The learner's current LearningPolicy for one language, for entries stored without a snapshot. */
+export async function getCurrentPolicy(l2?: string): Promise<LearningPolicySnapshot> {
+  const url = new URL(`${API_BASE}/user/policy`);
+  if (l2) url.searchParams.append("l2", l2);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as LearningPolicySnapshot;
 }
 
 export async function getEntries(language?: string) {

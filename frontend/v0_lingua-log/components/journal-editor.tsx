@@ -12,8 +12,8 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Feather, RefreshCw, AlertCircle, Copy, Save, Eye, EyeOff, ChevronDown, Settings } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Feather, RefreshCw, AlertCircle, Copy, Save, Eye, EyeOff, ChevronDown, Settings, Languages, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,10 +26,12 @@ import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TranslationModal } from "@/components/translation-modal"
+import { EntrySideBySide } from "@/components/entry-side-by-side"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
 
-import { postLogEntry, getUserSettings, type JournalEntryOverrides, type UserSettingsData } from "@/lib/api"
+import { ApiError, getEntryById, postLogEntry, getUserSettings, type JournalEntryOverrides, type UserSettingsData } from "@/lib/api"
+import { toSideBySideEntry, type SideBySideEntry } from "@/lib/side-by-side"
 import type { Entry } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
@@ -37,7 +39,6 @@ import { LANGUAGES, getLanguageDisplayName } from "@/i18n/languages"
 
 export function JournalEditor() {
   const { t } = useLocale()
-  const router = useRouter()
   const { toast } = useToast()
 
   // Main content state
@@ -51,6 +52,7 @@ export function JournalEditor() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<Entry | null>(null)
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null)
+  const [resultEntry, setResultEntry] = useState<SideBySideEntry | null>(null)
   const [isTranslationModalOpen, setIsTranslationModalOpen] = useState(false)
   const [showTranslation, setShowTranslation] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -92,6 +94,18 @@ export function JournalEditor() {
   }
 
   /**
+   * Load the saved entry so the result renders from the same data as the entry page
+   */
+  const loadResultEntry = async (entryId: string) => {
+    try {
+      const saved = await getEntryById(entryId)
+      setResultEntry(saved ? toSideBySideEntry(saved) : null)
+    } catch (loadError) {
+      console.error("Failed to load the saved entry:", loadError)
+    }
+  }
+
+  /**
    * Handle the journal entry submission
    */
   const handleSubmit = async () => {
@@ -120,13 +134,20 @@ export function JournalEditor() {
       });
       
       setResult(data);
-      setSavedEntryId((data as { entry_id?: string }).entry_id || null);
-      setIsTranslationModalOpen(true) // Show the new v0 TranslationModal
-      
-      // router.push(`/entries`); // Navigation will be handled by the modal's onClose
+      const entryId = (data as { entry_id?: string; id?: string }).entry_id || data.id || null
+      setSavedEntryId(entryId);
+      // The side-by-side result replaces the pop-up; the pop-up stays one tap away.
+      if (entryId) await loadResultEntry(entryId)
     } catch (error: any) {
       console.error("Error submitting entry:", error);
-      setError(t('journal.failedToSubmit'));
+      const failedEntryId = error instanceof ApiError && error.status === 503 ? error.detail?.entry_id : null
+      if (failedEntryId) {
+        setSavedEntryId(failedEntryId)
+        setError(t('journal.entryAnalysisFailed'))
+        await loadResultEntry(failedEntryId)
+      } else {
+        setError(t('journal.failedToSubmit'));
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -141,6 +162,7 @@ export function JournalEditor() {
     setTargetLanguage(userSettings?.default_target_lang || "es")
     setWordCount(0)
     setResult(null)
+    setResultEntry(null)
     setSavedEntryId(null)
     setError(null)
     setOverrides({})
@@ -176,7 +198,6 @@ export function JournalEditor() {
 
   const handleCloseTranslationModal = () => {
     setIsTranslationModalOpen(false);
-    router.push(`/entries`);
   };
 
   return (
@@ -316,7 +337,7 @@ export function JournalEditor() {
             )}
             
             <div className="flex justify-end gap-2">
-              {result && !isSubmitting && (
+              {(result || resultEntry) && !isSubmitting && (
                 <Button variant="outline" onClick={handleReset} className="rounded-full h-14 px-8 text-lg">
                   <RefreshCw className="mr-2 h-5 w-5" />
                   {t('journal.reset')}
@@ -359,6 +380,30 @@ export function JournalEditor() {
         )}
       </AnimatePresence>
 
+      {resultEntry && !isSubmitting && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-4"
+          data-testid="post-submit-result"
+        >
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsTranslationModalOpen(true)}>
+              <Languages className="mr-2 h-4 w-4" />
+              {t('journal.translateWholeEntry')}
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/entries/${resultEntry.id}`}>
+                {t('journal.openEntryPage')}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          <EntrySideBySide entry={resultEntry} onReanalyzed={() => loadResultEntry(resultEntry.id)} />
+        </motion.div>
+      )}
+
       <AnimatePresence>
         {result && !isSubmitting && (
           <motion.div
@@ -391,7 +436,7 @@ export function JournalEditor() {
                   <div className="space-y-2">
                     <h3 className="font-medium text-fun-blue">{t('journal.nativeLikeRewrite')}:</h3>
                     <div className="p-4 bg-fun-blue/5 rounded-2xl border-2 border-fun-blue/20">
-                      <p className="text-base font-serif">{result.rewrite}</p>
+                      <p className="text-base font-serif">{(result as { rewritten?: string }).rewritten || (result as { rewrite?: string }).rewrite}</p>
                     </div>
                   </div>
 
@@ -434,7 +479,7 @@ export function JournalEditor() {
       </AnimatePresence>
 
       {/* Render the v0 TranslationModal */}
-      {result && (
+      {(result || resultEntry) && (
         <TranslationModal
           isOpen={isTranslationModalOpen}
           onClose={handleCloseTranslationModal}

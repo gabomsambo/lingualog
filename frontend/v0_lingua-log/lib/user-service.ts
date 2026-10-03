@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getUser } from './auth';
+import { resolveLanguage } from '@/i18n/languages';
 
 export interface UserStats {
   wordCount: number;
@@ -25,19 +26,23 @@ export interface UserEntry {
   excerpt: string;
 }
 
-// Language emoji mapping
-const languageEmojis: Record<string, string> = {
-  'Spanish': '🇪🇸',
-  'French': '🇫🇷',
-  'German': '🇩🇪',
-  'Japanese': '🇯🇵',
-  'English': '🇬🇧',
-  'Italian': '🇮🇹',
-  'Portuguese': '🇵🇹',
-  'Russian': '🇷🇺',
-  'Chinese': '🇨🇳',
-  'Korean': '🇰🇷',
-};
+/** Display name and flag for a stored entry language (ISO code, or an English name on older rows). */
+export function entryLanguage(value?: string | null): { name: string; emoji: string } {
+  const language = resolveLanguage(value);
+  if (language) return { name: language.name, emoji: language.flag };
+  return { name: value || 'Other', emoji: '📝' };
+}
+
+/** Distinct languages across entries, counted by language and never by tone. */
+export function practicedLanguages(entries: Array<{ language?: string | null }>): { languages: string[]; languageEmojis: string[] } {
+  const seen = new Map<string, string>();
+  for (const entry of entries) {
+    if (!entry.language) continue;
+    const { name, emoji } = entryLanguage(entry.language);
+    if (!seen.has(name)) seen.set(name, emoji);
+  }
+  return { languages: Array.from(seen.keys()), languageEmojis: Array.from(seen.values()) };
+}
 
 /**
  * Get the current user's profile
@@ -97,8 +102,8 @@ export async function getUserEntries(limit = 3): Promise<UserEntry[]> {
     return data.map(entry => ({
       id: entry.id,
       title: entry.original_text.substring(0, 30) + (entry.original_text.length > 30 ? '...' : ''),
-      language: entry.tone || 'Other', // Using tone as language for now
-      languageEmoji: languageEmojis[entry.tone] || '📝',
+      language: entryLanguage(entry.language).name,
+      languageEmoji: entryLanguage(entry.language).emoji,
       date: entry.created_at,
       excerpt: entry.original_text.substring(0, 100) + (entry.original_text.length > 100 ? '...' : ''),
     }));
@@ -157,12 +162,7 @@ export async function getUserStats(): Promise<UserStats | null> {
       return total + (entry.original_text ? entry.original_text.split(/\s+/).length : 0);
     }, 0);
 
-    // Extract unique tones (using as languages for now)
-    const uniqueTones = Array.from(new Set(data.map(entry => entry.tone || 'Other')));
-    const languages = uniqueTones.filter(tone => tone !== null && tone !== undefined);
-
-    // Map tones to emojis
-    const languageEmojisList = languages.map(lang => languageEmojis[lang as keyof typeof languageEmojis] || '📝');
+    const { languages, languageEmojis: languageEmojisList } = practicedLanguages(data);
 
     // Calculate streak (consecutive days with entries)
     const streak = calculateStreak(data);
