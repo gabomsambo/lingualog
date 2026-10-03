@@ -64,11 +64,6 @@ If you encounter issues:
 
 ## Environment Variables
 
-Make sure these are set in your `.env` file:
-- `GEMINI_API_KEY`
-- `OPENAI_API_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_KEY`
-- `HUGGINGFACE_TOKEN` (optional)
+See `.env.example` and the README's Setup & Installation section; `make dev` fills in the local Supabase values.
 
 The Docker issue with the LearnWordModal component is now completely resolved!
