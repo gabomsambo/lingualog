@@ -22,9 +22,9 @@ Explanation language (notes, ``intended_meaning``):
 1. Per-entry ``explanation_mode`` when it is set and is not ``level``.
 2. Per-entry ``immersion_level`` — moving the slider means "use this level",
    including the note language that level defines. This beats a saved mode.
-3. Saved ``user_settings.explanation_mode`` when it is an explicit choice
-   (any value other than ``level`` or empty). ``bilingual`` stored on the
-   account is explicit: the control stays, and it overrides the level.
+3. Saved ``user_settings.explanation_mode`` only when the learner chose it in
+   Settings (``explanation_mode_explicit`` is true). The column default
+   ``bilingual`` is not a choice, so it does not override the level.
 4. Otherwise the immersion level decides.
 
 Proficiency (A1–C2) is never derived from the immersion level. It comes from
@@ -318,8 +318,8 @@ def feedback_prompt_rules(policy: Any) -> str:
 
 
 def _explicit_saved_explanation(settings: Optional[Dict[str, Any]]) -> Optional[str]:
-    """A stored mode counts only when the account actually has the key set."""
-    if not settings or "explanation_mode" not in settings:
+    """A stored mode counts only when the learner explicitly chose it."""
+    if not settings or settings.get("explanation_mode_explicit") is not True:
         return None
     mode = settings.get("explanation_mode")
     if not mode or mode == EXPLANATION_MODE_FOLLOW_LEVEL:

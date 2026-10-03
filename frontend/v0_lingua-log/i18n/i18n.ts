@@ -212,14 +212,14 @@ const resources = {
       proficiencyC1: 'C1 — comfortable and detailed',
       proficiencyC2: 'C2 — near native',
       explanationMode: 'Explanation Mode',
-      explanationFollowLevel: 'Follow immersion level',
+      explanationFollowLevel: 'Follow my immersion level',
       strictness: 'Strictness',
       formality: 'Formality',
       
       // Advanced settings
       advancedSettings: 'Advanced Settings',
       fineTuneExperience: 'Fine-tune your learning experience',
-      explanationModeDesc: 'A choice here overrides the immersion level\'s note language. Follow immersion level to let the level decide.',
+      explanationModeDesc: 'A choice here overrides the immersion level\'s note language. Follow my immersion level to let the level decide.',
       strictnessDesc: 'How strict the feedback should be',
       formalityDesc: 'The level of formality in feedback',
       
@@ -611,14 +611,14 @@ const resources = {
       proficiencyC1: 'C1 — cómodo y detallado',
       proficiencyC2: 'C2 — casi nativo',
       explanationMode: 'Modo de Explicación',
-      explanationFollowLevel: 'Seguir la inmersión',
+      explanationFollowLevel: 'Seguir mi nivel de inmersión',
       strictness: 'Severidad',
       formality: 'Formalidad',
       
       // Advanced settings
       advancedSettings: 'Configuración Avanzada',
       fineTuneExperience: 'Ajusta tu experiencia de aprendizaje',
-      explanationModeDesc: 'Elegir un modo anula el idioma de las notas que marca la inmersión. «Seguir la inmersión» deja que el nivel decida.',
+      explanationModeDesc: 'Elegir un modo anula el idioma de las notas que marca la inmersión. «Seguir mi nivel de inmersión» deja que el nivel decida.',
       strictnessDesc: 'Qué tan estricta debe ser la retroalimentación',
       formalityDesc: 'El nivel de formalidad en la retroalimentación',
       

@@ -58,9 +58,9 @@ Immersion is how much of your own language you want while practising a target la
 Precedence, highest first:
 
 - **Immersion level** (and meaning, rewrite gloss, vocabulary, quiz): per-entry slider, then the language profile, then the account-wide `user_settings.immersion_level`, then 1.
-- **Note language**: per-entry explanation mode, then a per-entry immersion override (the slider means "use this level", including its notes), then a saved explanation mode other than `level`, then the immersion level.
+- **Note language**: per-entry explanation mode, then a per-entry immersion override (the slider means "use this level", including its notes), then a saved explanation mode the learner picked in Settings (`explanation_mode_explicit`), then the immersion level. The `bilingual` column default is not a choice.
 
-The settings "Explanation mode" control and the new-entry immersion slider stay. Leave explanation mode on "Follow immersion level" (`level`) for the level to decide notes. The new-entry slider shows the saved level for the selected language and is sent only after you move it.
+The settings "Explanation mode" control and the new-entry immersion slider stay. Choose "Follow my immersion level" (`level`) to clear a saved choice and let the level decide notes. Settings sends the mode only when you change it. The new-entry slider shows the saved level for the selected language and is sent only after you move it.
 
 Gemini infers what you meant. A translation is not fed into the correction.
 

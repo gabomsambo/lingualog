@@ -658,6 +658,7 @@ export interface UserSettingsData {
   native_lang: string;
   default_target_lang?: string;
   explanation_mode: string;
+  explanation_mode_explicit?: boolean;
   immersion_level: number;
   strictness: string;
   formality: string;

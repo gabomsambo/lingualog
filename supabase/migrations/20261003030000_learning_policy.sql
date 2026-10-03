@@ -6,6 +6,8 @@
 --   user_language_profiles stores immersion and proficiency per target language.
 --   journal_entries.policy_snapshot stores the resolved policy (v: 1).
 --   Existing *_snapshot columns stay.
+--   user_settings.explanation_mode_explicit marks a learner's own explanation
+--   choice; existing rows start false so the immersion level decides.
 --   The proficiency case below is a one-time seed from the old immersion
 --   heuristic. Runtime resolution does not derive proficiency from immersion.
 -- =============================================
@@ -106,8 +108,13 @@ ALTER TABLE public.user_settings
 ADD CONSTRAINT user_settings_explanation_mode_check
 CHECK (explanation_mode IN ('native_only', 'target_only', 'bilingual', 'smart', 'level'));
 
+ALTER TABLE public.user_settings
+ADD COLUMN IF NOT EXISTS explanation_mode_explicit boolean NOT NULL DEFAULT false;
+
 COMMENT ON COLUMN public.user_settings.explanation_mode IS
-  'Explicit note-language choice. ''level'' means the immersion level decides. Any other value overrides the level.';
+  'Note-language mode. It overrides the immersion level only when explanation_mode_explicit is true.';
+COMMENT ON COLUMN public.user_settings.explanation_mode_explicit IS
+  'True only after the learner picks an explanation mode in Settings. The column default is not a choice.';
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger

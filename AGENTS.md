@@ -78,7 +78,8 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
 2. Immersion and proficiency (A1–C2) are per target language in `user_language_profiles`. Proficiency is not derived from immersion.
 3. Each entry stores the resolved object on `journal_entries.policy_snapshot` (`v: 1`). The older `*_snapshot` columns stay.
-4. A saved explanation mode other than `level`, or a per-entry override, is honoured. Otherwise the immersion level decides note language.
+4. A per-entry override, or a saved explanation mode the learner picked (`user_settings.explanation_mode_explicit`), is honoured.
+   Otherwise the immersion level decides note language; the `bilingual` column default is not a choice.
 
 ## Security
 
@@ -123,7 +124,7 @@ Key reference files:
 - AI fields: `ai_definitions`, `ai_example_sentences`, `ai_synonyms`, `ai_antonyms`, `ai_cultural_note`, `ai_pronunciation_guide`, `emotion_tone`, `mnemonic`, `emoji`
 
 ### `user_settings`
-- Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode`, `strictness`, `formality`, `immersion_level`
+- Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode` (+ `explanation_mode_explicit`), `strictness`, `formality`, `immersion_level`
 
 ## API Endpoint Reference
 

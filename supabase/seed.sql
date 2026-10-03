@@ -144,6 +144,7 @@ begin
     weekly_goal = excluded.weekly_goal,
     default_target_lang = excluded.default_target_lang,
     explanation_mode = excluded.explanation_mode,
+    explanation_mode_explicit = false,
     immersion_level = excluded.immersion_level,
     strictness = excluded.strictness,
     formality = excluded.formality,

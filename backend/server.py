@@ -47,7 +47,7 @@ from database import (
     init_db_schema,
     fetch_language_profile,
     list_language_profiles,
-    upsert_language_profile,
+    upsert_language_profiles,
 )
 
 # Gemini tutor adapter
@@ -104,8 +104,8 @@ def _language_profiles_for_user(user_id: str) -> list:
     return profiles
 
 
-def _save_language_profile(user_id: str, profile: dict) -> None:
-    """Validate and upsert one language profile row."""
+def _validated_language_profile(profile: dict) -> dict:
+    """Check one language profile row without writing it."""
     from learning_policy import PROFICIENCY_LEVELS
 
     l2 = profile.get("l2")
@@ -123,7 +123,33 @@ def _save_language_profile(user_id: str, profile: dict) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"proficiency must be one of {', '.join(PROFICIENCY_LEVELS)}",
         )
-    upsert_language_profile(user_id, l2, int(immersion), proficiency)
+    return {"l2": l2, "immersion_level": int(immersion), "proficiency": proficiency}
+
+
+def _save_language_profiles(user_id: str, profiles: list) -> None:
+    """Validate every profile first, then write them in one upsert."""
+    rows = [_validated_language_profile(profile) for profile in profiles]
+    upsert_language_profiles(user_id, rows)
+
+
+def _apply_explanation_choice(update_data: dict) -> None:
+    """Only a mode the learner picks overrides the level; ``level`` clears that choice."""
+    from learning_policy import EXPLANATION_MODE_FOLLOW_LEVEL, EXPLANATION_MODE_TO_FLAG
+
+    if "explanation_mode" not in update_data:
+        return
+    mode = update_data["explanation_mode"]
+    if mode == EXPLANATION_MODE_FOLLOW_LEVEL:
+        del update_data["explanation_mode"]
+        update_data["explanation_mode_explicit"] = False
+    elif mode in EXPLANATION_MODE_TO_FLAG:
+        update_data["explanation_mode_explicit"] = True
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"explanation_mode must be one of {EXPLANATION_MODE_FOLLOW_LEVEL}, "
+            f"{', '.join(EXPLANATION_MODE_TO_FLAG)}",
+        )
 
 
 async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
@@ -1002,6 +1028,7 @@ async def get_user_settings(request: Request):
             native_lang=settings_data.get('native_lang', 'en'),
             default_target_lang=settings_data.get('default_target_lang'),
             explanation_mode=settings_data.get('explanation_mode', 'bilingual'),
+            explanation_mode_explicit=bool(settings_data.get('explanation_mode_explicit', False)),
             immersion_level=settings_data.get('immersion_level', 1),
             strictness=settings_data.get('strictness', 'medium'),
             formality=settings_data.get('formality', 'neutral'),
@@ -1038,8 +1065,12 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
             update_data[field] = value
 
         profiles = update_data.pop("language_profiles", None)
+        _apply_explanation_choice(update_data)
+        profile_rows = (
+            [_validated_language_profile(profile) for profile in profiles] if profiles is not None else None
+        )
 
-        if not update_data and profiles is None:
+        if not update_data and profile_rows is None:
             # If no fields to update, just return current settings
             return await get_user_settings(request)
 
@@ -1049,11 +1080,11 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
         existing_row = existing.data[0] if existing.data else {}
         default_l2 = update_data.get('default_target_lang') or existing_row.get('default_target_lang') or 'es'
 
-        if profiles is not None:
-            for profile in profiles:
-                _save_language_profile(user_id, profile)
-                if profile.get("l2") == default_l2 and profile.get("immersion_level") is not None:
-                    update_data["immersion_level"] = profile["immersion_level"]
+        if profile_rows is not None:
+            for row in profile_rows:
+                if row["l2"] == default_l2:
+                    update_data["immersion_level"] = row["immersion_level"]
+            upsert_language_profiles(user_id, profile_rows)
         elif update_data.get("immersion_level") is not None:
             # The legacy account-wide slider still updates the default language.
             current = None
@@ -1062,13 +1093,13 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
             except Exception:
                 current = None
             proficiency = (current or {}).get("proficiency") or "A2"
-            _save_language_profile(
+            _save_language_profiles(
                 user_id,
-                {
+                [{
                     "l2": default_l2,
                     "immersion_level": update_data["immersion_level"],
                     "proficiency": proficiency,
-                },
+                }],
             )
 
         if not update_data:
@@ -1083,6 +1114,8 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
         # Return updated settings
         return await get_user_settings(request)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating user settings for user {user_id}: {str(e)}")
         raise HTTPException(

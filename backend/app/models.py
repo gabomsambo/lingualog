@@ -76,6 +76,7 @@ class UserSettings(BaseModel):
     native_lang: str = "en" 
     default_target_lang: Optional[str] = None
     explanation_mode: str = "bilingual"
+    explanation_mode_explicit: bool = False
     immersion_level: int = 1
     strictness: str = "medium"
     formality: str = "neutral"

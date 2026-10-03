@@ -85,6 +85,9 @@ interface SettingsState {
   languageProfiles: Record<string, { immersion_level: number; proficiency: string }>
 }
 
+const savedExplanationChoice = (data: UserSettingsData) =>
+  data.explanation_mode_explicit ? data.explanation_mode : "level"
+
 export default function SettingsPage() {
   const { toast } = useToast()
   const { t, setUiLang } = useLocale()
@@ -116,7 +119,7 @@ export default function SettingsPage() {
     interfaceLanguage: "en",
     nativeLang: "en",
     defaultTargetLanguage: "es",
-    explanationMode: "bilingual",
+    explanationMode: "level",
     immersionLevel: 1,
     strictness: "medium",
     formality: "neutral",
@@ -173,7 +176,7 @@ export default function SettingsPage() {
             interfaceLanguage: settingsData.interface_lang,
             nativeLang: settingsData.native_lang,
             defaultTargetLanguage: settingsData.default_target_lang || "es",
-            explanationMode: settingsData.explanation_mode,
+            explanationMode: savedExplanationChoice(settingsData),
             immersionLevel: settingsData.immersion_level,
             strictness: settingsData.strictness,
             formality: settingsData.formality,
@@ -300,7 +303,10 @@ export default function SettingsPage() {
         interface_lang: settings.interfaceLanguage,
         native_lang: settings.nativeLang,
         default_target_lang: settings.defaultTargetLanguage,
-        explanation_mode: settings.explanationMode,
+        explanation_mode:
+          settings.explanationMode !== savedExplanationChoice(userSettingsData)
+            ? settings.explanationMode
+            : undefined,
         immersion_level: settings.immersionLevel,
         strictness: settings.strictness,
         formality: settings.formality,

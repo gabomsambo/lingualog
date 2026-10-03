@@ -252,30 +252,28 @@ def list_language_profiles(user_id: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def upsert_language_profile(
-    user_id: str,
-    l2: str,
-    immersion_level: int,
-    proficiency: str,
-) -> Dict[str, Any]:
-    """Insert or update the profile for one target language."""
+def upsert_language_profiles(user_id: str, profiles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Insert or update several target-language profiles in one statement."""
+    if not profiles:
+        return []
     supabase = create_supabase_client()
+    rows = [
+        {
+            "user_id": user_id,
+            "l2": profile["l2"],
+            "immersion_level": profile["immersion_level"],
+            "proficiency": profile["proficiency"],
+        }
+        for profile in profiles
+    ]
     response = (
         supabase.table("user_language_profiles")
-        .upsert(
-            {
-                "user_id": user_id,
-                "l2": l2,
-                "immersion_level": immersion_level,
-                "proficiency": proficiency,
-            },
-            on_conflict="user_id,l2",
-        )
+        .upsert(rows, on_conflict="user_id,l2")
         .execute()
     )
     if response.data:
-        return response.data[0]
-    raise Exception(f"No data returned saving language profile for {user_id}/{l2}")
+        return response.data
+    raise Exception(f"No data returned saving language profiles for {user_id}")
 
 
 def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:

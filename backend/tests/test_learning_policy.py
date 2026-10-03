@@ -8,12 +8,12 @@ from learning_policy import (
 )
 from prompt_builder import build_messages
 from database import shape_entry_for_api
-from app.models import JournalEntry
+from app.models import JournalEntry, UserSettings
 import uuid
 from datetime import datetime, timezone
 
 
-def _settings(l2="es", immersion=1, explanation_mode=None, native="en"):
+def _settings(l2="es", immersion=1, explanation_mode=None, native="en", explicit=False):
     settings = {
         "native_lang": native,
         "default_target_lang": l2,
@@ -24,11 +24,21 @@ def _settings(l2="es", immersion=1, explanation_mode=None, native="en"):
     }
     if explanation_mode is not None:
         settings["explanation_mode"] = explanation_mode
+        settings["explanation_mode_explicit"] = explicit
     return settings
 
 
-def _resolve(l2="es", immersion=1, overrides=None, explanation_mode=None, profile=None, proficiency=None, native="en"):
-    settings = _settings(l2, immersion, explanation_mode, native=native)
+def _resolve(
+    l2="es",
+    immersion=1,
+    overrides=None,
+    explanation_mode=None,
+    profile=None,
+    proficiency=None,
+    native="en",
+    explicit=False,
+):
+    settings = _settings(l2, immersion, explanation_mode, native=native, explicit=explicit)
     language_profile = {"l2": l2, "immersion_level": immersion, "proficiency": proficiency or "B1"}
     if profile is not None:
         language_profile = profile
@@ -112,7 +122,7 @@ class TestLevelMapping:
 
 class TestOverridePrecedence:
     def test_saved_explanation_mode_overrides_the_level(self):
-        policy = _resolve(immersion=0, explanation_mode="target_only")
+        policy = _resolve(immersion=0, explanation_mode="target_only", explicit=True)
         assert policy.immersion_level == 0
         assert policy.meaning == "open"
         assert policy.explanation == "l2"
@@ -128,6 +138,7 @@ class TestOverridePrecedence:
         policy = _resolve(
             immersion=2,
             explanation_mode="bilingual",
+            explicit=True,
             overrides={"immersion_level": 0},
         )
         assert policy.immersion_level == 0
@@ -140,6 +151,7 @@ class TestOverridePrecedence:
         policy = _resolve(
             immersion=0,
             explanation_mode="native_only",
+            explicit=True,
             overrides={"immersion_level": 3, "explanation_mode": "bilingual"},
         )
         assert policy.immersion_level == 3
@@ -148,6 +160,22 @@ class TestOverridePrecedence:
         assert policy.explanation == "l2_then_l1"
         assert policy.explanation_mode == "bilingual"
         assert policy.explanation_source == "request_explanation_mode"
+
+    def test_default_bilingual_account_lets_the_level_decide(self):
+        native_first = _resolve(immersion=0, explanation_mode="bilingual")
+        immersive = _resolve(immersion=3, explanation_mode="bilingual")
+        assert native_first.explanation == "l1"
+        assert native_first.explanation_mode == "native_only"
+        assert native_first.explanation_source == "immersion_level"
+        assert immersive.explanation == "l2"
+        assert immersive.explanation_mode == "target_only"
+        assert immersive.explanation_source == "immersion_level"
+
+    def test_explicit_saved_choice_still_overrides_each_level(self):
+        for level in (0, 3):
+            policy = _resolve(immersion=level, explanation_mode="bilingual", explicit=True)
+            assert policy.explanation == "l2_then_l1"
+            assert policy.explanation_source == "saved_explanation_mode"
 
     def test_missing_explanation_mode_lets_the_level_decide(self):
         policy = resolve_policy(
@@ -238,3 +266,102 @@ class TestPromptRules:
         system_prompt, _payload = build_messages("昨日、映画を見ました。", policy)
         assert "in Japanese only" in system_prompt
         assert "Never use English" in system_prompt
+
+
+class _FakeQuery:
+    def __init__(self, store, table):
+        self.store = store
+        self.table = table
+        self.payload = None
+
+    def select(self, *_args):
+        return self
+
+    def eq(self, *_args):
+        return self
+
+    def limit(self, *_args):
+        return self
+
+    def update(self, payload):
+        self.payload = payload
+        return self
+
+    def execute(self):
+        if self.payload is not None:
+            self.store["user_settings_updates"].append(self.payload)
+            return type("Response", (), {"data": [self.payload]})()
+        return type("Response", (), {"data": [{"default_target_lang": "es", "immersion_level": 1}]})()
+
+
+class _FakeSupabase:
+    def __init__(self):
+        self.store = {"user_settings_updates": []}
+
+    def table(self, name):
+        return _FakeQuery(self.store, name)
+
+
+class TestSettingsSave:
+    def _put(self, monkeypatch, body):
+        import server
+        from fastapi.testclient import TestClient
+
+        fake = _FakeSupabase()
+        upserts = []
+        monkeypatch.setattr("database.create_supabase_client", lambda: fake)
+        monkeypatch.setattr(server, "upsert_language_profiles", lambda user_id, rows: upserts.append(rows))
+
+        async def fake_get_user_settings(request):
+            now = datetime.now(timezone.utc)
+            return UserSettings(id=uuid.uuid4(), user_id=uuid.uuid4(), created_at=now, updated_at=now)
+
+        monkeypatch.setattr(server, "get_user_settings", fake_get_user_settings)
+        client = TestClient(server.app)
+        response = client.put("/user/settings", json=body, headers={"X-User-ID": "user-1"})
+        return response, upserts, fake.store["user_settings_updates"]
+
+    def test_one_bad_profile_writes_nothing(self, monkeypatch):
+        response, upserts, updates = self._put(
+            monkeypatch,
+            {
+                "explanation_mode": "target_only",
+                "language_profiles": [
+                    {"l2": "es", "immersion_level": 3, "proficiency": "B1"},
+                    {"l2": "ja", "immersion_level": 0, "proficiency": "Z9"},
+                ],
+            },
+        )
+        assert response.status_code == 400
+        assert upserts == []
+        assert updates == []
+
+    def test_profiles_save_together_with_the_default_language_level(self, monkeypatch):
+        _, upserts, updates = self._put(
+            monkeypatch,
+            {
+                "language_profiles": [
+                    {"l2": "es", "immersion_level": 3, "proficiency": "B1"},
+                    {"l2": "ja", "immersion_level": 0, "proficiency": "A1"},
+                ],
+            },
+        )
+        assert [[row["l2"] for row in rows] for rows in upserts] == [["es", "ja"]]
+        assert updates == [{"immersion_level": 3}]
+
+    def test_picking_a_mode_marks_it_explicit(self, monkeypatch):
+        _, _, updates = self._put(monkeypatch, {"explanation_mode": "target_only"})
+        assert updates == [{"explanation_mode": "target_only", "explanation_mode_explicit": True}]
+
+    def test_follow_my_level_clears_the_choice_and_keeps_the_saved_mode(self, monkeypatch):
+        _, _, updates = self._put(monkeypatch, {"explanation_mode": "level"})
+        assert updates == [{"explanation_mode_explicit": False}]
+
+    def test_saving_other_settings_leaves_the_choice_alone(self, monkeypatch):
+        _, _, updates = self._put(monkeypatch, {"strictness": "strict"})
+        assert updates == [{"strictness": "strict"}]
+
+    def test_unknown_mode_is_rejected(self, monkeypatch):
+        response, _, updates = self._put(monkeypatch, {"explanation_mode": "loud"})
+        assert response.status_code == 400
+        assert updates == []

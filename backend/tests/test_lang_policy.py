@@ -332,6 +332,7 @@ class TestIntegration:
             'default_target_lang': 'es',
             'interface_lang': 'en',
             'explanation_mode': 'bilingual',
+            'explanation_mode_explicit': True,
             'immersion_level': 1,
             'strictness': 'gentle',
             'formality': 'casual'
@@ -366,6 +367,7 @@ class TestIntegration:
             'default_target_lang': 'en',
             'interface_lang': 'ja',
             'explanation_mode': 'smart',
+            'explanation_mode_explicit': True,
             'immersion_level': 3,
             'strictness': 'strict',
             'formality': 'academic'
