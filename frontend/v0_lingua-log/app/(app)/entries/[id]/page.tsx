@@ -15,7 +15,7 @@ import { FluencyScore } from "@/components/fluency-score"
 import { VocabularyPanel } from "@/components/vocabulary-panel"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getEntryById, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
+import { getEntryById, getUserSettings, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
 import type { Entry, GrammarSuggestion, NewWord, Rubric } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 
@@ -51,7 +51,7 @@ const mapLanguageToCode = (languageName?: string): string => {
     case "french": return "fr";
     case "german": return "de";
     // Add more mappings as needed
-    default: return "unknown";
+    default: return /^[a-z]{2,3}(-[a-z]{2})?$/i.test(languageName) ? languageName.toLowerCase() : "unknown";
   }
 };
 
@@ -68,6 +68,8 @@ export default function EntryInsightPage() {
   const [userVocabulary, setUserVocabulary] = useState<UserVocabularyItemResponse[]>([])
   const [processedWords, setProcessedWords] = useState<NewWord[]>([])
   const [vocabLoading, setVocabLoading] = useState(true)
+  const [nativeLanguage, setNativeLanguage] = useState("en")
+  const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
 
   const loadFullEntryData = useCallback(async () => {
     if (!params.id || typeof params.id !== 'string') {
@@ -80,10 +82,16 @@ export default function EntryInsightPage() {
     setVocabLoading(true)
 
     try {
-      const [fetchedEntryData, fetchedUserVocabulary] = await Promise.all([
+      const [fetchedEntryData, fetchedUserVocabulary, settings] = await Promise.all([
         getEntryById(params.id as string),
-        getVocabularyItems()
+        getVocabularyItems(),
+        getUserSettings().catch(() => null),
       ])
+
+      if (settings) {
+        setNativeLanguage(settings.native_lang || settings.native_language || "en")
+        setImmersionLevel(settings.immersion_level)
+      }
 
       setUserVocabulary(fetchedUserVocabulary || [])
 
@@ -138,6 +146,10 @@ export default function EntryInsightPage() {
         setProcessedWords(currentWords)
         setEntry(processedEntry)
         setIsFavorite(processedEntry.is_favorite || false)
+        const policy = apiResponse.translation_policy_snapshot as string | undefined
+        if (policy === "L2_to_L1") {
+          setShowTranslation(true)
+        }
       } else {
         toast({ title: t('common.entryNotFound'), description: t('common.couldNotFindEntry'), variant: "destructive" })
         router.push("/dashboard")
@@ -322,13 +334,18 @@ export default function EntryInsightPage() {
 
       {/* ROW 2: Translation Panel (Full Width) */}
       <div className="mb-8">
-        <TranslationPanel entry={{
+        <TranslationPanel
+          entryId={entry.id || (params.id as string)}
+          entry={{
             language: entry.language || t('common.unknown'),
+            languageCode: entry.languageCode,
             content: entry.content,
-            translation: entry.translation
           }}
+          nativeLanguage={nativeLanguage}
+          immersionLevel={immersionLevel}
           showTranslation={showTranslation}
-          setShowTranslation={setShowTranslation} />
+          setShowTranslation={setShowTranslation}
+        />
       </div>
 
       {/* ROW 3: Fluency Score (1/2) & Summary/Notes (1/2) */}

@@ -14,6 +14,7 @@ import { GrammarFeedback } from "@/components/grammar-feedback"
 import { FluencyScore } from "@/components/fluency-score"
 import { VocabularyPanel } from "@/components/vocabulary-panel"
 import { LoadingSpinner } from "@/components/loading-spinner"
+import { getUserSettings } from "@/lib/api"
 
 // Mock entry data
 const mockEntry = {
@@ -138,6 +139,20 @@ export default function EntryInsightPage() {
   const [showTranslation, setShowTranslation] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [nativeLanguage, setNativeLanguage] = useState("en")
+  const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
+
+  useEffect(() => {
+    getUserSettings()
+      .then((settings) => {
+        setNativeLanguage(settings.native_lang || settings.native_language || "en")
+        setImmersionLevel(settings.immersion_level)
+        if (settings.immersion_level === 0) {
+          setShowTranslation(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     // Simulate API call to fetch entry data
@@ -308,7 +323,18 @@ export default function EntryInsightPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <TranslationPanel entry={entry} showTranslation={showTranslation} setShowTranslation={setShowTranslation} />
+          <TranslationPanel
+            entryId={entry.id}
+            entry={{
+              language: entry.language,
+              languageCode: entry.languageCode,
+              content: entry.content,
+            }}
+            nativeLanguage={nativeLanguage}
+            immersionLevel={immersionLevel}
+            showTranslation={showTranslation}
+            setShowTranslation={setShowTranslation}
+          />
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8">

@@ -118,6 +118,84 @@ export async function getEntryById(id: string): Promise<Entry | null> {
   return (await res.json()) as Entry;
 }
 
+export interface EntryTranslationResult {
+  part: string;
+  target_lang: string;
+  source_lang: string;
+  sentences: string[];
+  text: string;
+  provider: string;
+  status: "ok" | "unavailable" | string;
+  provider_label?: string | null;
+  cached?: boolean;
+}
+
+export async function translateEntryPart(
+  entryId: string,
+  part: string,
+  targetLang: string,
+): Promise<EntryTranslationResult> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+
+  const customHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(authHeaders as Record<string, string>),
+  };
+
+  if (user?.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+
+  const res = await fetch(`${API_BASE}/entries/${entryId}/translate`, {
+    method: "POST",
+    headers: customHeaders,
+    credentials: "include",
+    body: JSON.stringify({ part, target_lang: targetLang }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  return (await res.json()) as EntryTranslationResult;
+}
+
+export type SupportEventKind =
+  | "reveal_meaning"
+  | "rescue_note"
+  | "reveal_rewrite_gloss"
+  | "reveal_example";
+
+export async function postSupportEvent(payload: {
+  kind: SupportEventKind;
+  entry_id?: string;
+  immersion_level?: number;
+  l2?: string;
+}): Promise<void> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+
+  const customHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(authHeaders as Record<string, string>),
+  };
+
+  if (user?.id) {
+    customHeaders["X-User-ID"] = user.id;
+  }
+
+  const res = await fetch(`${API_BASE}/events`, {
+    method: "POST",
+    headers: customHeaders,
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+}
+
 export function updateEntry(id: string, updates: Partial<Entry>): Promise<Entry> {
   return Promise.resolve(updates as Entry);
 }

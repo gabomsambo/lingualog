@@ -31,7 +31,9 @@ cd frontend/v0_lingua-log && npm test
 - **Frontend**: Next.js 15.2.4 + React 18.3.1 + TypeScript 5
 - **UI Library**: shadcn/ui (Radix UI) + Tailwind CSS 3.4.17
 - **i18n**: i18next + react-i18next (en, es, ar, he with RTL support)
-- **AI Models**: Gemini 3.8 Flash (journal feedback), Gemini Flash-Lite (upcoming light tasks), Lara Translate (upcoming translations), optional Mistral-7B
+- **AI Models**: Gemini 3.8 Flash (journal feedback), Gemini Flash-Lite (translation fallback), Lara Translate (meaning translations), optional Mistral-7B
+- **Meaning translation**: Lara Translate (`backend/ai/lara.py`, always `no_trace` + `adapt_to=[]`),
+  Gemini Flash-Lite fallback; never return untranslated text as a translation
 
 ## Code Style
 
@@ -54,7 +56,7 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
 - **Backend ↔ Atomic Agents**: Vocabulary enrichment, quiz generation (to be migrated to Gemini in later PRs)
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`, `support_events`
 
 ## Core Agent Workflows
 
@@ -108,6 +110,7 @@ Key reference files:
 
 ### `journal_entries`
 - Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code`
+- `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
 
 ### `user_vocabulary`
@@ -126,6 +129,7 @@ Key reference files:
 - `GET /entries` - Fetch user journal entries
 - `GET /entries/{id}` - Get single entry
 - `DELETE /entries/{id}` - Delete entry
+- `POST /entries/{id}/translate` - Meaning translation of an entry part into L1 (cached per entry)
 - `POST /vocabulary` - Add vocabulary item
 - `GET /vocabulary` - Fetch user vocabulary
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
@@ -133,3 +137,4 @@ Key reference files:
 - `GET /user/profile` - Get user profile
 - `PATCH /user/settings` - Update user settings
 - `GET /user/stats` - Get user statistics
+- `POST /events` - Log a support event (reveal/rescue taps)

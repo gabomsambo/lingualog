@@ -16,7 +16,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Fluency score (0-100)
   - Native-like rewrite suggestions
   - Emotional tone detection
-  - Side-by-side translation
+  - Meaning translation into your native language (Lara Translate, Gemini fallback)
   - Explanation of mistakes
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
@@ -101,6 +101,8 @@ GEMINI_API_KEY=
 GEMINI_MODEL_FEEDBACK=gemini-3.8-flash
 GEMINI_THINKING_LEVEL=low
 AI_PROVIDER=gemini
+LARA_TRANSLATE_ID=
+LARA_TRANSLATE_SECRET=
 USE_MISTRAL=false
 API_PORT=8000
 WEB_PORT=3000

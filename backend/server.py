@@ -59,6 +59,7 @@ from ai.gemini import (
 
 # Import the new router
 from app.routers import vocabulary_ai # Adjusted import path
+from app.routers import entry_translation, support_events
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 
@@ -229,6 +230,8 @@ app.add_middleware(
 
 # Include the new AI vocabulary router
 app.include_router(vocabulary_ai.router)
+app.include_router(entry_translation.router)
+app.include_router(support_events.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)
@@ -356,6 +359,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     logger.info(f"Entry saved with ID: {saved_entry.get('id')} and language snapshots")
 
     feedback_response.id = saved_entry.get("id")
+    feedback_response.entry_id = feedback_response.id
     return feedback_response
 
 
