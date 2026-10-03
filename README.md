@@ -16,7 +16,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Fluency score (0-100)
   - Native-like rewrite suggestions
   - Emotional tone detection
-  - Side-by-side translation
+  - Meaning translation into your native language (Lara Translate, Gemini fallback)
   - Explanation of mistakes
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
