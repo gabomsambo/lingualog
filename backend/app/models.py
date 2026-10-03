@@ -162,6 +162,7 @@ class JournalEntry(JournalEntryBase):
     rewrite: Optional[str] = None
     rewritten: Optional[str] = None
     analysis_status: Optional[str] = None
+    analysis_error_code: Optional[str] = None
 
     model_config = {
         "from_attributes": True, # Pydantic V2 way for orm_mode
