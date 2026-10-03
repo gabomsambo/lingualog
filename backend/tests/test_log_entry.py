@@ -273,6 +273,108 @@ def test_log_entry_mock_provider_flags_response(client):
     assert body["id"] == "mock-entry-1"
     assert body["is_mock"] is True
 
+    assert body["corrected"] == "[Mock Corrected] Hola"
+    assert [word["term"] for word in body["new_words"]] == ["Hola"]
+
     saved = mock_save.call_args[0][0]
-    assert saved["analysis_status"] == "ok"
+    assert saved["analysis_status"] == "mock"
     assert saved["analysis_model"] == "mock"
+
+
+def test_log_entry_requires_user_id(client):
+    with patch("server.save_entry") as mock_save:
+        with patch("server.generate_structured", new=AsyncMock()) as mock_generate:
+            response = client.post("/log-entry", json={"text": "Hola"})
+
+    assert response.status_code == 401
+    mock_save.assert_not_called()
+    mock_generate.assert_not_called()
+
+
+def test_log_entry_failure_still_503_when_persist_fails(client):
+    from ai.gemini import GeminiError
+
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", side_effect=Exception("database down")):
+            with patch(
+                "server.generate_structured",
+                new=AsyncMock(side_effect=GeminiError("ai_quota_exhausted", "Quota")),
+            ):
+                response = client.post(
+                    "/log-entry",
+                    json={"text": "Hola"},
+                    headers={"X-User-ID": "user-1"},
+                )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ai_quota_exhausted"
+    assert response.json()["detail"]["entry_id"] is None
+
+
+def _retry_failure(client, existing_status, update_side_effect=None):
+    from ai.gemini import GeminiError
+
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch(
+            "server.fetch_single_entry",
+            return_value={
+                "id": "entry-1",
+                "content": "Hola mundo",
+                "language": "es",
+                "analysis_status": existing_status,
+            },
+        ):
+            with patch(
+                "server.update_entry_analysis", side_effect=update_side_effect
+            ) as mock_update:
+                with patch(
+                    "server.generate_structured",
+                    new=AsyncMock(side_effect=GeminiError("ai_timeout", "Timed out")),
+                ):
+                    response = client.post(
+                        "/entries/entry-1/analyze",
+                        headers={"X-User-ID": "user-1"},
+                    )
+    return response, mock_update
+
+
+def test_retry_failure_still_503_when_status_update_fails(client):
+    response, mock_update = _retry_failure(
+        client, "failed", update_side_effect=Exception("database down")
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "ai_timeout",
+        "entry_id": "entry-1",
+        "message": "Timed out",
+    }
+    mock_update.assert_called_once()
+
+
+def test_retry_failure_keeps_existing_good_feedback(client):
+    response, mock_update = _retry_failure(client, "ok")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ai_timeout"
+    mock_update.assert_not_called()
+
+
+def test_retry_with_mock_provider_stores_mock_status(client):
+    with patch("server.AI_PROVIDER", "mock"):
+        with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+            with patch(
+                "server.fetch_single_entry",
+                return_value={"id": "entry-1", "content": "Hola mundo", "language": "es"},
+            ):
+                with patch("server.update_entry_analysis") as mock_update:
+                    response = client.post(
+                        "/entries/entry-1/analyze",
+                        headers={"X-User-ID": "user-1"},
+                    )
+
+    assert response.status_code == 200
+    assert response.json()["corrected"] == "[Mock Corrected] Hola mundo"
+    update_call = mock_update.call_args[0][2]
+    assert update_call["analysis_status"] == "mock"
+    assert update_call["analysis_model"] == "mock"

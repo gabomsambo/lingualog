@@ -134,6 +134,13 @@ def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
     )
 
 
+def _analysis_columns(feedback_response: FeedbackResponse) -> dict:
+    """Status columns stored alongside a successful (or mock) analysis."""
+    if feedback_response.is_mock:
+        return {"analysis_status": "mock", "analysis_model": "mock", "analysis_error_code": None}
+    return {"analysis_status": "ok", "analysis_model": GEMINI_MODEL_FEEDBACK, "analysis_error_code": None}
+
+
 async def _analyze_with_provider(text: str, effective: EffectiveSettings) -> JournalFeedback:
     """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
     system_prompt, _user_payload = build_messages(text, effective)
@@ -141,7 +148,7 @@ async def _analyze_with_provider(text: str, effective: EffectiveSettings) -> Jou
 
     if AI_PROVIDER == "mock":
         return await mock_generate_structured(
-            system_prompt, user_message, JournalFeedback
+            system_prompt, user_message, JournalFeedback, entry_text=text
         )
     return await generate_structured(
         system_prompt, user_message, JournalFeedback, timeout=30.0
@@ -263,8 +270,12 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     Raises:
         HTTPException: If there's an error processing the request
     """
-    # Get user_id from request headers if present
     user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not provided",
+        )
 
     # Fetch user profile settings
     profile_settings = await fetch_user_profile_settings(user_id)
@@ -306,9 +317,12 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
             "analysis_error_code": e.code,
             **snapshot_data,
         }
-        saved_entry = save_entry(failed_entry)
-        entry_id = saved_entry.get("id", "unknown")
-        logger.info(f"Entry saved without feedback: {entry_id}")
+        entry_id = None
+        try:
+            entry_id = save_entry(failed_entry).get("id")
+            logger.info(f"Entry saved without feedback: {entry_id}")
+        except Exception as save_error:
+            logger.error(f"Failed to persist entry after AI failure: {save_error}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -333,14 +347,12 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
-        "analysis_status": "ok",
-        "analysis_model": GEMINI_MODEL_FEEDBACK if not feedback_response.is_mock else "mock",
-        "analysis_error_code": None,
+        **_analysis_columns(feedback_response),
         **snapshot_data,
     }
 
     saved_entry = save_entry(entry_data)
-    logger.info(f"Entry saved with ID: {saved_entry.get('id', 'unknown')} and language snapshots")
+    logger.info(f"Entry saved with ID: {saved_entry.get('id')} and language snapshots")
 
     feedback_response.id = saved_entry.get("id")
     return feedback_response
@@ -490,11 +502,15 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         result = await _analyze_with_provider(entry["content"], effective_settings)
     except GeminiError as e:
         logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
-        update_entry_analysis(
-            entry_id,
-            user_id,
-            {"analysis_status": "failed", "analysis_error_code": e.code},
-        )
+        if entry.get("analysis_status") not in ("ok", "mock"):
+            try:
+                update_entry_analysis(
+                    entry_id,
+                    user_id,
+                    {"analysis_status": "failed", "analysis_error_code": e.code},
+                )
+            except Exception as update_error:
+                logger.error(f"Failed to record retry failure for {entry_id}: {update_error}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
@@ -515,9 +531,7 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
-        "analysis_status": "ok",
-        "analysis_model": GEMINI_MODEL_FEEDBACK if not feedback_response.is_mock else "mock",
-        "analysis_error_code": None,
+        **_analysis_columns(feedback_response),
     }
     update_entry_analysis(entry_id, user_id, update_data)
 

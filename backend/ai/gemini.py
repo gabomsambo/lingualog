@@ -164,6 +164,7 @@ async def mock_generate_structured(
     user_prompt: str,
     schema: Type[T],
     timeout: float = 30.0,
+    entry_text: Optional[str] = None,
 ) -> T:
     """
     Mock provider for offline development and tests.
@@ -173,7 +174,9 @@ async def mock_generate_structured(
     is explicitly set.
     """
     logger.info("Using mock feedback provider (AI_PROVIDER=mock)")
-    entry_text = user_prompt.strip().splitlines()[-1] if user_prompt else ""
+    if entry_text is None:
+        entry_text = user_prompt or ""
+    entry_text = entry_text.strip()
     return schema(
         corrected=f"[Mock Corrected] {entry_text}",
         rewrite=f"[Mock Rewritten] {entry_text}",

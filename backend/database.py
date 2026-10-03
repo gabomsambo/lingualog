@@ -163,8 +163,7 @@ def save_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         if response.data and len(response.data) > 0:
             return response.data[0]
         else:
-            logger.error(f"No data returned from insert operation: {response}")
-            return {"id": "unknown", "created_at": "unknown"}
+            raise Exception(f"No data returned from insert operation: {response}")
             
     except Exception as e:
         logger.error(f"Error saving entry to Supabase: {str(e)}")

@@ -1,6 +1,6 @@
 -- =============================================
 -- Migration: Add journal entry analysis status columns
--- Version: 006
+-- Version: 005
 -- Created: 2026-10-03
 -- Description:
 --   Adds honest failure tracking for AI feedback:
