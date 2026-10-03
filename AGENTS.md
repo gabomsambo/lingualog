@@ -66,6 +66,11 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 3. Returns corrected text, rewrite, rubric, grammar notes, new words
 4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`; pre-migration rows are `legacy`); returns the entry `id`
 5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
+6. The result renders in `components/entry-side-by-side.tsx`, both after submit and on `/entries/[id]`. It reads the
+   entry's `policy_snapshot` flags (`GET /user/policy` when an older entry has none), never the raw level number.
+   Pure alignment/diff logic is in `lib/side-by-side.ts`.
+
+Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 
 ### Vocabulary Enrichment Flow
 1. User adds word or system extracts from journal
@@ -104,7 +109,9 @@ Key reference files:
 - **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
 - **Port conflicts**: 8000 (backend), 3000 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
-- **i18n missing keys**: Add to `/frontend/locales/{lang}/{namespace}.json`
+- **i18n missing keys**: Strings live in two places: inline resources in `frontend/v0_lingua-log/i18n/i18n.ts`
+  and `frontend/v0_lingua-log/locales/{lang}/{namespace}.json`, lazy-loaded by `i18n/LocaleProvider.tsx`.
+  The side-by-side result's keys (`feedback` and `journal` namespaces) are in the inline `i18n.ts` resources.
 - **Database migrations**: See `supabase/MIGRATION_README.md`
 
 ## Database Schema Quick Reference
@@ -141,6 +148,7 @@ Key reference files:
 - `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
+- `GET /user/policy?l2=` - The learner's current LearningPolicy for one language
 - `GET /user/stats` - Get user statistics
 - `POST /events` - Log a support event (reveal/rescue taps)
 

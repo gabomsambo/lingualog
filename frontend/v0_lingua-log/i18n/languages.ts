@@ -80,3 +80,13 @@ export function getUILanguages(): Language[] {
 export function getTargetLanguages(): Language[] {
   return LANGUAGES.filter(lang => !['en'].includes(lang.code)) // All except English for English speakers
 }
+
+/**
+ * Find a language from a stored value: entries keep an ISO code ("es", "pt-BR"), older rows an English name.
+ */
+export function resolveLanguage(value?: string | null): Language | undefined {
+  const token = (value || '').trim().toLowerCase()
+  if (!token) return undefined
+  const base = token.split(/[-_]/)[0]
+  return LANGUAGES.find(lang => lang.code === base || lang.name.toLowerCase() === token)
+}

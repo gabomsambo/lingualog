@@ -186,3 +186,16 @@ async def test_missing_api_key_raises_unconfigured(schema, monkeypatch):
         await generate_structured("sys", "user", schema, timeout=5.0)
 
     assert exc_info.value.code == "ai_unconfigured"
+
+
+def test_gemini_schema_requires_suggestions_and_words():
+    """Optional arrays came back empty from the live model; the response schema requires them."""
+    from ai.schemas import GeminiJournalFeedback
+
+    required = GeminiJournalFeedback.model_json_schema()["required"]
+    assert "grammar_suggestions" in required
+    assert "new_words" in required
+    assert JournalFeedback(
+        corrected="", rewrite="", score=0, tone="", explanation="",
+        rubric={"grammar": 0, "vocabulary": 0, "complexity": 0},
+    ).grammar_suggestions == []

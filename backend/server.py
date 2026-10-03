@@ -951,6 +951,24 @@ async def get_user_stats(request: Request):
             detail=f"Could not fetch user stats: {str(e)}"
         )
 
+@app.get("/user/policy", status_code=status.HTTP_200_OK)
+async def get_user_policy(request: Request, l2: Optional[str] = None):
+    """
+    The learner's current LearningPolicy for one target language.
+
+    Entries written before policy snapshots existed render with this policy.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not provided",
+        )
+    profile_settings = await fetch_user_profile_settings(user_id)
+    overrides = {"target_language": l2} if l2 else {}
+    return _policy_for_request(user_id, profile_settings, overrides).to_dict()
+
+
 # User Settings Endpoints
 
 @app.get("/user/settings", response_model=UserSettings, status_code=status.HTTP_200_OK)

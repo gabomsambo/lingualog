@@ -18,6 +18,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getEntryById, getUserSettings, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
 import type { Entry, GrammarSuggestion, NewWord, Rubric } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
+import { resolveLanguage } from "@/i18n/languages"
+import { EntrySideBySide } from "@/components/entry-side-by-side"
+import { toSideBySideEntry, splitParagraphs, type SideBySideEntry } from "@/lib/side-by-side"
 
 // Helper to determine fluency level based on score
 const determineFluencyLevel = (score: number, t: any): string => {
@@ -27,33 +30,12 @@ const determineFluencyLevel = (score: number, t: any): string => {
   return t('common.novice');
 };
 
-// Helper to get language emoji (you might want to move this to a utils file)
-const getLanguageEmoji = (languageCode?: string): string => {
-  if (!languageCode) return "📝";
-  switch (languageCode?.toLowerCase()) {
-    case "ja": return "🇯🇵";
-    case "en": return "🇬🇧";
-    case "es": return "🇪🇸";
-    case "fr": return "🇫🇷";
-    case "de": return "🇩🇪";
-    // Add more language codes and their emojis as needed
-    default: return "📝";
-  }
-};
+// Entries store an ISO code ("es"); older rows may hold an English name.
+const getLanguageEmoji = (language?: string): string => resolveLanguage(language)?.flag || "📝";
 
-// Helper to map language name to code (you might want to move this to a utils file)
-const mapLanguageToCode = (languageName?: string): string => {
-  if (!languageName) return "unknown";
-  switch (languageName.toLowerCase()) {
-    case "japanese": return "ja";
-    case "english": return "en";
-    case "spanish": return "es";
-    case "french": return "fr";
-    case "german": return "de";
-    // Add more mappings as needed
-    default: return /^[a-z]{2,3}(-[a-z]{2})?$/i.test(languageName) ? languageName.toLowerCase() : "unknown";
-  }
-};
+const mapLanguageToCode = (language?: string): string => resolveLanguage(language)?.code || "unknown";
+
+const languageLabel = (language?: string): string => resolveLanguage(language)?.name || language || "";
 
 export default function EntryInsightPage() {
   const params = useParams()
@@ -70,6 +52,7 @@ export default function EntryInsightPage() {
   const [vocabLoading, setVocabLoading] = useState(true)
   const [nativeLanguage, setNativeLanguage] = useState("en")
   const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
+  const [sideBySide, setSideBySide] = useState<SideBySideEntry | null>(null)
 
   const loadFullEntryData = useCallback(async () => {
     if (!params.id || typeof params.id !== 'string') {
@@ -99,6 +82,7 @@ export default function EntryInsightPage() {
         // Cast to any to access ai_feedback, as the fetchedEntryData is typed as frontend Entry
         const apiResponse = fetchedEntryData as any; 
         const aiFeedbackData = apiResponse.ai_feedback; // Extract for easier access
+        setSideBySide(toSideBySideEntry(apiResponse))
 
         const processedEntry: Entry = {
           // Spread common top-level fields from fetchedEntryData (which is typed as Entry)
@@ -315,17 +299,23 @@ export default function EntryInsightPage() {
         <h1 className="text-3xl font-bold mb-2 text-primary">{entry.title}</h1>
         <div className="flex items-center text-sm text-muted-foreground">
           <span className="mr-1">{entry.languageEmoji}</span>
-          <span>{entry.language}</span>
+          <span>{languageLabel(entry.language)}</span>
           <span className="mx-2">·</span>
           <span>Written on {new Date(entry.created_at || Date.now()).toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
       
+      {sideBySide && (
+        <div className="mb-8 lg:-mx-12 xl:-mx-32">
+          <EntrySideBySide entry={sideBySide} showOverview={false} onReanalyzed={loadFullEntryData} />
+        </div>
+      )}
+
       {/* ROW 1: Entry Viewer (Full Width) */}
       <div className="mb-8">
         <EntryViewer entry={{
           title: entry.title || t('common.entry'),
-          language: entry.language || t('common.unknown'),
+          language: languageLabel(entry.language) || t('common.unknown'),
           languageEmoji: entry.languageEmoji || "📝",
           date: entry.created_at || new Date().toISOString(),
           content: entry.content
@@ -360,7 +350,7 @@ export default function EntryInsightPage() {
                 <CardTitle className="text-xl fun-heading">Summary & Notes</CardTitle>
               </CardHeader>
               <CardContent className="p-4 text-sm text-muted-foreground prose max-w-none">
-                {entry.explanation.split('\\n').map((paragraph, index) => (
+                {splitParagraphs(entry.explanation).map((paragraph, index) => (
                   <p key={index}>{paragraph}</p>
                 ))}
               </CardContent>

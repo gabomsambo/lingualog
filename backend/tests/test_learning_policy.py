@@ -372,3 +372,37 @@ class TestSettingsSave:
         response, saves = self._put(monkeypatch, {"explanation_mode": "loud"})
         assert response.status_code == 400
         assert saves == []
+
+
+class TestCurrentPolicyEndpoint:
+    def _get(self, monkeypatch, path, profile):
+        import server
+        from fastapi.testclient import TestClient
+
+        async def fake_settings(user_id):
+            return {"native_lang": "en", "default_target_lang": "es", "immersion_level": 1}
+
+        monkeypatch.setattr(server, "fetch_user_profile_settings", fake_settings)
+        monkeypatch.setattr(server, "fetch_language_profile", lambda user_id, l2: profile.get(l2))
+        return TestClient(server.app).get(path, headers={"X-User-ID": "user-1"})
+
+    def test_returns_the_profile_policy_for_that_language(self, monkeypatch):
+        profiles = {"ja": {"immersion_level": 3, "proficiency": "A2"}}
+        response = self._get(monkeypatch, "/user/policy?l2=ja", profiles)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["l2"] == "ja"
+        assert body["meaning"] == "rescue_only"
+        assert body["explanation"] == "l2"
+        assert body["v"] == 1
+
+    def test_defaults_to_the_saved_target_language(self, monkeypatch):
+        response = self._get(monkeypatch, "/user/policy", {})
+        assert response.json()["l2"] == "es"
+        assert response.json()["meaning"] == "tap"
+
+    def test_requires_a_user(self):
+        import server
+        from fastapi.testclient import TestClient
+
+        assert TestClient(server.app).get("/user/policy").status_code == 401

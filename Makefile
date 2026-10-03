@@ -1,11 +1,15 @@
-.PHONY: test test-backend dev stop sync-local-env prepare-db reset-db
+.PHONY: test test-backend test-frontend dev stop sync-local-env prepare-db reset-db
 
 # Run backend tests
 test-backend:
 	cd backend && pytest
 
-# Master test command (will include frontend tests in the future)
-test: test-backend
+# Run frontend unit tests
+test-frontend:
+	cd frontend/v0_lingua-log && npm test
+
+# Master test command
+test: test-backend test-frontend
 	@echo "All tests completed." 
 
 SUPABASE_NPX ?= npx supabase
