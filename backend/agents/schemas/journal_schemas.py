@@ -53,7 +53,6 @@ class JournalAnalysisOutputSchema(BaseIOSchema):
     rewritten: str = Field(..., description="More natural/native-like rewrite of the text")
     score: int = Field(..., ge=0, le=100, description="Overall fluency score (0-100)")
     tone: str = Field(..., description="Detected emotional tone (e.g., 'Reflective', 'Confident', 'Neutral')")
-    translation: str = Field(..., description="Translation to English (or French if already English)")
     explanation: str = Field(..., description="Brief explanation of main issues or positive feedback")
     rubric: FluencyRubric = Field(..., description="Detailed scoring breakdown")
     grammar_suggestions: List[GrammarSuggestion] = Field(

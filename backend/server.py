@@ -19,30 +19,42 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
 from models import (
-    JournalEntryRequest, 
-    FeedbackResponse, 
+    JournalEntryRequest,
+    FeedbackResponse,
     LoginRequest,
     UserVocabularyItemCreate,
-    UserVocabularyItemResponse
+    UserVocabularyItemResponse,
+    Rubric,
+    Suggestion,
+    Word,
 )
 from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate # Corrected import for JournalEntry
-# Old AI engines removed - now using Atomic Agents as primary system
-# from feedback_engine import generate_feedback, analyze_entry
 
 # Import new language policy and prompt builder modules
 from lang_policy import resolve_effective, EffectiveSettings
-from prompt_builder import build_messages, extract_snapshot_data, validate_ai_response
+from prompt_builder import build_messages, build_user_message, extract_snapshot_data
 from database import (
-    save_entry, 
-    fetch_entries, 
-    sign_in_with_magic_link, 
-    fetch_single_entry, 
+    save_entry,
+    fetch_entries,
+    sign_in_with_magic_link,
+    fetch_single_entry,
     delete_entry,
+    update_entry_analysis,
     save_vocabulary_item,
     fetch_user_vocabulary,
     delete_vocabulary_item,
     fetch_vocabulary_item_by_term,
     init_db_schema
+)
+
+# Gemini tutor adapter
+from ai.schemas import GeminiJournalFeedback, JournalFeedback
+from ai.gemini import (
+    generate_structured,
+    mock_generate_structured,
+    GeminiError,
+    GEMINI_MODEL_FEEDBACK,
+    AI_PROVIDER,
 )
 
 # Import the new router
@@ -98,6 +110,50 @@ async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
     except Exception as e:
         logger.warning(f"Failed to fetch user settings for {user_id}: {str(e)}")
         return None
+
+
+def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
+    """Convert the Gemini structured output to the API response model."""
+    return FeedbackResponse(
+        corrected=result.corrected,
+        rewritten=result.rewrite,
+        score=result.score,
+        tone=result.tone,
+        translation="",
+        explanation=result.explanation,
+        rubric=Rubric(**result.rubric.model_dump()),
+        grammar_suggestions=[
+            Suggestion(**suggestion.model_dump())
+            for suggestion in result.grammar_suggestions
+        ],
+        new_words=[
+            Word(**word.model_dump())
+            for word in result.new_words
+        ],
+        is_mock=result.is_mock,
+    )
+
+
+def _analysis_columns(feedback_response: FeedbackResponse) -> dict:
+    """Status columns stored alongside a successful (or mock) analysis."""
+    if feedback_response.is_mock:
+        return {"analysis_status": "mock", "analysis_model": "mock", "analysis_error_code": None}
+    return {"analysis_status": "ok", "analysis_model": GEMINI_MODEL_FEEDBACK, "analysis_error_code": None}
+
+
+async def _analyze_with_provider(text: str, effective: EffectiveSettings) -> JournalFeedback:
+    """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
+    system_prompt, _user_payload = build_messages(text, effective)
+    user_message = build_user_message(text, effective)
+
+    if AI_PROVIDER == "mock":
+        return await mock_generate_structured(
+            system_prompt, user_message, JournalFeedback, entry_text=text
+        )
+    result = await generate_structured(
+        system_prompt, user_message, GeminiJournalFeedback, timeout=30.0
+    )
+    return JournalFeedback.model_validate({**result.model_dump(), "is_mock": False})
 
 
 # --- Background Tasks ---
@@ -204,122 +260,103 @@ async def login(login_request: LoginRequest):
 async def create_log_entry(entry: JournalEntryRequest, request: Request):
     """
     Process a journal entry and generate AI feedback using language policy resolution.
-    
+
     Args:
         entry: The journal entry request with text and optional language overrides
         request: The request object containing user info (if available)
-        
+
     Returns:
         FeedbackResponse with grammar correction, rewriting, and other feedback dimensions
-        
+
     Raises:
         HTTPException: If there's an error processing the request
     """
-    try:
-        # Get user_id from request headers if present
-        user_id = request.headers.get("X-User-ID")
-        
-        # Step 1: Fetch user profile settings
-        profile_settings = await fetch_user_profile_settings(user_id)
-        
-        # Step 2: Build request overrides from entry fields
-        request_overrides = {}
-        if entry.target_language:
-            request_overrides['target_language'] = entry.target_language
-        if entry.language:  # Use language field as target_language if target_language not specified
-            request_overrides['language'] = entry.language
-        if entry.ui_language:
-            request_overrides['ui_language'] = entry.ui_language
-        if entry.explanation_mode:
-            request_overrides['explanation_mode'] = entry.explanation_mode
-        if entry.strictness:
-            request_overrides['strictness'] = entry.strictness
-        if entry.formality:
-            request_overrides['formality'] = entry.formality
-        if entry.immersion_level is not None:
-            request_overrides['immersion_level'] = entry.immersion_level
-        
-        # Step 3: Resolve effective language settings
-        effective_settings = resolve_effective(profile_settings, request_overrides)
-        
-        # Step 4: Build system prompt and user message using language settings
-        system_prompt, user_payload = build_messages(entry.text, effective_settings)
-        
-        # Step 5: Generate feedback using Atomic Agents with custom prompts
-        try:
-            from services.agent_service import analyze_entry_atomic_compat
-            logger.info(f"Using Atomic Agents with language policy: {len(entry.text)} chars, "
-                       f"L1={effective_settings.l1}, L2={effective_settings.l2}, "
-                       f"mode={effective_settings.explanation_mode}")
-            
-            # Use the resolved target language for analysis
-            target_lang = effective_settings.l2
-            proficiency = user_payload.get('proficiency_estimate', 'intermediate')
-            
-            analysis = await analyze_entry_atomic_compat(entry.text, target_lang, user_id, proficiency)
-        except Exception as e:
-            logger.warning(f"Atomic Agents failed, using mock fallback: {str(e)}")
-            # Fallback to mock system if atomic agents fail
-            from feedback_engine import analyze_with_mock
-            analysis = analyze_with_mock(entry.text, effective_settings.l2)
-        
-        # Step 6: Validate AI response format
-        try:
-            validate_ai_response(analysis)
-        except ValueError as e:
-            logger.warning(f"AI response validation failed: {e}")
-            # Continue with potentially incomplete response
-        
-        # Step 7: Convert dictionary to Pydantic model for validation
-        feedback_response = FeedbackResponse(**{
-            "corrected": analysis.get("corrected", entry.text),
-            "rewritten": analysis.get("rewrite", entry.text),
-            "score": analysis.get("score", 0),
-            "tone": analysis.get("tone", "Neutral"),
-            "translation": analysis.get("translation", "Translation not available."),
-            "explanation": analysis.get("explanation", "No detailed explanation available."),
-            "rubric": analysis.get("rubric", {"grammar": 0, "vocabulary": 0, "complexity": 0}),
-            "grammar_suggestions": analysis.get("grammar_suggestions", []),
-            "new_words": analysis.get("new_words", [])
-        })
-        
-        # Step 8: Save entry and feedback to Supabase with language snapshots
-        try:
-            # Extract snapshot data for this entry
-            snapshot_data = extract_snapshot_data(effective_settings)
-            
-            entry_data = {
-                "user_id": user_id,
-                "original_text": entry.text,
-                "title": entry.title,
-                "language": entry.language or effective_settings.l2,
-                "corrected": feedback_response.corrected,
-                "rewrite": feedback_response.rewritten,
-                "score": feedback_response.score,
-                "tone": feedback_response.tone,
-                "translation": feedback_response.translation,
-                "explanation": feedback_response.explanation,
-                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
-                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
-                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
-                # Add language snapshot data
-                **snapshot_data
-            }
-            
-            saved_entry = save_entry(entry_data)
-            logger.info(f"Entry saved with ID: {saved_entry.get('id', 'unknown')} and language snapshots")
-        except Exception as e:
-            # Log the error but don't fail the request if database save fails
-            logger.error(f"Failed to save entry to database: {str(e)}")
-            # Continue to return the feedback even if saving fails
-        
-        return feedback_response
-    except Exception as e:
-        logger.error(f"Error generating feedback: {str(e)}")
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating feedback: {str(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not provided",
         )
+
+    # Fetch user profile settings
+    profile_settings = await fetch_user_profile_settings(user_id)
+
+    # Build request overrides from entry fields
+    request_overrides = {}
+    if entry.target_language:
+        request_overrides['target_language'] = entry.target_language
+    if entry.language:
+        request_overrides['language'] = entry.language
+    if entry.ui_language:
+        request_overrides['ui_language'] = entry.ui_language
+    if entry.explanation_mode:
+        request_overrides['explanation_mode'] = entry.explanation_mode
+    if entry.strictness:
+        request_overrides['strictness'] = entry.strictness
+    if entry.formality:
+        request_overrides['formality'] = entry.formality
+    if entry.immersion_level is not None:
+        request_overrides['immersion_level'] = entry.immersion_level
+
+    # Resolve effective language settings
+    effective_settings = resolve_effective(profile_settings, request_overrides)
+    snapshot_data = extract_snapshot_data(effective_settings)
+
+    try:
+        result = await _analyze_with_provider(entry.text, effective_settings)
+        feedback_response = _build_feedback_response(result)
+    except GeminiError as e:
+        logger.error(f"AI feedback failed ({e.code}): {e.message}")
+        # Keep the entry so the learner can retry later.
+        failed_entry = {
+            "user_id": user_id,
+            "original_text": entry.text,
+            "title": entry.title,
+            "language": entry.language or effective_settings.l2,
+            "analysis_status": "failed",
+            "analysis_model": GEMINI_MODEL_FEEDBACK,
+            "analysis_error_code": e.code,
+            **snapshot_data,
+        }
+        entry_id = None
+        try:
+            entry_id = save_entry(failed_entry).get("id")
+            logger.info(f"Entry saved without feedback: {entry_id}")
+        except Exception as save_error:
+            logger.error(f"Failed to persist entry after AI failure: {save_error}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": e.code,
+                "entry_id": entry_id,
+                "message": e.message,
+            },
+        ) from e
+
+    # Save entry and feedback to Supabase with language snapshots
+    entry_data = {
+        "user_id": user_id,
+        "original_text": entry.text,
+        "title": entry.title,
+        "language": entry.language or effective_settings.l2,
+        "corrected": feedback_response.corrected,
+        "rewrite": feedback_response.rewritten,
+        "score": feedback_response.score,
+        "tone": feedback_response.tone,
+        "translation": feedback_response.translation,
+        "explanation": feedback_response.explanation,
+        "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+        "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
+        "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        **_analysis_columns(feedback_response),
+        **snapshot_data,
+    }
+
+    saved_entry = save_entry(entry_data)
+    logger.info(f"Entry saved with ID: {saved_entry.get('id')} and language snapshots")
+
+    feedback_response.id = saved_entry.get("id")
+    return feedback_response
 
 
 @app.get("/entries", status_code=status.HTTP_200_OK)
@@ -431,6 +468,76 @@ async def get_single_entry(entry_id: str, request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error while fetching entry: {type(e).__name__} - {e}"
         )
+
+
+@app.post("/entries/{entry_id}/analyze", response_model=FeedbackResponse)
+async def analyze_existing_entry(entry_id: str, request: Request):
+    """
+    Retry AI analysis for an existing journal entry.
+
+    The entry must belong to the authenticated user. The current language
+    settings are used, with the entry's target language preserved from the
+    snapshot.
+    """
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not provided",
+        )
+
+    entry = fetch_single_entry(entry_id, user_id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found",
+        )
+
+    profile_settings = await fetch_user_profile_settings(user_id)
+    overrides = {
+        "target_language": entry.get("target_language") or entry.get("language"),
+    }
+    effective_settings = resolve_effective(profile_settings, overrides)
+
+    try:
+        result = await _analyze_with_provider(entry["content"], effective_settings)
+    except GeminiError as e:
+        logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
+        if entry.get("analysis_status") not in ("ok", "mock", "legacy"):
+            try:
+                update_entry_analysis(
+                    entry_id,
+                    user_id,
+                    {"analysis_status": "failed", "analysis_error_code": e.code},
+                )
+            except Exception as update_error:
+                logger.error(f"Failed to record retry failure for {entry_id}: {update_error}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": e.code,
+                "entry_id": entry_id,
+                "message": e.message,
+            },
+        ) from e
+
+    feedback_response = _build_feedback_response(result)
+    update_data = {
+        "corrected": feedback_response.corrected,
+        "rewrite": feedback_response.rewritten,
+        "score": feedback_response.score,
+        "tone": feedback_response.tone,
+        "translation": feedback_response.translation,
+        "explanation": feedback_response.explanation,
+        "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+        "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
+        "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        **_analysis_columns(feedback_response),
+    }
+    update_entry_analysis(entry_id, user_id, update_data)
+
+    feedback_response.id = entry_id
+    return feedback_response
 
 
 @app.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -561,65 +668,12 @@ async def delete_vocabulary_item_route(item_id: str, request: Request):
 @app.post("/log-entry-atomic", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_log_entry_atomic(entry: JournalEntryRequest, request: Request):
     """
-    Process a journal entry using Atomic Agents (experimental endpoint).
-    
-    This endpoint uses the new Atomic Agents framework for AI analysis
-    and runs in parallel with the existing system for comparison.
+    Legacy alias of ``/log-entry``.
+
+    Shares the Gemini journal-feedback path, including honest 503 failures,
+    ``analysis_status`` tracking, and the ``is_mock`` flag.
     """
-    try:
-        # Import here to avoid startup issues if atomic agents aren't available
-        from services.agent_service import analyze_entry_atomic_compat
-        
-        user_id = request.headers.get("X-User-ID")
-        
-        logger.info(f"Processing entry with Atomic Agents: {len(entry.text)} chars, language: {entry.language}")
-        
-        # Generate feedback using Atomic Agents
-        analysis = await analyze_entry_atomic_compat(entry.text, entry.language)
-        
-        # Convert to FeedbackResponse format
-        feedback_response = FeedbackResponse(**{
-            "corrected": analysis.get("corrected", entry.text),
-            "rewritten": analysis.get("rewrite", entry.text),
-            "score": analysis.get("score", 0),
-            "tone": analysis.get("tone", "Neutral"),
-            "translation": analysis.get("translation", "Translation not available."),
-            "explanation": analysis.get("explanation", "No detailed explanation available."),
-            "rubric": analysis.get("rubric", {"grammar": 0, "vocabulary": 0, "complexity": 0}),
-            "grammar_suggestions": analysis.get("grammar_suggestions", []),
-            "new_words": analysis.get("new_words", [])
-        })
-        
-        # Save entry and feedback to Supabase (same as original endpoint)
-        try:
-            entry_data = {
-                "user_id": user_id,
-                "original_text": entry.text,
-                "title": entry.title,
-                "language": entry.language,
-                "corrected": feedback_response.corrected,
-                "rewrite": feedback_response.rewritten,
-                "score": feedback_response.score,
-                "tone": feedback_response.tone,
-                "translation": feedback_response.translation,
-                "explanation": feedback_response.explanation,
-                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
-                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
-                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else []
-            }
-            
-            saved_entry = save_entry(entry_data)
-            logger.info(f"Atomic Agents entry saved with ID: {saved_entry.get('id', 'unknown')}")
-        except Exception as e:
-            logger.error(f"Failed to save atomic agents entry to database: {str(e)}")
-        
-        return feedback_response
-        
-    except Exception as e:
-        logger.error(f"Error in atomic agents endpoint: {str(e)}")
-        # Fallback to original endpoint logic
-        logger.info("Falling back to original analysis method")
-        return await create_log_entry(entry, request)
+    return await create_log_entry(entry, request)
 
 
 # User Profile and Stats Endpoints

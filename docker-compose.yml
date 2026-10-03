@@ -6,6 +6,9 @@ services:
       - "${API_PORT:-8000}:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL_FEEDBACK=${GEMINI_MODEL_FEEDBACK:-gemini-3.8-flash}
+      - GEMINI_THINKING_LEVEL=${GEMINI_THINKING_LEVEL:-low}
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPEN_AI_API_KEY=${OPEN_AI_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}

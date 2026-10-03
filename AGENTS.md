@@ -1,11 +1,11 @@
 # AGENTS.md
 
-This project is an AI-powered language learning journal with comprehensive feedback, vocabulary enrichment, and multilingual support through Atomic Agents.
+This project is an AI-powered language learning journal with comprehensive feedback, vocabulary enrichment, and multilingual support.
 
 ## Architecture Overview
 
 Two main components:
-- **backend**: FastAPI server with Atomic Agents (journal analysis, vocabulary enrichment, quiz generation)
+- **backend**: FastAPI server with Gemini (journal feedback) and Lara Translate (upcoming)
 - **frontend**: Next.js 15 App Router with React 18, TypeScript, and Supabase integration
 
 ## Development Environment
@@ -25,13 +25,13 @@ cd frontend/v0_lingua-log && npm test
 
 ## Core Technologies
 
-- **Agent Framework**: Atomic Agents 2.1.0+ with OpenAI GPT-4o-mini
+- **Agent Framework**: Direct `google-genai` SDK calls (stateless, one structured call per request)
 - **API**: FastAPI 0.115.0+ with background tasks
 - **Database**: Supabase (PostgreSQL) - no vector/RAG functionality
 - **Frontend**: Next.js 15.2.4 + React 18.3.1 + TypeScript 5
 - **UI Library**: shadcn/ui (Radix UI) + Tailwind CSS 3.4.17
 - **i18n**: i18next + react-i18next (en, es, ar, he with RTL support)
-- **AI Models**: Atomic Agents (primary), Gemini (fallback), optional Mistral-7B
+- **AI Models**: Gemini 3.8 Flash (journal feedback), Gemini Flash-Lite (upcoming light tasks), Lara Translate (upcoming translations), optional Mistral-7B
 
 ## Code Style
 
@@ -45,11 +45,14 @@ cd frontend/v0_lingua-log && npm test
 Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.env.example` (copy to `.env.local`).
 `make dev` fills in the local Supabase URL/keys. Optional Mistral deps: `backend/requirements-optional-mistral.txt`.
 
+Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
+
 ## Key Integration Points
 
 - **Frontend ↔ Backend**: REST API with auth via `X-User-ID` header
 - **Backend ↔ Supabase**: Direct client for auth + CRUD operations
-- **Backend ↔ Atomic Agents**: Journal analysis, vocabulary enrichment, quiz generation
+- **Backend ↔ Gemini**: Journal analysis (stateless structured output)
+- **Backend ↔ Atomic Agents**: Vocabulary enrichment, quiz generation (to be migrated to Gemini in later PRs)
 - **Frontend ↔ Supabase**: Direct client for auth state management
 - **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`
 
@@ -57,10 +60,10 @@ Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.en
 
 ### Journal Entry Flow
 1. User submits text via `/log-entry` with language settings
-2. `JournalAnalysisAgent` analyzes grammar, fluency, tone
-3. Returns corrected text, rewrite, rubric, translations, new words
-4. Saves to `journal_entries` table with flattened AI feedback
-5. Background task enriches new vocabulary items
+2. `backend/ai/gemini.py` makes one stateless structured Gemini call (prompt built in `prompt_builder.py`)
+3. Returns corrected text, rewrite, rubric, grammar notes, new words
+4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`; pre-migration rows are `legacy`); returns the entry `id`
+5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
 
 ### Vocabulary Enrichment Flow
 1. User adds word or system extracts from journal
@@ -104,7 +107,7 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.)
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code`
 - Foreign key: `user_id`
 
 ### `user_vocabulary`
@@ -119,6 +122,7 @@ Key reference files:
 
 - `POST /login` - Magic link authentication
 - `POST /log-entry` - Submit journal entry with AI feedback
+- `POST /entries/{id}/analyze` - Retry AI analysis for an entry
 - `GET /entries` - Fetch user journal entries
 - `GET /entries/{id}` - Get single entry
 - `DELETE /entries/{id}` - Delete entry

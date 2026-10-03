@@ -205,7 +205,6 @@ class TestExplanationInstructions:
         assert 'both English and Spanish' in instruction
         assert 'balanced feedback' in instruction
         assert 'professional but approachable' in instruction
-        assert 'specifically helpful for understanding' in instruction  # Translation policy
     
     def test_target_only_explanation_instruction(self):
         """Test target language only explanation instruction."""
@@ -220,7 +219,6 @@ class TestExplanationInstructions:
         assert 'French only' in instruction
         assert 'thorough in corrections' in instruction
         assert 'formal, academic tone' in instruction
-        assert 'Do not provide any translations' in instruction
         assert 'advanced' in instruction  # High immersion level
     
     def test_gentle_beginner_instruction(self):

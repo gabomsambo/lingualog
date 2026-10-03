@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Table name constant
 JOURNAL_ENTRIES_TABLE = "journal_entries"
+ANALYSIS_STATUSES = frozenset({"ok", "failed", "mock"})
 USER_VOCABULARY_TABLE = "user_vocabulary"
 WORD_AI_CACHE_TABLE = "word_ai_cache" # New table name constant
 
@@ -152,6 +153,11 @@ def save_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     Raises:
         Exception: If the database operation fails
     """
+    if entry.get("analysis_status") not in ANALYSIS_STATUSES:
+        raise ValueError(
+            f"analysis_status must be one of {sorted(ANALYSIS_STATUSES)}, got {entry.get('analysis_status')!r}"
+        )
+
     try:
         # Create Supabase client
         supabase = create_supabase_client()
@@ -163,8 +169,7 @@ def save_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         if response.data and len(response.data) > 0:
             return response.data[0]
         else:
-            logger.error(f"No data returned from insert operation: {response}")
-            return {"id": "unknown", "created_at": "unknown"}
+            raise Exception(f"No data returned from insert operation: {response}")
             
     except Exception as e:
         logger.error(f"Error saving entry to Supabase: {str(e)}")
@@ -290,6 +295,38 @@ def fetch_single_entry(entry_id: str, user_id: str) -> Optional[Dict[str, Any]]:
             logger.info(f"No entry found with id {entry_id} for user_id {user_id} (PostgREST .single() error indicative of 0 rows).")
             return None
         logger.error(f"Error fetching single entry from Supabase (id: {entry_id}, user: {user_id}): {str(e)}")
+        raise
+
+
+def update_entry_analysis(entry_id: str, user_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update the AI feedback columns for a journal entry.
+
+    Args:
+        entry_id: The ID of the entry to update.
+        user_id: The ID of the user who owns the entry.
+        update_data: Dictionary of columns to update.
+
+    Returns:
+        The updated entry record.
+
+    Raises:
+        Exception: If the database operation fails or the entry is not found.
+    """
+    try:
+        supabase = create_supabase_client()
+        response = (
+            supabase.table(JOURNAL_ENTRIES_TABLE)
+            .update(update_data)
+            .eq("id", entry_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        raise Exception(f"Entry {entry_id} not found or not owned by user {user_id}")
+    except Exception as e:
+        logger.error(f"Error updating entry analysis (id: {entry_id}, user: {user_id}): {str(e)}")
         raise
 
 

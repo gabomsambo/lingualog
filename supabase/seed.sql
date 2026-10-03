@@ -178,6 +178,8 @@ insert into public.journal_entries (
   explanation_language_snapshot,
   translation_policy_snapshot,
   proficiency_estimate,
+  analysis_status,
+  analysis_model,
   created_at
 )
 values
@@ -201,6 +203,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '11 days'
   ),
   (
@@ -223,6 +227,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '10 days'
   ),
   (
@@ -245,6 +251,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '9 days'
   ),
   (
@@ -267,6 +275,8 @@ values
     'en,fr',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '8 days'
   ),
   (
@@ -289,6 +299,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '7 days'
   ),
   (
@@ -311,6 +323,8 @@ values
     'en,fr',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '5 days'
   ),
   (
@@ -333,6 +347,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '3 days'
   ),
   (
@@ -355,6 +371,8 @@ values
     'en,fr',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '2 days'
   ),
   (
@@ -377,6 +395,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now() - interval '1 days'
   ),
   (
@@ -399,6 +419,8 @@ values
     'en,es',
     'on_demand',
     'intermediate',
+    'mock',
+    'seed',
     now()
   );
 

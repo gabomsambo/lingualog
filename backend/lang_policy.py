@@ -207,29 +207,13 @@ def explanation_instruction(effective: EffectiveSettings) -> str:
         'academic': "Use scholarly language appropriate for academic writing."
     }
     
-    translation_instructions = {
-        'none': "Do not provide any translations.",
-        'on_demand': "Only provide translations when specifically helpful for understanding.",
-        'automatic': "Always provide translations for the corrected and rewritten versions.",
-        'smart': "Provide translations strategically to enhance learning.",
-        'omit': "Do not provide any translations.",
-        'L2_to_L1': f"Always provide translations from {l2_name} to {l1_name}."
-    }
-    
     # Build instruction
     instruction_parts = [
         explanations.get(effective.explanation_mode, explanations['bilingual']),
         strictness_instructions.get(effective.strictness, strictness_instructions['medium']),
         formality_instructions.get(effective.formality, formality_instructions['neutral'])
     ]
-    
-    # Add translation instruction
-    translation_part = translation_instructions.get(
-        effective.translation_policy, 
-        translation_instructions['on_demand']
-    )
-    instruction_parts.append(translation_part)
-    
+
     # Add immersion context
     if effective.immersion_level <= 1:
         instruction_parts.append("The learner is a beginner, so be extra clear and supportive.")
@@ -321,7 +305,7 @@ def validate_effective_settings(effective: EffectiveSettings) -> bool:
     if effective.formality not in valid_formality:
         raise ValueError(f"Invalid formality: {effective.formality}")
     
-    valid_translation_policies = {'none', 'on_demand', 'automatic', 'smart', 'L2_to_L1'}
+    valid_translation_policies = {'none', 'on_demand', 'automatic', 'smart', 'L2_to_L1', 'omit'}
     if effective.translation_policy not in valid_translation_policies:
         raise ValueError(f"Invalid translation_policy: {effective.translation_policy}")
     
