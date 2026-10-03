@@ -668,68 +668,12 @@ async def delete_vocabulary_item_route(item_id: str, request: Request):
 @app.post("/log-entry-atomic", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_log_entry_atomic(entry: JournalEntryRequest, request: Request):
     """
-    Process a journal entry using Atomic Agents (experimental endpoint).
-    
-    This endpoint uses the new Atomic Agents framework for AI analysis
-    and runs in parallel with the existing system for comparison.
+    Legacy alias of ``/log-entry``.
+
+    Shares the Gemini journal-feedback path, including honest 503 failures,
+    ``analysis_status`` tracking, and the ``is_mock`` flag.
     """
-    try:
-        # Import here to avoid startup issues if atomic agents aren't available
-        from services.agent_service import analyze_entry_atomic_compat
-        
-        user_id = request.headers.get("X-User-ID")
-        
-        logger.info(f"Processing entry with Atomic Agents: {len(entry.text)} chars, language: {entry.language}")
-        
-        # Generate feedback using Atomic Agents
-        analysis = await analyze_entry_atomic_compat(entry.text, entry.language)
-        
-        # Convert to FeedbackResponse format
-        feedback_response = FeedbackResponse(**{
-            "corrected": analysis.get("corrected", entry.text),
-            "rewritten": analysis.get("rewrite", entry.text),
-            "score": analysis.get("score", 0),
-            "tone": analysis.get("tone", "Neutral"),
-            "translation": analysis.get("translation", "Translation not available."),
-            "explanation": analysis.get("explanation", "No detailed explanation available."),
-            "rubric": analysis.get("rubric", {"grammar": 0, "vocabulary": 0, "complexity": 0}),
-            "grammar_suggestions": analysis.get("grammar_suggestions", []),
-            "new_words": analysis.get("new_words", [])
-        })
-        
-        # Save entry and feedback to Supabase (same as original endpoint)
-        try:
-            entry_data = {
-                "user_id": user_id,
-                "original_text": entry.text,
-                "title": entry.title,
-                "language": entry.language,
-                "corrected": feedback_response.corrected,
-                "rewrite": feedback_response.rewritten,
-                "score": feedback_response.score,
-                "tone": feedback_response.tone,
-                "translation": feedback_response.translation,
-                "explanation": feedback_response.explanation,
-                "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
-                "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
-                "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
-                "analysis_status": "legacy",
-                "analysis_model": "atomic-agents",
-                "analysis_error_code": None,
-            }
-            
-            saved_entry = save_entry(entry_data)
-            logger.info(f"Atomic Agents entry saved with ID: {saved_entry.get('id', 'unknown')}")
-        except Exception as e:
-            logger.error(f"Failed to save atomic agents entry to database: {str(e)}")
-        
-        return feedback_response
-        
-    except Exception as e:
-        logger.error(f"Error in atomic agents endpoint: {str(e)}")
-        # Fallback to original endpoint logic
-        logger.info("Falling back to original analysis method")
-        return await create_log_entry(entry, request)
+    return await create_log_entry(entry, request)
 
 
 # User Profile and Stats Endpoints

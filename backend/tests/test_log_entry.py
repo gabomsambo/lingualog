@@ -449,3 +449,60 @@ def test_save_entry_requires_explicit_analysis_status():
             database.save_entry({"user_id": "user-1", "original_text": "Hola"})
 
     mock_client.assert_not_called()
+
+
+def test_log_entry_atomic_uses_gemini_path(client):
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", return_value={"id": "entry-atomic"}) as mock_save:
+            with patch(
+                "server.generate_structured",
+                new=AsyncMock(return_value=sample_feedback("Hola")),
+            ):
+                response = client.post(
+                    "/log-entry-atomic",
+                    json={"text": "Hola"},
+                    headers={"X-User-ID": "user-1"},
+                )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["id"] == "entry-atomic"
+    assert body["is_mock"] is False
+    saved = mock_save.call_args[0][0]
+    assert saved["analysis_status"] == "ok"
+    assert saved["analysis_model"] == "gemini-3.8-flash"
+
+
+def test_log_entry_atomic_failure_is_honest(client):
+    from ai.gemini import GeminiError
+
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", return_value={"id": "failed-atomic"}) as mock_save:
+            with patch(
+                "server.generate_structured",
+                new=AsyncMock(side_effect=GeminiError("ai_quota_exhausted", "Quota")),
+            ):
+                response = client.post(
+                    "/log-entry-atomic",
+                    json={"text": "Hola"},
+                    headers={"X-User-ID": "user-1"},
+                )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["entry_id"] == "failed-atomic"
+    saved = mock_save.call_args[0][0]
+    assert saved["analysis_status"] == "failed"
+    assert saved["analysis_error_code"] == "ai_quota_exhausted"
+    assert "corrected" not in saved
+
+
+def test_save_entry_rejects_legacy_status_for_new_rows():
+    import database
+
+    with patch.object(database, "create_supabase_client") as mock_client:
+        with pytest.raises(ValueError):
+            database.save_entry(
+                {"user_id": "user-1", "original_text": "Hola", "analysis_status": "legacy"}
+            )
+
+    mock_client.assert_not_called()
