@@ -18,6 +18,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Emotional tone detection
   - Meaning translation into your native language (Lara Translate, Gemini fallback)
   - Explanation of mistakes
+- **Side-by-side result**: after submit and on each entry page, every sentence shows what you wrote, what it means, and how to write it (corrected or native rewrite), with help shown per your immersion level
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
 
@@ -28,7 +29,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 | Frontend     | React + Tailwind CSS |
 | Backend      | FastAPI (Python)    |
 | AI Feedback  | Gemini 3.8 Flash (journal feedback) |
-| Translation  | Lara Translate (coming in a later PR) |
+| Translation  | Lara Translate (Gemini Flash-Lite fallback) |
 | Database     | Supabase (Postgres) |
 | Auth         | Supabase            |
 | Deployment   | Docker → Railway    |
@@ -50,6 +51,9 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **GET /entries/{id}**
   - One entry, including `policy_snapshot`, `corrected`, `rewrite` (also `rewritten`), and `analysis_status`
+
+- **GET /user/policy?l2=**
+  - The current learning policy for one language; entries stored without `policy_snapshot` render with it
 
 ## Learning policy
 
@@ -195,9 +199,8 @@ make test-backend
 
 # Manual Gemini corpus (not CI): cd backend && python -m evals.score_ref
 
-# Run frontend tests
-cd frontend/v0_lingua-log
-npm test
+# Run frontend tests (Vitest)
+make test-frontend
 ```
 
 ## 📚 Documentation
