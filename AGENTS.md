@@ -140,7 +140,7 @@ Key reference files:
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
 - `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
 - `GET /user/profile` - Get user profile
-- `PATCH /user/settings` - Update user settings
+- `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/stats` - Get user statistics
 - `POST /events` - Log a support event (reveal/rescue taps)
 
