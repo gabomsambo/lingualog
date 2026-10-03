@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 POLICY_VERSION = 1
 
 PROFICIENCY_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
+STRICTNESS_LEVELS = ("gentle", "medium", "strict", "pedantic")
+FORMALITY_LEVELS = ("casual", "neutral", "formal", "academic")
 DEFAULT_PROFICIENCY = "A2"
 
 # explanation flag -> legacy explanation_mode, so existing callers keep working.

@@ -93,8 +93,8 @@ def resolve_effective(
         effective = resolve_effective(profile, overrides)
         # effective.l2 == 'fr', effective.strictness == 'strict'
     """
-    # The profile dict is the caller's already-loaded settings. Pass it through
-    # so a missing explanation_mode key stays "not explicit" (the level decides).
+    # The profile dict is the caller's already-loaded settings. A saved
+    # explanation_mode overrides the level only when explanation_mode_explicit is True.
     # language_profile=None skips the database; per-language rows are loaded by
     # resolve_policy when the server calls it directly.
     requested_l2 = None

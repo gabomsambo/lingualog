@@ -269,11 +269,6 @@ class TestPromptRules:
 
 
 class _FakeQuery:
-    def __init__(self, store, table):
-        self.store = store
-        self.table = table
-        self.payload = None
-
     def select(self, *_args):
         return self
 
@@ -283,23 +278,13 @@ class _FakeQuery:
     def limit(self, *_args):
         return self
 
-    def update(self, payload):
-        self.payload = payload
-        return self
-
     def execute(self):
-        if self.payload is not None:
-            self.store["user_settings_updates"].append(self.payload)
-            return type("Response", (), {"data": [self.payload]})()
         return type("Response", (), {"data": [{"default_target_lang": "es", "immersion_level": 1}]})()
 
 
 class _FakeSupabase:
-    def __init__(self):
-        self.store = {"user_settings_updates": []}
-
-    def table(self, name):
-        return _FakeQuery(self.store, name)
+    def table(self, _name):
+        return _FakeQuery()
 
 
 class TestSettingsSave:
@@ -307,10 +292,13 @@ class TestSettingsSave:
         import server
         from fastapi.testclient import TestClient
 
-        fake = _FakeSupabase()
-        upserts = []
-        monkeypatch.setattr("database.create_supabase_client", lambda: fake)
-        monkeypatch.setattr(server, "upsert_language_profiles", lambda user_id, rows: upserts.append(rows))
+        saves = []
+        monkeypatch.setattr("database.create_supabase_client", lambda: _FakeSupabase())
+        monkeypatch.setattr(
+            server,
+            "save_user_settings",
+            lambda user_id, settings, profiles: saves.append((settings, profiles)),
+        )
 
         async def fake_get_user_settings(request):
             now = datetime.now(timezone.utc)
@@ -319,10 +307,10 @@ class TestSettingsSave:
         monkeypatch.setattr(server, "get_user_settings", fake_get_user_settings)
         client = TestClient(server.app)
         response = client.put("/user/settings", json=body, headers={"X-User-ID": "user-1"})
-        return response, upserts, fake.store["user_settings_updates"]
+        return response, saves
 
     def test_one_bad_profile_writes_nothing(self, monkeypatch):
-        response, upserts, updates = self._put(
+        response, saves = self._put(
             monkeypatch,
             {
                 "explanation_mode": "target_only",
@@ -333,35 +321,54 @@ class TestSettingsSave:
             },
         )
         assert response.status_code == 400
-        assert upserts == []
-        assert updates == []
+        assert saves == []
 
-    def test_profiles_save_together_with_the_default_language_level(self, monkeypatch):
-        _, upserts, updates = self._put(
+    def test_bad_strictness_or_formality_writes_nothing(self, monkeypatch):
+        profiles = [{"l2": "es", "immersion_level": 3, "proficiency": "B1"}]
+        for body in (
+            {"strictness": "bogus", "language_profiles": profiles},
+            {"formality": "bogus", "language_profiles": profiles},
+        ):
+            response, saves = self._put(monkeypatch, body)
+            assert response.status_code == 400
+            assert saves == []
+
+    def test_profiles_and_default_language_level_save_in_one_call(self, monkeypatch):
+        _, saves = self._put(
             monkeypatch,
             {
+                "strictness": "strict",
                 "language_profiles": [
                     {"l2": "es", "immersion_level": 3, "proficiency": "B1"},
                     {"l2": "ja", "immersion_level": 0, "proficiency": "A1"},
                 ],
             },
         )
-        assert [[row["l2"] for row in rows] for rows in upserts] == [["es", "ja"]]
-        assert updates == [{"immersion_level": 3}]
+        assert len(saves) == 1
+        settings, profiles = saves[0]
+        assert settings == {"strictness": "strict", "immersion_level": 3}
+        assert [row["l2"] for row in profiles] == ["es", "ja"]
+
+    def test_legacy_immersion_also_updates_the_default_profile(self, monkeypatch):
+        import server
+
+        monkeypatch.setattr(server, "fetch_language_profile", lambda user_id, l2: {"proficiency": "C1"})
+        _, saves = self._put(monkeypatch, {"immersion_level": 2})
+        assert saves == [({"immersion_level": 2}, [{"l2": "es", "immersion_level": 2, "proficiency": "C1"}])]
 
     def test_picking_a_mode_marks_it_explicit(self, monkeypatch):
-        _, _, updates = self._put(monkeypatch, {"explanation_mode": "target_only"})
-        assert updates == [{"explanation_mode": "target_only", "explanation_mode_explicit": True}]
+        _, saves = self._put(monkeypatch, {"explanation_mode": "target_only"})
+        assert saves == [({"explanation_mode": "target_only", "explanation_mode_explicit": True}, None)]
 
     def test_follow_my_level_clears_the_choice_and_keeps_the_saved_mode(self, monkeypatch):
-        _, _, updates = self._put(monkeypatch, {"explanation_mode": "level"})
-        assert updates == [{"explanation_mode_explicit": False}]
+        _, saves = self._put(monkeypatch, {"explanation_mode": "level"})
+        assert saves == [({"explanation_mode_explicit": False}, None)]
 
     def test_saving_other_settings_leaves_the_choice_alone(self, monkeypatch):
-        _, _, updates = self._put(monkeypatch, {"strictness": "strict"})
-        assert updates == [{"strictness": "strict"}]
+        _, saves = self._put(monkeypatch, {"strictness": "strict"})
+        assert saves == [({"strictness": "strict"}, None)]
 
     def test_unknown_mode_is_rejected(self, monkeypatch):
-        response, _, updates = self._put(monkeypatch, {"explanation_mode": "loud"})
+        response, saves = self._put(monkeypatch, {"explanation_mode": "loud"})
         assert response.status_code == 400
-        assert updates == []
+        assert saves == []

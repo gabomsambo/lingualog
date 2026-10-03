@@ -47,7 +47,7 @@ from database import (
     init_db_schema,
     fetch_language_profile,
     list_language_profiles,
-    upsert_language_profiles,
+    save_user_settings,
 )
 
 # Gemini tutor adapter
@@ -126,12 +126,6 @@ def _validated_language_profile(profile: dict) -> dict:
     return {"l2": l2, "immersion_level": int(immersion), "proficiency": proficiency}
 
 
-def _save_language_profiles(user_id: str, profiles: list) -> None:
-    """Validate every profile first, then write them in one upsert."""
-    rows = [_validated_language_profile(profile) for profile in profiles]
-    upsert_language_profiles(user_id, rows)
-
-
 def _apply_explanation_choice(update_data: dict) -> None:
     """Only a mode the learner picks overrides the level; ``level`` clears that choice."""
     from learning_policy import EXPLANATION_MODE_FOLLOW_LEVEL, EXPLANATION_MODE_TO_FLAG
@@ -150,6 +144,18 @@ def _apply_explanation_choice(update_data: dict) -> None:
             detail=f"explanation_mode must be one of {EXPLANATION_MODE_FOLLOW_LEVEL}, "
             f"{', '.join(EXPLANATION_MODE_TO_FLAG)}",
         )
+
+
+def _validate_choice_fields(update_data: dict) -> None:
+    """Reject strictness and formality values the database would refuse, before any write."""
+    from learning_policy import FORMALITY_LEVELS, STRICTNESS_LEVELS
+
+    for field, allowed in (("strictness", STRICTNESS_LEVELS), ("formality", FORMALITY_LEVELS)):
+        if field in update_data and update_data[field] not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{field} must be one of {', '.join(allowed)}",
+            )
 
 
 async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
@@ -1066,6 +1072,7 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
 
         profiles = update_data.pop("language_profiles", None)
         _apply_explanation_choice(update_data)
+        _validate_choice_fields(update_data)
         profile_rows = (
             [_validated_language_profile(profile) for profile in profiles] if profiles is not None else None
         )
@@ -1084,7 +1091,6 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
             for row in profile_rows:
                 if row["l2"] == default_l2:
                     update_data["immersion_level"] = row["immersion_level"]
-            upsert_language_profiles(user_id, profile_rows)
         elif update_data.get("immersion_level") is not None:
             # The legacy account-wide slider still updates the default language.
             current = None
@@ -1093,24 +1099,18 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
             except Exception:
                 current = None
             proficiency = (current or {}).get("proficiency") or "A2"
-            _save_language_profiles(
-                user_id,
-                [{
-                    "l2": default_l2,
-                    "immersion_level": update_data["immersion_level"],
-                    "proficiency": proficiency,
-                }],
-            )
+            profile_rows = [
+                _validated_language_profile(
+                    {
+                        "l2": default_l2,
+                        "immersion_level": update_data["immersion_level"],
+                        "proficiency": proficiency,
+                    }
+                )
+            ]
 
-        if not update_data:
-            return await get_user_settings(request)
+        save_user_settings(user_id, update_data, profile_rows)
 
-        # Update settings in database
-        response = supabase.table('user_settings').update(update_data).eq('user_id', user_id).execute()
-        
-        if not response.data:
-            raise Exception("No settings found to update")
-        
         # Return updated settings
         return await get_user_settings(request)
         
