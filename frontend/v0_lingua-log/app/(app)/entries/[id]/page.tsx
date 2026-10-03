@@ -51,7 +51,7 @@ const mapLanguageToCode = (languageName?: string): string => {
     case "french": return "fr";
     case "german": return "de";
     // Add more mappings as needed
-    default: return "unknown";
+    default: return /^[a-z]{2,3}(-[a-z]{2})?$/i.test(languageName) ? languageName.toLowerCase() : "unknown";
   }
 };
 

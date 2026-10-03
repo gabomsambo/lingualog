@@ -7,8 +7,8 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Confirmed via generativeai.list_models() on 2026-10-03 (flash + lite).
-GEMINI_FLASH_LITE_MODEL = os.getenv("GEMINI_TRANSLATE_MODEL", "gemini-2.5-flash-lite")
+# gemini-2.5-flash-lite 404s for new API keys; the "-latest" alias tracks the served Flash-Lite.
+GEMINI_FLASH_LITE_MODEL = os.getenv("GEMINI_TRANSLATE_MODEL", "gemini-flash-lite-latest")
 
 
 def _translate_sync(sentences: List[str], source_locale: str, target_locale: str) -> List[str]:
