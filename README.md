@@ -114,14 +114,17 @@ make dev
 
 This command will:
 - start local Supabase with the CLI
-- run `supabase db reset --local` (migrations + seed)
 - write local env values
+- on first run, `supabase db reset --local` (migrations + seed); afterwards only pending migrations
+  are applied, so your data is kept
 - build/start backend + frontend containers
 
 Endpoints after startup:
 - App: `http://localhost:3000`
 - API docs: `http://localhost:8000/docs`
 - Supabase Studio (table browser): `http://127.0.0.1:54323`
+
+To wipe the local database back to the seed data, run `make reset-db`.
 
 Demo login for local Supabase seed data:
 - Email: `demo@lingualog.dev`

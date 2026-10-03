@@ -1,4 +1,4 @@
-.PHONY: test test-backend dev stop sync-local-env
+.PHONY: test test-backend dev stop sync-local-env prepare-db reset-db
 
 # Run backend tests
 test-backend:
@@ -13,10 +13,16 @@ SUPABASE_NPX ?= npx supabase
 sync-local-env:
 	@SUPABASE_CMD="$(SUPABASE_NPX)" ./scripts/sync-local-env.sh
 
+prepare-db:
+	@SUPABASE_CMD="$(SUPABASE_NPX)" ./scripts/prepare-local-db.sh
+
+reset-db:
+	@$(SUPABASE_NPX) db reset --local
+
 dev:
 	@$(SUPABASE_NPX) start
 	@$(MAKE) sync-local-env
-	@$(SUPABASE_NPX) db reset --local
+	@$(MAKE) prepare-db
 	@docker compose up --build -d
 	@echo "Supabase Studio: http://127.0.0.1:54323"
 	@echo "App: http://localhost:3000"
