@@ -109,7 +109,9 @@ Key reference files:
 - **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
 - **Port conflicts**: 8000 (backend), 3000 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
-- **i18n missing keys**: Add to `/frontend/locales/{lang}/{namespace}.json`
+- **i18n missing keys**: Strings live in two places: inline resources in `frontend/v0_lingua-log/i18n/i18n.ts`
+  and `frontend/v0_lingua-log/locales/{lang}/{namespace}.json`, lazy-loaded by `i18n/LocaleProvider.tsx`.
+  The side-by-side result's keys (`feedback` and `journal` namespaces) are in the inline `i18n.ts` resources.
 - **Database migrations**: See `supabase/MIGRATION_README.md`
 
 ## Database Schema Quick Reference
