@@ -62,6 +62,7 @@ class Word(BaseModel):
 
 class FeedbackResponse(BaseModel):
     """Schema for AI feedback response."""
+    id: Optional[str] = Field(None, description="ID of the saved journal entry")
     corrected: str = Field("", description="Grammar-corrected version of the entry")
     rewritten: str = Field("", description="Native-like rewritten version")
     score: int = Field(0, description="Fluency score (0-100)", ge=0, le=100)

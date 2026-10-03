@@ -342,6 +342,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     saved_entry = save_entry(entry_data)
     logger.info(f"Entry saved with ID: {saved_entry.get('id', 'unknown')} and language snapshots")
 
+    feedback_response.id = saved_entry.get("id")
     return feedback_response
 
 
@@ -519,6 +520,8 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "analysis_error_code": None,
     }
     update_entry_analysis(entry_id, user_id, update_data)
+
+    feedback_response.id = entry_id
     return feedback_response
 
 

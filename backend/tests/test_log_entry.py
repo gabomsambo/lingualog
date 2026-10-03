@@ -113,6 +113,7 @@ def test_log_entry_saves_real_feedback(client):
 
     assert response.status_code == 201
     body = response.json()
+    assert body["id"] == "entry-123"
     assert body["corrected"] == "Corrected Hola"
     assert body["is_mock"] is False
 
@@ -246,6 +247,7 @@ async def test_retry_analysis_endpoint(async_client):
 
     assert response.status_code == 200
     body = response.json()
+    assert body["id"] == "entry-1"
     assert body["corrected"] == "Corrected retry"
     assert body["is_mock"] is False
 
@@ -268,6 +270,7 @@ def test_log_entry_mock_provider_flags_response(client):
 
     assert response.status_code == 201
     body = response.json()
+    assert body["id"] == "mock-entry-1"
     assert body["is_mock"] is True
 
     saved = mock_save.call_args[0][0]
