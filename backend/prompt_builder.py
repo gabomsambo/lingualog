@@ -44,11 +44,27 @@ You must respond with a valid JSON object containing exactly these fields:
     "vocabulary": 85,
     "complexity": 90
   }},
+  "intended_meaning": "What the learner meant, in the language the policy names",
+  "ambiguities": [
+    {{
+      "question": "A question, only when the intended meaning is unclear"
+    }}
+  ],
+  "rewrite_idioms": [
+    {{
+      "phrase": "idiom in the rewrite",
+      "gloss": "short gloss in the policy's idiom language"
+    }}
+  ],
   "grammar_suggestions": [
     {{
       "original": "Original text snippet with error",
       "corrected": "Corrected version",
-      "note": "Explanation of the correction"
+      "note": "Learner-facing explanation (same content as note_l1 / note_l2)",
+      "note_l1": "Explanation in the learner's language, or empty when the policy says so",
+      "note_l2": "Explanation in the target language, or empty when the policy says so",
+      "meaning_changing": false,
+      "literal_reading": "As written, a native reads… — empty when the meaning did not change"
     }}
   ],
   "new_words": [
@@ -76,6 +92,7 @@ You must respond with a valid JSON object containing exactly these fields:
 5. Focus on the most important corrections that will help learning
 6. Provide practical examples and clear explanations
 7. Do NOT include a translation of the entry in the JSON; translations are handled separately
+8. Do not treat any outside translation as the meaning of the entry. Infer the intended meaning yourself
 
 Remember: Your response must be a single, valid JSON object that can be parsed programmatically."""
 
@@ -115,7 +132,11 @@ def build_messages(entry_text: str, effective: EffectiveSettings) -> Tuple[str, 
         "strictness": effective.strictness,
         "formality": effective.formality,
         "immersion_level": effective.immersion_level,
-        "proficiency_estimate": _estimate_proficiency_level(effective),
+        "proficiency": _proficiency(effective),
+        "proficiency_estimate": _proficiency(effective),
+        "explanation": getattr(effective, "explanation", ""),
+        "meaning": getattr(effective, "meaning", ""),
+        "rewrite_gloss": getattr(effective, "rewrite_gloss", ""),
         "analysis_request": f"Please analyze this journal entry written in {effective.l2}."
     }
     
@@ -146,7 +167,7 @@ def build_user_message(entry_text: str, effective: EffectiveSettings) -> str:
         "strictness": effective.strictness,
         "formality": effective.formality,
         "immersion_level": effective.immersion_level,
-        "proficiency": _estimate_proficiency_level(effective),
+        "proficiency": _proficiency(effective),
     }
 
     message = f"""Please analyze this journal entry:
@@ -161,7 +182,7 @@ CONTEXT:
 - Correction level: {effective.strictness}
 - Tone: {effective.formality}
 - Immersion level: {effective.immersion_level} (0 = native-first, 3 = full immersion)
-- Estimated proficiency: {_estimate_proficiency_level(effective)}
+- Proficiency: {_proficiency(effective)} (A1-C2, separate from immersion)
 
 Please provide your analysis as a JSON object following the specified format."""
     
@@ -234,7 +255,7 @@ def extract_snapshot_data(effective: EffectiveSettings) -> Dict[str, Any]:
         "ui_language_snapshot": effective.ui_language,
         "explanation_language_snapshot": _get_explanation_language_snapshot(effective),
         "translation_policy_snapshot": effective.translation_policy,
-        "proficiency_estimate": _estimate_proficiency_level(effective)
+        "proficiency_estimate": _proficiency(effective)
     }
     
     return snapshot
@@ -252,25 +273,12 @@ def _get_explanation_language_snapshot(effective: EffectiveSettings) -> str:
         return f"{effective.l1}+{effective.l2}"
 
 
-def _estimate_proficiency_level(effective: EffectiveSettings) -> str:
-    """
-    Estimate proficiency level based on immersion setting.
-
-    Valid immersion levels: 0-3
-    Returns: beginner, elementary, intermediate, or advanced
-
-    This is a heuristic based on immersion level and other settings.
-    """
-    immersion = effective.immersion_level
-
-    if immersion == 0:
-        return "beginner"         # Native-First users are beginners
-    elif immersion == 1:
-        return "elementary"       # Guided Bilingual
-    elif immersion == 2:
-        return "intermediate"     # Balanced Immersion
-    else:  # immersion == 3
-        return "advanced"         # Full Immersion users are advanced
+def _proficiency(effective: EffectiveSettings) -> str:
+    """CEFR proficiency from the policy. Immersion does not imply a level."""
+    value = getattr(effective, "proficiency", None)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return "A2"
 
 
 # Alternative system prompts for different contexts

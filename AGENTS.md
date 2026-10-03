@@ -75,10 +75,11 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 5. Frontend displays enriched data in LearnWordModal
 
 ### Language Policy Resolution
-1. `lang_policy.py` merges user settings + request overrides
-2. Resolves L1 (native) and L2 (target) languages
-3. Applies immersion level, strictness, formality, explanation mode
-4. Controls translation visibility and feedback language
+1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
+2. Immersion and proficiency (A1–C2) are per target language in `user_language_profiles`. Proficiency is not derived from immersion.
+3. Each entry stores the resolved object on `journal_entries.policy_snapshot` (`v: 1`). The older `*_snapshot` columns stay.
+4. A per-entry override, or a saved explanation mode the learner picked (`user_settings.explanation_mode_explicit`), is honoured.
+   Otherwise the immersion level decides note language; the `bilingual` column default is not a choice.
 
 ## Security
 
@@ -109,9 +110,13 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code`
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot`
 - `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
+
+### `user_language_profiles`
+- One row per `(user_id, l2)`: `immersion_level` and `proficiency` (A1–C2)
+- Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
 - Stores user's vocabulary items with AI enrichment columns
@@ -119,7 +124,7 @@ Key reference files:
 - AI fields: `ai_definitions`, `ai_example_sentences`, `ai_synonyms`, `ai_antonyms`, `ai_cultural_note`, `ai_pronunciation_guide`, `emotion_tone`, `mnemonic`, `emoji`
 
 ### `user_settings`
-- Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode`, `strictness`, `formality`, `immersion_level`
+- Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode` (+ `explanation_mode_explicit`), `strictness`, `formality`, `immersion_level`
 
 ## API Endpoint Reference
 
@@ -127,7 +132,7 @@ Key reference files:
 - `POST /log-entry` - Submit journal entry with AI feedback
 - `POST /entries/{id}/analyze` - Retry AI analysis for an entry
 - `GET /entries` - Fetch user journal entries
-- `GET /entries/{id}` - Get single entry
+- `GET /entries/{id}` - Get single entry, including `policy_snapshot`, `corrected`, `rewrite`, and `analysis_status`
 - `DELETE /entries/{id}` - Delete entry
 - `POST /entries/{id}/translate` - Meaning translation of an entry part into L1 (cached per entry)
 - `POST /vocabulary` - Add vocabulary item
@@ -135,6 +140,13 @@ Key reference files:
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
 - `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
 - `GET /user/profile` - Get user profile
-- `PATCH /user/settings` - Update user settings
+- `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/stats` - Get user statistics
 - `POST /events` - Log a support event (reveal/rescue taps)
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

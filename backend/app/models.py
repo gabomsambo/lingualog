@@ -40,6 +40,13 @@ class LoginRequest(BaseModel):
     password: str
 
 # --- User Settings Models ---
+class LanguageProfile(BaseModel):
+    """Immersion and proficiency for one target language."""
+    l2: str
+    immersion_level: int = Field(1, ge=0, le=3)
+    proficiency: str = "A2"
+
+
 class UserSettings(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
@@ -69,9 +76,11 @@ class UserSettings(BaseModel):
     native_lang: str = "en" 
     default_target_lang: Optional[str] = None
     explanation_mode: str = "bilingual"
+    explanation_mode_explicit: bool = False
     immersion_level: int = 1
     strictness: str = "medium"
     formality: str = "neutral"
+    language_profiles: List[LanguageProfile] = Field(default_factory=list)
 
 class UserSettingsUpdate(BaseModel):
     native_language: Optional[str] = None
@@ -101,6 +110,7 @@ class UserSettingsUpdate(BaseModel):
     immersion_level: Optional[int] = None
     strictness: Optional[str] = None
     formality: Optional[str] = None
+    language_profiles: Optional[List[LanguageProfile]] = None
 
 # --- Journal Entry Models ---
 class JournalEntryBase(BaseModel):
@@ -145,9 +155,17 @@ class JournalEntry(JournalEntryBase):
     created_at: datetime
     updated_at: datetime
     ai_feedback: Optional[AiFeedback] = None # Now directly part of the entry
+    # LearningPolicy contract. `rewrite` is the stored column; `rewritten` is the
+    # same text under the name the feedback response already uses.
+    policy_snapshot: Optional[Dict[str, Any]] = None
+    corrected: Optional[str] = None
+    rewrite: Optional[str] = None
+    rewritten: Optional[str] = None
+    analysis_status: Optional[str] = None
 
     model_config = {
-        "from_attributes": True # Pydantic V2 way for orm_mode
+        "from_attributes": True, # Pydantic V2 way for orm_mode
+        "extra": "ignore",
     }
 
 class JournalEntryWithScore(JournalEntry): # For specific queries needing score prominently

@@ -155,7 +155,7 @@ class TestOverridesPrecedence:
         assert effective.l1 == 'en'
         assert effective.l2 == 'es'
         assert effective.ui_language == 'en'
-        assert effective.explanation_mode == 'native_only'  # Based on immersion level 1
+        assert effective.explanation_mode == 'smart'  # Level 1 names grammar in L2
         assert effective.strictness == 'medium'
         assert effective.formality == 'neutral'
         assert effective.immersion_level == 1
@@ -332,6 +332,7 @@ class TestIntegration:
             'default_target_lang': 'es',
             'interface_lang': 'en',
             'explanation_mode': 'bilingual',
+            'explanation_mode_explicit': True,
             'immersion_level': 1,
             'strictness': 'gentle',
             'formality': 'casual'
@@ -346,14 +347,16 @@ class TestIntegration:
         
         assert effective.l1 == 'en'
         assert effective.l2 == 'fr'  # Override worked
-        assert effective.explanation_mode == 'native_only'  # Immersion level 1
+        # Saved explanation_mode is an explicit choice and beats the level.
+        assert effective.explanation_mode == 'bilingual'
+        assert effective.explanation_source == 'saved_explanation_mode'
         assert effective.translation_policy == 'on_demand'
         assert effective.strictness == 'gentle'
         assert effective.formality == 'casual'
         
         # Test instruction generation
         instruction = explanation_instruction(effective)
-        assert 'English only' in instruction  # Uses native language due to low immersion
+        assert 'note_l1' in instruction
         assert 'encouraging' in instruction
         assert 'friendly' in instruction
     
@@ -364,6 +367,7 @@ class TestIntegration:
             'default_target_lang': 'en',
             'interface_lang': 'ja',
             'explanation_mode': 'smart',
+            'explanation_mode_explicit': True,
             'immersion_level': 3,
             'strictness': 'strict',
             'formality': 'academic'
@@ -378,14 +382,15 @@ class TestIntegration:
 
         assert effective.l1 == 'ja'
         assert effective.l2 == 'en'
-        assert effective.explanation_mode == 'target_only'  # Immersion level 3 (Full Immersion)
+        # Saved "smart" is explicit, so it overrides the level-3 note language.
+        assert effective.explanation_mode == 'smart'
+        assert effective.explanation_source == 'saved_explanation_mode'
         assert effective.translation_policy == 'omit'
         assert effective.strictness == 'pedantic'  # Override worked
         assert effective.formality == 'academic'
 
         # Test instruction generation
         instruction = explanation_instruction(effective)
-        assert 'English only' in instruction  # Uses target language due to high immersion
+        assert 'Japanese' in instruction
         assert 'extremely detailed' in instruction
         assert 'scholarly' in instruction
-        assert 'advanced' in instruction

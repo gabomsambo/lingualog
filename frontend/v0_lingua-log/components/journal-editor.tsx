@@ -169,6 +169,11 @@ export function JournalEditor() {
     return LANGUAGES.find(l => l.code === targetLanguage) || LANGUAGES[1] // Default to Spanish
   }
 
+  const savedImmersionLevel = userSettings?.language_profiles?.find((row) => row.l2 === targetLanguage)?.immersion_level
+    ?? userSettings?.immersion_level
+    ?? 1
+  const displayedImmersionLevel = overrides.immersion_level ?? savedImmersionLevel
+
   const handleCloseTranslationModal = () => {
     setIsTranslationModalOpen(false);
     router.push(`/entries`);
@@ -197,7 +202,14 @@ export function JournalEditor() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('journal.targetLanguage')}</label>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isSubmitting}>
+                <Select value={targetLanguage} onValueChange={(value) => {
+                  setTargetLanguage(value)
+                  setOverrides((prev) => {
+                    const next = { ...prev }
+                    delete next.immersion_level
+                    return next
+                  })
+                }} disabled={isSubmitting}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('journal.selectTargetLanguage')} />
                   </SelectTrigger>
@@ -243,6 +255,7 @@ export function JournalEditor() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">{t('journal.explanationMode')}</label>
+                    <p className="text-xs text-muted-foreground mb-2">{t('journal.explanationModeHint')}</p>
                     <Select value={overrides.explanation_mode || ''} onValueChange={(value) => setOverrides(prev => ({ ...prev, explanation_mode: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('settings.explanationMode')} />
@@ -274,10 +287,11 @@ export function JournalEditor() {
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    {t('journal.immersionLevel')}: {overrides.immersion_level ?? 1}
+                    {t('journal.immersionLevel')}: {displayedImmersionLevel}
                   </label>
+                  <p className="text-xs text-muted-foreground mb-2">{t('journal.immersionSliderHint')}</p>
                   <Slider
-                    value={[overrides.immersion_level ?? 1]}
+                    value={[displayedImmersionLevel]}
                     onValueChange={(value) => setOverrides(prev => ({ ...prev, immersion_level: value[0] }))}
                     max={3}
                     min={0}

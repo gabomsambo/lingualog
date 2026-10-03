@@ -658,9 +658,17 @@ export interface UserSettingsData {
   native_lang: string;
   default_target_lang?: string;
   explanation_mode: string;
+  explanation_mode_explicit?: boolean;
   immersion_level: number;
   strictness: string;
   formality: string;
+  language_profiles?: LanguageProfileData[];
+}
+
+export interface LanguageProfileData {
+  l2: string;
+  immersion_level: number;
+  proficiency: string;
 }
 
 export interface UserSettingsUpdate {
@@ -691,6 +699,7 @@ export interface UserSettingsUpdate {
   immersion_level?: number;
   strictness?: string;
   formality?: string;
+  language_profiles?: LanguageProfileData[];
 }
 
 export async function getUserSettings(): Promise<UserSettingsData> {

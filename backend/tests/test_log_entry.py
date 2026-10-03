@@ -57,10 +57,10 @@ def test_policy_prompt_respects_immersion_levels():
         "formality": "neutral",
     }
     expectations = {
-        0: "English only",
-        1: "English only",
-        2: "both English and Spanish",
-        3: "Spanish only",
+        0: "in English only",
+        1: "name each grammar point",
+        2: "one-line English gloss",
+        3: "in Spanish only",
     }
 
     for level, expected_phrase in expectations.items():
@@ -73,15 +73,13 @@ def test_policy_prompt_respects_immersion_levels():
         assert expected_phrase in system_prompt, (
             f"Level {level} should mention '{expected_phrase}'"
         )
+        assert "Never change correct usage" in system_prompt
         assert '"translation"' not in system_prompt, (
             f"Level {level} prompt must not ask for a translation field"
         )
-        assert user_payload["proficiency_estimate"] in {
-            "beginner",
-            "elementary",
-            "intermediate",
-            "advanced",
-        }
+        # Proficiency is its own setting. With none stored, every level is A2.
+        assert user_payload["proficiency_estimate"] == "A2"
+        assert user_payload["proficiency"] == "A2"
 
 
 def test_user_message_does_not_ask_for_translation():
@@ -118,6 +116,10 @@ def test_log_entry_saves_real_feedback(client):
     assert body["is_mock"] is False
 
     mock_save.assert_called_once()
+    saved = mock_save.call_args[0][0]
+    assert saved["policy_snapshot"]["v"] == 1
+    assert saved["policy_snapshot"]["l2"] == "es"
+    assert "explanation_language_snapshot" in saved
     saved = mock_save.call_args[0][0]
     assert saved["original_text"] == "Hola me llamo Juan"
     assert saved["analysis_status"] == "ok"
@@ -400,15 +402,15 @@ def _post_entry_capturing_prompt(client, immersion_level):
     return mock_generate.call_args[0]
 
 
-@pytest.mark.parametrize(
-    "level,proficiency",
-    [(0, "beginner"), (1, "elementary"), (2, "intermediate"), (3, "advanced")],
-)
-def test_gemini_prompt_includes_immersion_and_proficiency(client, level, proficiency):
-    _system_prompt, user_message, _schema = _post_entry_capturing_prompt(client, level)
+@pytest.mark.parametrize("level", [0, 1, 2, 3])
+def test_gemini_prompt_includes_immersion_and_proficiency(client, level):
+    system_prompt, user_message, _schema = _post_entry_capturing_prompt(client, level)
 
     assert f"Immersion level: {level}" in user_message
-    assert f"Estimated proficiency: {proficiency}" in user_message
+    assert "Proficiency: A2" in user_message
+    assert "separate from immersion" in user_message
+    assert "Never change correct usage" in system_prompt
+    assert "grammatical gender" in system_prompt
 
 
 def test_gemini_is_not_asked_for_is_mock_and_cannot_set_it(client):
