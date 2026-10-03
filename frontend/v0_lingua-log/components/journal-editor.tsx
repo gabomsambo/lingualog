@@ -50,6 +50,7 @@ export function JournalEditor() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<Entry | null>(null)
+  const [savedEntryId, setSavedEntryId] = useState<string | null>(null)
   const [isTranslationModalOpen, setIsTranslationModalOpen] = useState(false)
   const [showTranslation, setShowTranslation] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -119,6 +120,7 @@ export function JournalEditor() {
       });
       
       setResult(data);
+      setSavedEntryId((data as { entry_id?: string }).entry_id || null);
       setIsTranslationModalOpen(true) // Show the new v0 TranslationModal
       
       // router.push(`/entries`); // Navigation will be handled by the modal's onClose
@@ -139,6 +141,7 @@ export function JournalEditor() {
     setTargetLanguage(userSettings?.default_target_lang || "es")
     setWordCount(0)
     setResult(null)
+    setSavedEntryId(null)
     setError(null)
     setOverrides({})
   }
@@ -421,8 +424,10 @@ export function JournalEditor() {
         <TranslationModal
           isOpen={isTranslationModalOpen}
           onClose={handleCloseTranslationModal}
-          entryContent={text} // Pass the original text content
-          entryLanguage={targetLanguage} // Pass the language the entry was written in
+          entryId={savedEntryId || ""}
+          entryContent={text}
+          entryLanguage={targetLanguage}
+          defaultTargetLanguage={userSettings?.native_lang || userSettings?.native_language || "en"}
         />
       )}
     </div>

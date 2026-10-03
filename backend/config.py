@@ -16,6 +16,8 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 SUPABASE_URL: str | None = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY: str | None = os.getenv("SUPABASE_SERVICE_KEY")
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+LARA_TRANSLATE_ID: str | None = os.getenv("LARA_TRANSLATE_ID")
+LARA_TRANSLATE_SECRET: str | None = os.getenv("LARA_TRANSLATE_SECRET")
 
 # Hugging Face token for model access
 HUGGINGFACE_TOKEN: str | None = os.getenv("HUGGINGFACE_TOKEN")

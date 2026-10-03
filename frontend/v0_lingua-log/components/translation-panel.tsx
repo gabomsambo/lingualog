@@ -1,26 +1,93 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Languages, ThumbsUp, ThumbsDown, ArrowRight } from "lucide-react"
+import { Languages, ThumbsUp, ThumbsDown, ArrowRight, AlertCircle, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import { postSupportEvent, translateEntryPart } from "@/lib/api"
+import { getLanguageDisplayName } from "@/i18n/languages"
 
 interface TranslationPanelProps {
+  entryId: string
   entry: {
     language: string
+    languageCode?: string
     content: string
-    translation: string
   }
+  nativeLanguage: string
+  immersionLevel?: number
+  translationPolicy?: string
   showTranslation: boolean
   setShowTranslation: (show: boolean) => void
 }
 
-export function TranslationPanel({ entry, showTranslation, setShowTranslation }: TranslationPanelProps) {
+export function TranslationPanel({
+  entryId,
+  entry,
+  nativeLanguage,
+  immersionLevel,
+  translationPolicy,
+  showTranslation,
+  setShowTranslation,
+}: TranslationPanelProps) {
   const { toast } = useToast()
   const [translationRated, setTranslationRated] = useState(false)
+  const [translation, setTranslation] = useState("")
+  const [providerLabel, setProviderLabel] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
+
+  const loadTranslation = useCallback(async () => {
+    if (!entryId) return
+    setLoading(true)
+    setUnavailable(false)
+    try {
+      const result = await translateEntryPart(entryId, "original", nativeLanguage)
+      if (result.status === "unavailable" || !result.text) {
+        setUnavailable(true)
+        setTranslation("")
+      } else {
+        setTranslation(result.text)
+        setProviderLabel(result.provider_label || null)
+        setHasLoaded(true)
+        try {
+          await postSupportEvent({
+            kind: "reveal_meaning",
+            entry_id: entryId,
+            immersion_level: immersionLevel,
+            l2: entry.languageCode || entry.language,
+          })
+        } catch {
+          // Telemetry failure should not block the learner
+        }
+      }
+    } catch {
+      setUnavailable(true)
+      setTranslation("")
+    } finally {
+      setLoading(false)
+    }
+  }, [entryId, nativeLanguage])
+
+  const handleToggle = () => {
+    setShowTranslation(!showTranslation)
+  }
+
+  useEffect(() => {
+    if (showTranslation && !hasLoaded && !loading) {
+      void loadTranslation()
+    }
+  }, [showTranslation, hasLoaded, loading, loadTranslation])
+
+  useEffect(() => {
+    if (translationPolicy === "L2_to_L1" && !showTranslation) {
+      setShowTranslation(true)
+    }
+  }, [translationPolicy, setShowTranslation, showTranslation])
 
   const handleRateTranslation = (isGood: boolean) => {
     setTranslationRated(true)
@@ -32,6 +99,9 @@ export function TranslationPanel({ entry, showTranslation, setShowTranslation }:
     })
   }
 
+  const l2Label = getLanguageDisplayName(entry.languageCode || entry.language)
+  const l1Label = getLanguageDisplayName(nativeLanguage)
+
   return (
     <Card className="border-fun-blue/20 shadow-fun rounded-3xl overflow-hidden">
       <CardHeader className="bg-gradient-to-r from-fun-blue/10 to-fun-teal/10 pb-4">
@@ -40,11 +110,16 @@ export function TranslationPanel({ entry, showTranslation, setShowTranslation }:
             <span className="fun-heading">Translation</span>
           </CardTitle>
           <Button
-            onClick={() => setShowTranslation(!showTranslation)}
+            onClick={handleToggle}
             variant={showTranslation ? "outline" : "blue"}
             className={`rounded-full ${showTranslation ? "border-fun-blue/30 hover:bg-fun-blue/10" : ""}`}
+            disabled={loading}
           >
-            <Languages className="mr-2 h-5 w-5" />
+            {loading ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            ) : (
+              <Languages className="mr-2 h-5 w-5" />
+            )}
             {showTranslation ? "Hide Translation" : "Show Translation"}
           </Button>
         </div>
@@ -59,9 +134,16 @@ export function TranslationPanel({ entry, showTranslation, setShowTranslation }:
             transition={{ duration: 0.3 }}
           >
             <CardContent className="p-6">
+              {unavailable && (
+                <div className="flex items-center justify-center gap-2 text-destructive mb-4">
+                  <AlertCircle className="h-5 w-5" />
+                  <span>Translation unavailable</span>
+                  <Button variant="link" onClick={() => void loadTranslation()}>Retry</Button>
+                </div>
+              )}
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex-1 p-4 bg-fun-purple/5 rounded-2xl border-2 border-fun-purple/20">
-                  <h3 className="font-medium text-fun-purple mb-3">Original</h3>
+                  <h3 className="font-medium text-fun-purple mb-3">Original ({l2Label})</h3>
                   <div className="prose max-w-none text-base font-serif">
                     {entry.content.split("\n\n").map((paragraph, index) => (
                       <p key={index} className="mb-4 leading-relaxed">
@@ -79,9 +161,9 @@ export function TranslationPanel({ entry, showTranslation, setShowTranslation }:
 
                 <div className="flex-1 p-4 bg-fun-blue/5 rounded-2xl border-2 border-fun-blue/20">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-medium text-fun-blue">Translation</h3>
+                    <h3 className="font-medium text-fun-blue">What it means ({l1Label})</h3>
 
-                    {!translationRated && (
+                    {!translationRated && translation && (
                       <div className="flex items-center space-x-2">
                         <span className="text-sm text-muted-foreground">Helpful?</span>
                         <Button
@@ -106,12 +188,20 @@ export function TranslationPanel({ entry, showTranslation, setShowTranslation }:
                     )}
                   </div>
 
+                  {providerLabel && (
+                    <p className="text-xs text-muted-foreground mb-2">{providerLabel}</p>
+                  )}
+
                   <div className="prose max-w-none text-base">
-                    {entry.translation.split("\n\n").map((paragraph, index) => (
-                      <p key={index} className="mb-4 leading-relaxed">
-                        {paragraph}
-                      </p>
-                    ))}
+                    {loading && !translation ? (
+                      <p className="text-muted-foreground">Loading translation…</p>
+                    ) : (
+                      translation.split("\n\n").map((paragraph, index) => (
+                        <p key={index} className="mb-4 leading-relaxed">
+                          {paragraph}
+                        </p>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

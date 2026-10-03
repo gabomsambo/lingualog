@@ -308,7 +308,17 @@ export default function EntryInsightPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <TranslationPanel entry={entry} showTranslation={showTranslation} setShowTranslation={setShowTranslation} />
+          <TranslationPanel
+            entryId={entry.id}
+            entry={{
+              language: entry.language,
+              languageCode: entry.languageCode,
+              content: entry.content,
+            }}
+            nativeLanguage="en"
+            showTranslation={showTranslation}
+            setShowTranslation={setShowTranslation}
+          />
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8">

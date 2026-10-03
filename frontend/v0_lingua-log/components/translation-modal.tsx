@@ -2,69 +2,86 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, Languages, Copy, Check, ArrowRight } from "lucide-react"
+import { Sparkles, Languages, Copy, Check, ArrowRight, AlertCircle } from "lucide-react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Confetti } from "@/components/confetti"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { translateEntryPart } from "@/lib/api"
+import { getLanguageDisplayName } from "@/i18n/languages"
 
 interface TranslationModalProps {
   isOpen: boolean
   onClose: () => void
+  entryId: string
   entryContent: string
   entryLanguage: string
+  defaultTargetLanguage?: string
 }
 
-export function TranslationModal({ isOpen, onClose, entryContent, entryLanguage }: TranslationModalProps) {
+const LANGUAGE_SELECT_CODES = ["en", "es", "fr", "de", "ja", "ko", "zh", "ar", "he", "pt", "it"]
+
+export function TranslationModal({
+  isOpen,
+  onClose,
+  entryId,
+  entryContent,
+  entryLanguage,
+  defaultTargetLanguage = "en",
+}: TranslationModalProps) {
   const { toast } = useToast()
   const [showTranslation, setShowTranslation] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translation, setTranslation] = useState("")
+  const [providerLabel, setProviderLabel] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [targetLanguage, setTargetLanguage] = useState("english")
+  const [targetLanguage, setTargetLanguage] = useState(defaultTargetLanguage)
   const [showConfetti, setShowConfetti] = useState(true)
 
-  // Get language display name
-  const getLanguageDisplayName = (code: string) => {
-    const languages: Record<string, string> = {
-      spanish: "Spanish",
-      french: "French",
-      german: "German",
-      japanese: "Japanese",
-      korean: "Korean",
-      english: "English",
-      italian: "Italian",
-      portuguese: "Portuguese",
-      russian: "Russian",
-      chinese: "Chinese",
-    }
-    return languages[code] || code
-  }
-
-  // Handle translation request
-  const handleTranslate = () => {
-    setIsTranslating(true)
-
-    // Simulate API call to translation service
-    setTimeout(() => {
-      // This would be replaced with actual API call to translation service
-      const mockTranslation = `This is a simulated translation of the text from ${getLanguageDisplayName(entryLanguage)} to ${getLanguageDisplayName(targetLanguage)}.\n\nThe actual implementation would connect to a translation API that would accurately translate the content while preserving the meaning and nuance of your writing.\n\nGreat job practicing your language skills today!`
-
-      setTranslation(mockTranslation)
-      setShowTranslation(true)
-      setIsTranslating(false)
-
+  const handleTranslate = async () => {
+    if (!entryId) {
       toast({
-        title: "Translation complete! ✨",
-        description: `Your entry has been translated to ${getLanguageDisplayName(targetLanguage)}`,
-        variant: "fun",
+        title: "Cannot translate yet",
+        description: "Your entry was not saved. You can translate from the entry page later.",
+        variant: "destructive",
       })
-    }, 1500)
+      return
+    }
+
+    setIsTranslating(true)
+    setUnavailable(false)
+    setProviderLabel(null)
+
+    try {
+      const result = await translateEntryPart(entryId, "original", targetLanguage)
+      if (result.status === "unavailable" || !result.text) {
+        setUnavailable(true)
+        setTranslation("")
+      } else {
+        setTranslation(result.text)
+        setProviderLabel(result.provider_label || null)
+        setShowTranslation(true)
+        toast({
+          title: "Translation complete! ✨",
+          description: `Your entry has been translated to ${getLanguageDisplayName(targetLanguage)}`,
+          variant: "fun",
+        })
+      }
+    } catch {
+      setUnavailable(true)
+      toast({
+        title: "Translation unavailable",
+        description: "Please try again in a moment.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsTranslating(false)
+    }
   }
 
-  // Copy translation to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(translation)
     setCopied(true)
@@ -117,16 +134,21 @@ export function TranslationModal({ isOpen, onClose, entryContent, entryLanguage 
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-fun-purple/30">
-                      <SelectItem value="english">English</SelectItem>
-                      <SelectItem value="spanish">Spanish</SelectItem>
-                      <SelectItem value="french">French</SelectItem>
-                      <SelectItem value="german">German</SelectItem>
-                      <SelectItem value="japanese">Japanese</SelectItem>
-                      <SelectItem value="korean">Korean</SelectItem>
-                      <SelectItem value="chinese">Chinese</SelectItem>
+                      {LANGUAGE_SELECT_CODES.map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {getLanguageDisplayName(code)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {unavailable && (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    Translation unavailable · Retry
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -205,6 +227,9 @@ export function TranslationModal({ isOpen, onClose, entryContent, entryLanguage 
                         {copied ? "Copied!" : "Copy"}
                       </Button>
                     </div>
+                    {providerLabel && (
+                      <p className="text-xs text-muted-foreground mb-2">{providerLabel}</p>
+                    )}
                     <div className="prose max-w-none text-sm">
                       {translation.split("\n").map((paragraph, i) => (
                         <p key={i}>{paragraph}</p>

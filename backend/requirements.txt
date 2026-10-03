@@ -14,6 +14,7 @@ pytest-cov
 google-genai>=2.28.0
 # Legacy google-generativeai is still imported by the old GeminiEngine module
 google-generativeai>=0.7.0
+lara-sdk>=1.15.0
 # SQLAlchemy and related drivers
 sqlalchemy[asyncio]>=2.0.0
 psycopg2-binary>=2.9.0
