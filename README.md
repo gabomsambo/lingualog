@@ -48,6 +48,22 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **GET /entries**
   - Retrieve past journal entries with feedback
 
+- **GET /entries/{id}**
+  - One entry, including `policy_snapshot`, `corrected`, `rewrite` (also `rewritten`), and `analysis_status`
+
+## Learning policy
+
+Immersion is how much of your own language you want while practising a target language. Proficiency (A1–C2) is separate, and both are stored per target language in `user_language_profiles`. `resolve_policy()` in `backend/learning_policy.py` is the only place a level becomes behaviour. The resolved object (`v: 1`) is stored on the entry as `policy_snapshot`.
+
+Precedence, highest first:
+
+- **Immersion level** (and meaning, rewrite gloss, vocabulary, quiz): per-entry slider, then the language profile, then the account-wide `user_settings.immersion_level`, then 1.
+- **Note language**: per-entry explanation mode, then a per-entry immersion override (the slider means "use this level", including its notes), then a saved explanation mode other than `level`, then the immersion level.
+
+The settings "Explanation mode" control and the new-entry immersion slider stay. Leave explanation mode on "Follow immersion level" (`level`) for the level to decide notes. The new-entry slider shows the saved level for the selected language and is sent only after you move it.
+
+Gemini infers what you meant. A translation is not fed into the correction.
+
 ### Data Models
 
 ```python
@@ -176,6 +192,8 @@ make test
 
 # Run backend tests only
 make test-backend
+
+# Manual Gemini corpus (not CI): cd backend && python -m evals.score_ref
 
 # Run frontend tests
 cd frontend/v0_lingua-log

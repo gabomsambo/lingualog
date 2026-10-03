@@ -42,6 +42,8 @@
   "hideTranslation": "Hide Translation",
   "advancedOptions": "Advanced Options",
   "immersionLevel": "Immersion Level",
+  "immersionSliderHint": "Starts at your saved level for this language. Move it only to override this entry.",
+  "explanationModeHint": "Leave this unset to follow the immersion level. A choice here overrides note language for this entry.",
   "explanationMode": "Explanation Mode",
   "strictnessLevel": "Strictness Level",
   "selectLanguage": "Select language"

@@ -42,6 +42,8 @@
   "hideTranslation": "Ocultar Traducción",
   "advancedOptions": "Opciones Avanzadas",
   "immersionLevel": "Nivel de Inmersión",
+  "immersionSliderHint": "Empieza en tu nivel guardado para este idioma. Muévelo solo para cambiar esta entrada.",
+  "explanationModeHint": "Déjalo vacío para seguir la inmersión. Elegir un modo cambia el idioma de las notas en esta entrada.",
   "explanationMode": "Modo de Explicación",
   "strictnessLevel": "Nivel de Severidad",
   "selectLanguage": "Seleccionar idioma"

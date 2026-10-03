@@ -82,6 +82,7 @@ interface SettingsState {
   immersionLevel: number
   strictness: string
   formality: string
+  languageProfiles: Record<string, { immersion_level: number; proficiency: string }>
 }
 
 export default function SettingsPage() {
@@ -119,6 +120,7 @@ export default function SettingsPage() {
     immersionLevel: 1,
     strictness: "medium",
     formality: "neutral",
+    languageProfiles: {},
   })
   
   const [showPassword, setShowPassword] = useState(false)
@@ -175,6 +177,12 @@ export default function SettingsPage() {
             immersionLevel: settingsData.immersion_level,
             strictness: settingsData.strictness,
             formality: settingsData.formality,
+            languageProfiles: Object.fromEntries(
+              (settingsData.language_profiles ?? []).map((row) => [
+                row.l2,
+                { immersion_level: row.immersion_level, proficiency: row.proficiency },
+              ])
+            ),
           }))
         }
       } catch (error) {
@@ -194,6 +202,46 @@ export default function SettingsPage() {
   const updateSetting = (key: keyof SettingsState, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }))
     setHasChanges(true)
+  }
+
+  const studiedLanguages = Array.from(
+    new Set([
+      ...(settings.targetLanguages || []),
+      settings.defaultTargetLanguage,
+      ...Object.keys(settings.languageProfiles),
+    ].filter(Boolean))
+  )
+
+  const profileFor = (code: string) =>
+    settings.languageProfiles[code] ?? {
+      immersion_level: settings.immersionLevel,
+      proficiency: "A2",
+    }
+
+  const updateLanguageProfile = (
+    code: string,
+    patch: Partial<{ immersion_level: number; proficiency: string }>
+  ) => {
+    setSettings(prev => {
+      const current = prev.languageProfiles[code] ?? {
+        immersion_level: prev.immersionLevel,
+        proficiency: "A2",
+      }
+      const nextProfile = { ...current, ...patch }
+      return {
+        ...prev,
+        immersionLevel:
+          code === prev.defaultTargetLanguage && patch.immersion_level !== undefined
+            ? patch.immersion_level
+            : prev.immersionLevel,
+        languageProfiles: { ...prev.languageProfiles, [code]: nextProfile },
+      }
+    })
+    setHasChanges(true)
+  }
+
+  const updateDefaultImmersion = (level: number) => {
+    updateLanguageProfile(settings.defaultTargetLanguage, { immersion_level: level })
   }
 
   const addTargetLanguage = (languageCode: string) => {
@@ -256,6 +304,11 @@ export default function SettingsPage() {
         immersion_level: settings.immersionLevel,
         strictness: settings.strictness,
         formality: settings.formality,
+        language_profiles: studiedLanguages.map((code) => ({
+          l2: code,
+          immersion_level: profileFor(code).immersion_level,
+          proficiency: profileFor(code).proficiency,
+        })),
       }
 
       const updatedSettings = await updateUserSettings(updateData)
@@ -528,7 +581,15 @@ export default function SettingsPage() {
                   <div>
                     <Label htmlFor="default-target-language">{t('settings.defaultTargetLanguage')}</Label>
                     <p className="text-sm text-muted-foreground mb-2">{t('settings.defaultTargetLanguageDesc')}</p>
-                    <Select value={settings.defaultTargetLanguage} onValueChange={(value) => updateSetting("defaultTargetLanguage", value)}>
+                    <Select value={settings.defaultTargetLanguage} onValueChange={(value) => {
+                      const profile = settings.languageProfiles[value]
+                      setSettings(prev => ({
+                        ...prev,
+                        defaultTargetLanguage: value,
+                        immersionLevel: profile?.immersion_level ?? prev.immersionLevel,
+                      }))
+                      setHasChanges(true)
+                    }}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -547,23 +608,86 @@ export default function SettingsPage() {
                     </Select>
                   </div>
 
+                  <div className="space-y-4">
+                    <div>
+                      <Label>{t('settings.languagesYouStudy')}</Label>
+                      <p className="text-sm text-muted-foreground">{t('settings.languagesYouStudyDesc')}</p>
+                    </div>
+                    {studiedLanguages.map((code) => {
+                      const lang = LANGUAGES.find((item) => item.code === code)
+                      const profile = profileFor(code)
+                      const descriptions = [
+                        t('settings.immersion0Desc'),
+                        t('settings.immersion1Desc'),
+                        t('settings.immersion2Desc'),
+                        t('settings.immersion3Desc'),
+                      ]
+                      return (
+                        <div key={code} className="rounded-2xl border border-fun-purple/15 p-4 space-y-3">
+                          <div className="flex items-center gap-2 font-medium">
+                            <span>{lang?.flag}</span>
+                            <span>{lang?.name || code}</span>
+                          </div>
+                          <div>
+                            <Label>
+                              {t('settings.immersionLevel')}: {profile.immersion_level}/3
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">{descriptions[profile.immersion_level]}</p>
+                            <Slider
+                              value={[profile.immersion_level]}
+                              onValueChange={(value) => updateLanguageProfile(code, { immersion_level: value[0] })}
+                              max={3}
+                              min={0}
+                              step={1}
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                              <span>0: {t('settings.immersionNativeFirst')}</span>
+                              <span>1: {t('settings.immersionGuidedBilingual')}</span>
+                              <span>2: {t('settings.immersionBalanced')}</span>
+                              <span>3: {t('settings.immersionImmersive')}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>{t('settings.proficiency')}</Label>
+                            <p className="text-sm text-muted-foreground mb-2">{t('settings.proficiencyDesc')}</p>
+                            <Select
+                              value={profile.proficiency}
+                              onValueChange={(value) => updateLanguageProfile(code, { proficiency: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(["A1", "A2", "B1", "B2", "C1", "C2"] as const).map((band) => (
+                                  <SelectItem key={band} value={band}>
+                                    {t(`settings.proficiency${band}`)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
                   <div>
                     <Label>{t('settings.immersionLevel')}: {settings.immersionLevel}/3</Label>
                     <p className="text-sm text-muted-foreground mb-2">{t('settings.immersionLevelDesc')}</p>
                     <div className="space-y-3">
                       <Slider
                         value={[settings.immersionLevel]}
-                        onValueChange={(value) => updateSetting("immersionLevel", value[0])}
+                        onValueChange={(value) => updateDefaultImmersion(value[0])}
                         max={3}
                         min={0}
                         step={1}
                         className="mt-2"
                       />
                       <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>0: {t('journal.immersionNativeFirst')}</span>
-                        <span>1: {t('journal.immersionGuidedBilingual')}</span>
-                        <span>2: {t('journal.immersionBalanced')}</span>
-                        <span>3: {t('journal.immersionImmersive')}</span>
+                        <span>0: {t('settings.immersionNativeFirst')}</span>
+                        <span>1: {t('settings.immersionGuidedBilingual')}</span>
+                        <span>2: {t('settings.immersionBalanced')}</span>
+                        <span>3: {t('settings.immersionImmersive')}</span>
                       </div>
                     </div>
                   </div>
@@ -636,10 +760,11 @@ export default function SettingsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="native_only">{t('journal.explanationNativeOnly')}</SelectItem>
-                          <SelectItem value="target_only">{t('journal.explanationTargetOnly')}</SelectItem>
-                          <SelectItem value="bilingual">{t('journal.explanationBilingual')}</SelectItem>
-                          <SelectItem value="smart">{t('journal.explanationSmart')}</SelectItem>
+                          <SelectItem value="level">{t('settings.explanationFollowLevel')}</SelectItem>
+                          <SelectItem value="native_only">{t('settings.explanationNativeOnly')}</SelectItem>
+                          <SelectItem value="target_only">{t('settings.explanationTargetOnly')}</SelectItem>
+                          <SelectItem value="bilingual">{t('settings.explanationBilingual')}</SelectItem>
+                          <SelectItem value="smart">{t('settings.explanationSmart')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
