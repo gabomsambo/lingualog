@@ -66,6 +66,11 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 3. Returns corrected text, rewrite, rubric, grammar notes, new words
 4. Saves to `journal_entries` with flattened AI feedback and `analysis_status` (`ok`/`failed`/`mock`; pre-migration rows are `legacy`); returns the entry `id`
 5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
+6. The result renders in `components/entry-side-by-side.tsx`, both after submit and on `/entries/[id]`. It reads the
+   entry's `policy_snapshot` flags (`GET /user/policy` when an older entry has none), never the raw level number.
+   Pure alignment/diff logic is in `lib/side-by-side.ts`.
+
+Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 
 ### Vocabulary Enrichment Flow
 1. User adds word or system extracts from journal
@@ -141,6 +146,7 @@ Key reference files:
 - `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
+- `GET /user/policy?l2=` - The learner's current LearningPolicy for one language
 - `GET /user/stats` - Get user statistics
 - `POST /events` - Log a support event (reveal/rescue taps)
 

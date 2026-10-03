@@ -98,7 +98,7 @@ function translation(part: string) {
   if (part === "rewrite") {
     return { status: "ok", sentences: ["Today my sister is super bored."], text: "Today my sister is super bored.", provider_label: "Translated by Lara" }
   }
-  return { status: "ok", sentences: ["Use estar for states."], text: "Use estar for states.", provider_label: "Translated by Lara" }
+  return { status: "ok", sentences: ["<p>Use <span translate=\"no\">estar</span> for states.</p>"], text: "<p>Use <span translate=\"no\">estar</span> for states.</p>", provider_label: "Translated by Lara" }
 }
 
 function renderEntry(level: number | null, overrides: Record<string, unknown> = {}, props = {}) {
@@ -223,7 +223,8 @@ describe("level 3 (paraphrase in L2, rescue only)", () => {
     expect(within(cards[0]).getByTestId("note-primary")).toHaveTextContent("Usa estar para estados.")
     expect(within(cards[0]).queryByTestId("note-secondary")).toBeNull()
     fireEvent.click(within(cards[1]).getByRole("button", { name: "Explain in English" }))
-    await waitFor(() => expect(within(cards[1]).getByTestId("note-rescue")).toHaveTextContent("Use estar for states."))
+    await waitFor(() => expect(within(cards[1]).getByTestId("note-rescue")).toHaveTextContent(/^Use estar for states\.$/))
+    expect(within(cards[1]).getByTestId("note-rescue").innerHTML).not.toContain("<p>")
     expect(api.translateEntryPart).toHaveBeenCalledWith("entry-1", "note:1", "en")
     expect(eventKinds()).toEqual(["rescue_note"])
   })

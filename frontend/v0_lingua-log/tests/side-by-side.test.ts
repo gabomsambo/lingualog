@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   alignSentences,
   cleanLiteralReading,
+  htmlToText,
   diffWords,
   locateSuggestions,
   noteTexts,
@@ -102,6 +103,9 @@ describe("cleanLiteralReading", () => {
     )
     expect(cleanLiteralReading("Tal como está escrito: «Ella es una persona tediosa»")).toBe("Ella es una persona tediosa")
     expect(cleanLiteralReading("My sister is a boring person today")).toBe("My sister is a boring person today")
+    expect(cleanLiteralReading('Como está escrito, un nativo lee: "un hispanohablante entiende que vas a tener un bebé"')).toBe(
+      "un hispanohablante entiende que vas a tener un bebé",
+    )
   })
 })
 
@@ -187,5 +191,14 @@ describe("dashboard languages practiced", () => {
       { language: null },
     ])
     expect(result).toEqual({ languages: ["Spanish", "French"], languageEmojis: ["🇪🇸", "🇫🇷"] })
+  })
+})
+
+describe("htmlToText", () => {
+  it("turns a translated HTML note into plain text", () => {
+    expect(htmlToText('<p>\'<span translate="no">Embarazada</span>\' means &quot;pregnant&quot;.</p>')).toBe(
+      "'Embarazada' means \"pregnant\".",
+    )
+    expect(htmlToText("Plain note.")).toBe("Plain note.")
   })
 })

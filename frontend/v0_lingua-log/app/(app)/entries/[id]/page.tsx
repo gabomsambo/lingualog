@@ -306,7 +306,7 @@ export default function EntryInsightPage() {
       </div>
       
       {sideBySide && (
-        <div className="mb-8">
+        <div className="mb-8 lg:-mx-12 xl:-mx-32">
           <EntrySideBySide entry={sideBySide} showOverview={false} onReanalyzed={loadFullEntryData} />
         </div>
       )}

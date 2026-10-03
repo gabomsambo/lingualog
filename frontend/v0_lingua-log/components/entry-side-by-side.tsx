@@ -19,6 +19,7 @@ import {
   alignSentences,
   cleanLiteralReading,
   diffWords,
+  htmlToText,
   locateSuggestions,
   noteTexts,
   splitParagraphs,
@@ -573,7 +574,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
                       <PillButton onClick={() => rescueNote(index)}>{t("feedback.explainIn", { language: l1Name })}</PillButton>
                     ) : rescue.status === "ok" ? (
                       <p className="mt-2 text-[13px] text-muted-foreground" lang={l1} data-testid="note-rescue">
-                        {rescue.text}
+                        {htmlToText(rescue.text)}
                       </p>
                     ) : rescue.status === "unavailable" ? (
                       <span className="mt-2 inline-flex items-center gap-2 text-[13px] text-destructive">

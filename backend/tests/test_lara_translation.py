@@ -213,3 +213,29 @@ def test_support_event_drops_foreign_entry_id(mock_sb, _mock_fetch, client):
     )
     assert response.status_code == 201
     assert insert.call_args.args[0]["entry_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_note_rescue_sends_lara_the_html_media_type():
+    """Lara rejects content_type "html"; a note rescue must say text/html or it always falls back."""
+    from app.services import entry_translation_service as service
+
+    calls = []
+
+    async def fake_translate(texts, **kwargs):
+        calls.append(kwargs)
+        return ['<p><span translate="no">es</span> is a false friend.</p>']
+
+    entry = {
+        "language": "es",
+        "ai_feedback": {"grammar_suggestions": [{"original": "es", "corrected": "está", "note": "es es un falso amigo."}]},
+    }
+    source, _terms, content_type = service._resolve_source_text(entry, "note:0")
+    with patch.object(service, "translate_texts", fake_translate):
+        translated, provider, status = await service._run_translation(
+            [source], source_lang="es", target_lang="en", content_type=content_type, html_source=source
+        )
+
+    assert calls[0]["content_type"] == "text/html"
+    assert (provider, status) == ("lara", "ok")
+    assert translated == ['<p><span translate="no">es</span> is a false friend.</p>']

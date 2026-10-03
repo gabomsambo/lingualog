@@ -400,7 +400,9 @@ export function JournalEditor() {
               </Link>
             </Button>
           </div>
-          <EntrySideBySide entry={resultEntry} onReanalyzed={() => loadResultEntry(resultEntry.id)} />
+          <div className="lg:-mx-12 xl:-mx-32">
+            <EntrySideBySide entry={resultEntry} onReanalyzed={() => loadResultEntry(resultEntry.id)} />
+          </div>
         </motion.div>
       )}
 

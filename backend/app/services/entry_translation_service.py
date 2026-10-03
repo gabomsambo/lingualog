@@ -92,7 +92,7 @@ async def _run_translation(
                 html_source,
                 source_lang=source_lang,
                 target_lang=target_lang,
-                content_type="html",
+                content_type="text/html",
             )
             return translated, "lara", "ok"
         translated = await translate_texts(

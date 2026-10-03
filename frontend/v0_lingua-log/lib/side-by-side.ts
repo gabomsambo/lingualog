@@ -268,7 +268,7 @@ export function locateSuggestions(sentences: string[], suggestions: SuggestionDa
 export function cleanLiteralReading(text: string): string {
   let value = (text || "").trim()
   value = value.replace(
-    /^(as written,?\s*a native( speaker)? (reads|would read|understands|hears)|tal (y )?como est[aá] escrito,?(\s*un nativo (lee|entiende))?)\s*[:,]?\s*/i,
+    /^(as written,?\s*a native( speaker)? (reads|would read|understands|hears)|(tal (y )?)?como est[aá] escrito,?(\s*un nativo (lee|entiende))?)\s*[:,]?\s*/i,
     "",
   )
   const quoted = value.match(/^["'“‘«]([\s\S]*)["'”’»]\s*\.?$/)
@@ -294,4 +294,23 @@ export function splitParagraphs(text: string): string[] {
     .split(/\\n|\r?\n/)
     .map((part) => part.trim())
     .filter(Boolean)
+}
+
+/** Note rescues are translated as HTML (quoted terms sit in translate="no" spans); show them as text. */
+export function htmlToText(value: string): string {
+  if (!value || !/[<&]/.test(value)) return value || ""
+  if (typeof DOMParser !== "undefined") {
+    const doc = new DOMParser().parseFromString(value, "text/html")
+    return (doc.body.textContent || "").replace(/\s+/g, " ").trim()
+  }
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim()
 }
