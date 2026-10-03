@@ -293,6 +293,38 @@ def fetch_single_entry(entry_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         raise
 
 
+def update_entry_analysis(entry_id: str, user_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update the AI feedback columns for a journal entry.
+
+    Args:
+        entry_id: The ID of the entry to update.
+        user_id: The ID of the user who owns the entry.
+        update_data: Dictionary of columns to update.
+
+    Returns:
+        The updated entry record.
+
+    Raises:
+        Exception: If the database operation fails or the entry is not found.
+    """
+    try:
+        supabase = create_supabase_client()
+        response = (
+            supabase.table(JOURNAL_ENTRIES_TABLE)
+            .update(update_data)
+            .eq("id", entry_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        raise Exception(f"Entry {entry_id} not found or not owned by user {user_id}")
+    except Exception as e:
+        logger.error(f"Error updating entry analysis (id: {entry_id}, user: {user_id}): {str(e)}")
+        raise
+
+
 def delete_entry(entry_id: str, user_id: str) -> bool:
     """
     Delete a journal entry by its ID and user_id.

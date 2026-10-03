@@ -54,10 +54,9 @@ class JournalAnalysisAgent:
                 "4. Identify the emotional tone and style of the writing.",
                 "5. Create a grammar-corrected version that fixes errors while preserving the original meaning and voice.",
                 "6. Generate a more natural, native-like rewrite that improves flow and naturalness.",
-                "7. Translate the original text appropriately (to English if not English, to French if already English).",
-                "8. Identify 3-5 specific grammar suggestions with explanations.",
-                "9. Extract 2-5 notable vocabulary words that are advanced, incorrectly used, or worth learning.",
-                "10. Provide a brief, encouraging explanation of the main points for improvement."
+                "7. Identify 3-5 specific grammar suggestions with explanations.",
+                "8. Extract 2-5 notable vocabulary words that are advanced, incorrectly used, or worth learning.",
+                "9. Provide a brief, encouraging explanation of the main points for improvement."
             ],
             output_instructions=[
                 "Provide all feedback in the exact JSON structure specified by the output schema.",

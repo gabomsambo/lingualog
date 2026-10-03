@@ -14,6 +14,13 @@ backend/*.pyc
 backend/celerybeat-schedule
 backend/celerybeat.pid
 
+# Supabase local stack artifacts (not committed; tracked SQL migrations live in supabase/sql/)
+supabase/config.toml
+supabase/migrations/
+supabase/seed.sql
+supabase/.branches/
+supabase/.temp/
+
 # Frontend specific (if not handled by frontend/.gitignore)
 frontend/v0_lingua-log/node_modules/
 frontend/v0_lingua-log/.next/

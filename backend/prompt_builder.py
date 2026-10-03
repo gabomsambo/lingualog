@@ -22,11 +22,10 @@ Analyze the journal entry for:
 2. Native-like rewriting (rewrite to sound more natural and fluent)
 3. Overall fluency score (0-100 scale)
 4. Emotional tone detection
-5. Translation (if requested)
-6. Detailed explanation of corrections and improvements
-7. Rubric scoring for grammar, vocabulary, and complexity
-8. Grammar suggestions with specific corrections
-9. New vocabulary words with definitions and examples
+5. Detailed explanation of corrections and improvements
+6. Rubric scoring for grammar, vocabulary, and complexity
+7. Grammar suggestions with specific corrections
+8. New vocabulary words with definitions and examples
 
 **LANGUAGE SETTINGS:**
 {explanation_instruction}
@@ -39,7 +38,6 @@ You must respond with a valid JSON object containing exactly these fields:
   "rewrite": "Native-like rewrite that sounds natural and fluent while maintaining the original message",
   "score": 85,
   "tone": "One of: Happy, Sad, Excited, Anxious, Confident, Frustrated, Neutral, Reflective, Hopeful, Determined",
-  "translation": "Translation text if translation_policy requires it, otherwise 'Translation not provided'",
   "explanation": "Detailed explanation of corrections, improvements, and learning points following the language settings above",
   "rubric": {{
     "grammar": 80,
@@ -73,10 +71,11 @@ You must respond with a valid JSON object containing exactly these fields:
 **CRITICAL REQUIREMENTS:**
 1. Always return valid JSON - no additional text outside the JSON object
 2. Preserve the original meaning and intent of the journal entry
-3. Follow the language settings for explanations and translations
+3. Follow the language settings for explanations
 4. Be encouraging and supportive in your feedback
 5. Focus on the most important corrections that will help learning
 6. Provide practical examples and clear explanations
+7. Do NOT include a translation of the entry in the JSON; translations are handled separately
 
 Remember: Your response must be a single, valid JSON object that can be parsed programmatically."""
 
@@ -116,6 +115,7 @@ def build_messages(entry_text: str, effective: EffectiveSettings) -> Tuple[str, 
         "strictness": effective.strictness,
         "formality": effective.formality,
         "immersion_level": effective.immersion_level,
+        "proficiency_estimate": _estimate_proficiency_level(effective),
         "analysis_request": f"Please analyze this journal entry written in {effective.l2}."
     }
     
@@ -143,11 +143,10 @@ def build_user_message(entry_text: str, effective: EffectiveSettings) -> str:
         "target_language": effective.l2,
         "native_language": effective.l1,
         "explanation_mode": effective.explanation_mode,
-        "translation_needed": effective.translation_policy != 'none',
         "strictness": effective.strictness,
         "formality": effective.formality
     }
-    
+
     message = f"""Please analyze this journal entry:
 
 ENTRY TEXT:
@@ -155,9 +154,8 @@ ENTRY TEXT:
 
 CONTEXT:
 - Written in: {effective.l2}
-- Learner's native language: {effective.l1} 
+- Learner's native language: {effective.l1}
 - Explanation style: {effective.explanation_mode}
-- Translation needed: {context_info['translation_needed']}
 - Correction level: {effective.strictness}
 - Tone: {effective.formality}
 
@@ -180,7 +178,7 @@ def validate_ai_response(response_data: Dict[str, Any]) -> bool:
         ValueError: If response is missing required fields
     """
     required_fields = {
-        'corrected', 'rewrite', 'score', 'tone', 'translation', 
+        'corrected', 'rewrite', 'score', 'tone',
         'explanation', 'rubric', 'grammar_suggestions', 'new_words'
     }
     

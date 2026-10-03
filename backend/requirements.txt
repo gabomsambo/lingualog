@@ -2,19 +2,31 @@ fastapi>=0.115.0
 uvicorn>=0.34.0
 python-dotenv>=1.0.0
 pytest>=8.0.0
-pytest-asyncio>=0.23.0
+pytest-asyncio>=0.25.0
 pydantic>=2.0.0
-supabase==2.5.0
-httpx>=0.25.0
+supabase>=2.14.0
+httpx>=0.28.1,<1.0.0
 httpx[http2]
 email-validator>=2.0.0
 protobuf>=3.20.0
 pytest-cov
+# Gemini SDK (active journal feedback path)
+google-genai>=2.28.0
+# Legacy google-generativeai is still imported by the old GeminiEngine module
 google-generativeai>=0.7.0
-sqlalchemy>=2.0.0
+# SQLAlchemy and related drivers
+sqlalchemy[asyncio]>=2.0.0
+psycopg2-binary>=2.9.0
+asyncpg>=0.29.0
 greenlet>=3.0.0
 python-jose>=3.3.0
-# Atomic Agents for AI functionality
+# Atomic Agents for legacy vocabulary/quiz paths (to be removed in PR 5)
 atomic-agents>=2.1.0
 openai>=1.0.0
 instructor>=1.6.0
+# Optional Mistral model support (large dependencies; install manually when USE_MISTRAL=true)
+# transformers>=4.42.0
+# huggingface_hub>=0.20.3
+# torch>=2.0.0
+# sentencepiece>=0.1.99
+# accelerate

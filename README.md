@@ -27,7 +27,8 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 |--------------|---------------------|
 | Frontend     | React + Tailwind CSS |
 | Backend      | FastAPI (Python)    |
-| AI Feedback  | Mistral-7B-Instruct-v0.3 / OpenAI (fallback) |
+| AI Feedback  | Gemini 3.8 Flash (journal feedback) |
+| Translation  | Lara Translate (coming in a later PR) |
 | Database     | Supabase (Postgres) |
 | Auth         | Supabase            |
 | Deployment   | Docker → Railway    |
@@ -39,7 +40,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **POST /log-entry**
   - Submit a journal entry text
   - Returns comprehensive AI feedback
-  
+
 - **GET /entries**
   - Retrieve past journal entries with feedback
 
@@ -91,12 +92,17 @@ SUPABASE_SERVICE_KEY=<local-service-role-key>
 OPENAI_API_KEY=
 OPEN_AI_API_KEY=
 GEMINI_API_KEY=
+GEMINI_MODEL_FEEDBACK=gemini-3.8-flash
+GEMINI_THINKING_LEVEL=low
+AI_PROVIDER=gemini
 USE_MISTRAL=false
 API_PORT=8000
 WEB_PORT=3000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 CORS_ALLOW_ORIGINS=http://localhost:3000
 ```
+
+Set `AI_PROVIDER=mock` for offline development/tests; mock feedback is flagged with `is_mock=true` and is never persisted as real AI output.
 
 Frontend `frontend/v0_lingua-log/.env.local`:
 

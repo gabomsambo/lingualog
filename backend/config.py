@@ -32,6 +32,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 
 
 # AI Model Settings
 AI_MODEL_NAME: str | None = os.getenv("AI_MODEL_NAME") # e.g., "gemini-1.5-flash-latest"
+AI_PROVIDER: str = os.getenv("AI_PROVIDER", "gemini")
+GEMINI_MODEL_FEEDBACK: str = os.getenv("GEMINI_MODEL_FEEDBACK", "gemini-3.8-flash")
+GEMINI_THINKING_LEVEL: str = os.getenv("GEMINI_THINKING_LEVEL", "low")
 
 def validate_env_vars() -> bool:
     """
