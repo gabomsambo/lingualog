@@ -41,9 +41,12 @@ def _translate_sync(sentences: List[str], source_locale: str, target_locale: str
             out.append(rest.strip())
         else:
             out.append(line)
+    if len(sentences) == 1 and out:
+        return [" ".join(out)]
     if len(out) != len(sentences):
-        joined = " ".join(out) if out else text.strip()
-        return [joined] if len(sentences) == 1 else sentences
+        raise ValueError(
+            f"Gemini returned {len(out)} lines for {len(sentences)} sentences"
+        )
     return out
 
 

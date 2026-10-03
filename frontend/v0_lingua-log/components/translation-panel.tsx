@@ -19,7 +19,6 @@ interface TranslationPanelProps {
   }
   nativeLanguage: string
   immersionLevel?: number
-  translationPolicy?: string
   showTranslation: boolean
   setShowTranslation: (show: boolean) => void
 }
@@ -29,7 +28,6 @@ export function TranslationPanel({
   entry,
   nativeLanguage,
   immersionLevel,
-  translationPolicy,
   showTranslation,
   setShowTranslation,
 }: TranslationPanelProps) {
@@ -39,7 +37,7 @@ export function TranslationPanel({
   const [providerLabel, setProviderLabel] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
-  const [hasLoaded, setHasLoaded] = useState(false)
+  const [attempted, setAttempted] = useState(false)
 
   const loadTranslation = useCallback(async () => {
     if (!entryId) return
@@ -53,17 +51,6 @@ export function TranslationPanel({
       } else {
         setTranslation(result.text)
         setProviderLabel(result.provider_label || null)
-        setHasLoaded(true)
-        try {
-          await postSupportEvent({
-            kind: "reveal_meaning",
-            entry_id: entryId,
-            immersion_level: immersionLevel,
-            l2: entry.languageCode || entry.language,
-          })
-        } catch {
-          // Telemetry failure should not block the learner
-        }
       }
     } catch {
       setUnavailable(true)
@@ -74,20 +61,31 @@ export function TranslationPanel({
   }, [entryId, nativeLanguage])
 
   const handleToggle = () => {
-    setShowTranslation(!showTranslation)
+    const reveal = !showTranslation
+    setShowTranslation(reveal)
+    if (reveal && entryId) {
+      postSupportEvent({
+        kind: "reveal_meaning",
+        entry_id: entryId,
+        immersion_level: immersionLevel,
+        l2: entry.languageCode || entry.language,
+      }).catch(() => {})
+    }
   }
 
   useEffect(() => {
-    if (showTranslation && !hasLoaded && !loading) {
-      void loadTranslation()
-    }
-  }, [showTranslation, hasLoaded, loading, loadTranslation])
+    setAttempted(false)
+    setTranslation("")
+    setProviderLabel(null)
+    setUnavailable(false)
+  }, [entryId, nativeLanguage])
 
   useEffect(() => {
-    if (translationPolicy === "L2_to_L1" && !showTranslation) {
-      setShowTranslation(true)
+    if (showTranslation && !attempted) {
+      setAttempted(true)
+      void loadTranslation()
     }
-  }, [translationPolicy, setShowTranslation, showTranslation])
+  }, [showTranslation, attempted, loadTranslation])
 
   const handleRateTranslation = (isGood: boolean) => {
     setTranslationRated(true)

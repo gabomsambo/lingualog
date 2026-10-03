@@ -69,7 +69,6 @@ export default function EntryInsightPage() {
   const [processedWords, setProcessedWords] = useState<NewWord[]>([])
   const [vocabLoading, setVocabLoading] = useState(true)
   const [nativeLanguage, setNativeLanguage] = useState("en")
-  const [translationPolicy, setTranslationPolicy] = useState<string | undefined>()
   const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
 
   const loadFullEntryData = useCallback(async () => {
@@ -148,7 +147,6 @@ export default function EntryInsightPage() {
         setEntry(processedEntry)
         setIsFavorite(processedEntry.is_favorite || false)
         const policy = apiResponse.translation_policy_snapshot as string | undefined
-        setTranslationPolicy(policy)
         if (policy === "L2_to_L1") {
           setShowTranslation(true)
         }
@@ -345,7 +343,6 @@ export default function EntryInsightPage() {
           }}
           nativeLanguage={nativeLanguage}
           immersionLevel={immersionLevel}
-          translationPolicy={translationPolicy}
           showTranslation={showTranslation}
           setShowTranslation={setShowTranslation}
         />

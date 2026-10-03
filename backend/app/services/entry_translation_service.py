@@ -1,18 +1,17 @@
 """Entry meaning translations via Lara (Gemini fallback)."""
 
-import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from ai.gemini_translate import translate_sentences_gemini
-from ai.lara import LaraUnavailableError, translate_texts
+from ai.lara import translate_texts
 from ai.locale_map import to_lara_locale
 from database import create_supabase_client, fetch_single_entry
 
 logger = logging.getLogger(__name__)
 
-JOURNAL_ENTRIES_TABLE = "journal_entries"
+MERGE_TRANSLATION_RPC = "merge_meaning_translation"
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+|\n+")
 
@@ -102,7 +101,7 @@ async def _run_translation(
             target_lang=target_lang,
         )
         return translated, "lara", "ok"
-    except (LaraUnavailableError, asyncio.TimeoutError, Exception) as lara_err:
+    except Exception as lara_err:
         logger.info("Lara translation unavailable, trying Gemini fallback: %s", lara_err)
 
     try:
@@ -185,11 +184,20 @@ async def translate_entry_part(
             "provider_label": provider_label,
         }
 
-    cache[_cache_key(part, target_lang)] = payload
-    supabase = create_supabase_client()
-    supabase.table(JOURNAL_ENTRIES_TABLE).update(
-        {"meaning_translations_cache": cache}
-    ).eq("id", entry_id).eq("user_id", user_id).execute()
+    if payload["status"] == "ok":
+        try:
+            supabase = create_supabase_client()
+            supabase.rpc(
+                MERGE_TRANSLATION_RPC,
+                {
+                    "p_entry_id": entry_id,
+                    "p_user_id": user_id,
+                    "p_key": _cache_key(part, target_lang),
+                    "p_value": payload,
+                },
+            ).execute()
+        except Exception as exc:
+            logger.error("Failed to cache meaning translation for entry %s: %s", entry_id, exc)
 
     return {
         "part": part,

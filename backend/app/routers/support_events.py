@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from database import create_supabase_client
+from database import create_supabase_client, fetch_single_entry
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,18 @@ async def create_support_event(body: SupportEventCreate, request: Request):
             detail="User ID not provided",
         )
 
+    entry_id = body.entry_id
+    if entry_id:
+        try:
+            if not fetch_single_entry(entry_id, user_id):
+                entry_id = None
+        except Exception as exc:
+            logger.warning("Could not verify entry %s for support event: %s", entry_id, exc)
+            entry_id = None
+
     row = {
         "user_id": user_id,
-        "entry_id": body.entry_id,
+        "entry_id": entry_id,
         "immersion_level": body.immersion_level,
         "l2": body.l2,
         "kind": body.kind,

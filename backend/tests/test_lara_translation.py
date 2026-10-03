@@ -119,8 +119,9 @@ def test_translate_endpoint_owner_only(mock_translate, client):
     assert response.status_code == 404
 
 
+@patch("app.routers.support_events.fetch_single_entry", return_value={"id": "entry-1"})
 @patch("app.routers.support_events.create_supabase_client")
-def test_support_event_recorded(mock_sb, client):
+def test_support_event_recorded(mock_sb, _mock_fetch, client):
     mock_sb.return_value.table.return_value.insert.return_value.execute.return_value = MagicMock(
         data=[{"id": "evt-1"}]
     )
@@ -137,3 +138,78 @@ def test_support_event_recorded(mock_sb, client):
     )
     assert response.status_code == 201
     mock_sb.return_value.table.assert_called_with("support_events")
+
+
+def _fake_gemini_model(reply: str):
+    response = MagicMock()
+    response.candidates = [MagicMock()]
+    response.candidates[0].content.parts = [MagicMock(text=reply)]
+    model = MagicMock()
+    model.generate_content.return_value = response
+    return model
+
+
+def test_gemini_line_count_mismatch_raises():
+    from ai import gemini_translate
+
+    with patch("config.GEMINI_API_KEY", "key"), patch("google.generativeai.configure"), patch(
+        "google.generativeai.GenerativeModel",
+        return_value=_fake_gemini_model("1. Hello. 2. How are you?"),
+    ):
+        with pytest.raises(ValueError):
+            gemini_translate._translate_sync(["Hola.", "¿Qué tal?"], "es-ES", "en-US")
+
+
+@pytest.mark.asyncio
+async def test_gemini_mismatch_yields_unavailable_not_source_text():
+    from app.services import entry_translation_service as svc
+
+    entry = {"content": "Hola. ¿Qué tal?", "language": "es", "meaning_translations_cache": {}, "ai_feedback": {}}
+
+    with patch.object(svc, "fetch_single_entry", return_value=entry), patch.object(
+        svc, "translate_texts", side_effect=LaraUnavailableError("no creds")
+    ), patch("config.GEMINI_API_KEY", "key"), patch("google.generativeai.configure"), patch(
+        "google.generativeai.GenerativeModel",
+        return_value=_fake_gemini_model("Hello. How are you?"),
+    ), patch.object(svc, "create_supabase_client") as mock_sb:
+        result = await svc.translate_entry_part("e1", "u1", "original", "en")
+
+    assert result["status"] == "unavailable"
+    assert result["text"] == ""
+    mock_sb.return_value.rpc.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cache_write_merges_single_key_and_failure_keeps_translation():
+    from app.services import entry_translation_service as svc
+
+    entry = {"content": "Hola.", "language": "es", "meaning_translations_cache": {}, "ai_feedback": {}}
+
+    with patch.object(svc, "fetch_single_entry", return_value=entry), patch.object(
+        svc, "translate_texts", return_value=["Hi."]
+    ), patch.object(svc, "create_supabase_client") as mock_sb:
+        mock_sb.return_value.rpc.return_value.execute.side_effect = RuntimeError("db down")
+        result = await svc.translate_entry_part("e1", "u1", "original", "en")
+
+    assert result["status"] == "ok"
+    assert result["text"] == "Hi."
+    name, params = mock_sb.return_value.rpc.call_args.args
+    assert name == "merge_meaning_translation"
+    assert params["p_key"] == "original:en"
+    assert params["p_value"]["text"] == "Hi."
+    mock_sb.return_value.table.assert_not_called()
+
+
+@patch("app.routers.support_events.fetch_single_entry", return_value=None)
+@patch("app.routers.support_events.create_supabase_client")
+def test_support_event_drops_foreign_entry_id(mock_sb, _mock_fetch, client):
+    insert = mock_sb.return_value.table.return_value.insert
+    insert.return_value.execute.return_value = MagicMock(data=[{"id": "evt-1"}])
+
+    response = client.post(
+        "/events",
+        json={"kind": "reveal_meaning", "entry_id": "someone-elses-entry"},
+        headers={"X-User-ID": "user-1"},
+    )
+    assert response.status_code == 201
+    assert insert.call_args.args[0]["entry_id"] is None

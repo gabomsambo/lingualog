@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Confetti } from "@/components/confetti"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { translateEntryPart } from "@/lib/api"
+import { postSupportEvent, translateEntryPart } from "@/lib/api"
 import { getLanguageDisplayName } from "@/i18n/languages"
 
 interface TranslationModalProps {
@@ -54,6 +54,7 @@ export function TranslationModal({
     setIsTranslating(true)
     setUnavailable(false)
     setProviderLabel(null)
+    postSupportEvent({ kind: "reveal_meaning", entry_id: entryId, l2: entryLanguage }).catch(() => {})
 
     try {
       const result = await translateEntryPart(entryId, "original", targetLanguage)
