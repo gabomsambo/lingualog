@@ -21,6 +21,7 @@ frontend/v0_lingua-log/out/
 frontend/v0_lingua-log/build/
 supabase/.branches/
 supabase/.temp/
+.local-stack/
 
 .claude/
 .chrome-profile/

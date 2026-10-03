@@ -1,0 +1,74 @@
+{
+  "calls": 3,
+  "rows": [
+    {
+      "level": 0,
+      "post_status": 201,
+      "entry_id": "cb514efb-004d-409f-b871-e791f6ff3963",
+      "get_status": 200,
+      "analysis_status": "ok",
+      "corrected_present": true,
+      "rewrite_present": true,
+      "rewritten_present": true,
+      "policy": {
+        "v": 1,
+        "l2": "es",
+        "immersion_level": 0,
+        "proficiency": "B1",
+        "explanation": "l1",
+        "explanation_mode": "native_only",
+        "explanation_source": "request_immersion_level",
+        "meaning": "open",
+        "immersion_source": "request"
+      },
+      "explanation_excerpt": "Great effort! There are two key grammatical points to address. First, 'ser aburrido' means 'to be boring (as a personality trait)', while 'estar aburrido' means 'to feel bored (a temporary state)'. Since she feels bored today because of the rain, use 'está muy aburrida'. Second, the expression 'Quiero que...' triggers the subjunctive mood because it expresses a desire for someone else's action, so",
+      "notes": []
+    },
+    {
+      "level": 2,
+      "post_status": 201,
+      "entry_id": "0b323033-7e2b-4176-99b7-1e6ad06f117e",
+      "get_status": 200,
+      "analysis_status": "ok",
+      "corrected_present": true,
+      "rewrite_present": true,
+      "rewritten_present": true,
+      "policy": {
+        "v": 1,
+        "l2": "es",
+        "immersion_level": 2,
+        "proficiency": "B1",
+        "explanation": "l2_then_l1",
+        "explanation_mode": "bilingual",
+        "explanation_source": "request_immersion_level",
+        "meaning": "tap_hidden",
+        "immersion_source": "request"
+      },
+      "explanation_excerpt": "Has escrito un texto claro y comprensible. Usamos «estar aburrido» para un estado temporal y el subjuntivo «venga» tras «quiero que». You wrote a clear entry, just remember that temporary states use 'estar' and wish clauses require the subjunctive.",
+      "notes": []
+    },
+    {
+      "level": 3,
+      "post_status": 201,
+      "entry_id": "c3f1074c-5c7c-4764-a3f9-ad82d57eb47c",
+      "get_status": 200,
+      "analysis_status": "ok",
+      "corrected_present": true,
+      "rewrite_present": true,
+      "rewritten_present": true,
+      "policy": {
+        "v": 1,
+        "l2": "es",
+        "immersion_level": 3,
+        "proficiency": "B1",
+        "explanation": "l2",
+        "explanation_mode": "target_only",
+        "explanation_source": "request_immersion_level",
+        "meaning": "rescue_only",
+        "immersion_source": "request"
+      },
+      "explanation_excerpt": "Has escrito un texto claro y comprensible. Solo hay un par de errores gramaticales importantes: el uso de «estar aburrida» en lugar de «ser aburrida» para expresar un estado temporal, y el uso del subjuntivo «venga» después del verbo «querer que». ¡Buen trabajo!",
+      "notes": []
+    }
+  ]
+}
