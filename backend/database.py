@@ -222,6 +222,99 @@ def fetch_entries(user_id: Optional[str] = None, language: Optional[str] = None,
         raise Exception(f"Error fetching entries: {str(e)}")
 
 
+def fetch_language_profile(user_id: str, l2: str) -> Optional[Dict[str, Any]]:
+    """Return the learner's immersion and proficiency for one target language."""
+    supabase = create_supabase_client()
+    response = (
+        supabase.table("user_language_profiles")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("l2", l2)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0]
+    return None
+
+
+def list_language_profiles(user_id: str) -> List[Dict[str, Any]]:
+    """Return every per-language learning profile for a user."""
+    supabase = create_supabase_client()
+    response = (
+        supabase.table("user_language_profiles")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    rows = response.data or []
+    rows.sort(key=lambda row: row.get("l2") or "")
+    return rows
+
+
+def upsert_language_profile(
+    user_id: str,
+    l2: str,
+    immersion_level: int,
+    proficiency: str,
+) -> Dict[str, Any]:
+    """Insert or update the profile for one target language."""
+    supabase = create_supabase_client()
+    response = (
+        supabase.table("user_language_profiles")
+        .upsert(
+            {
+                "user_id": user_id,
+                "l2": l2,
+                "immersion_level": immersion_level,
+                "proficiency": proficiency,
+            },
+            on_conflict="user_id,l2",
+        )
+        .execute()
+    )
+    if response.data:
+        return response.data[0]
+    raise Exception(f"No data returned saving language profile for {user_id}/{l2}")
+
+
+def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Turn a flat journal_entries row into the GET /entries/{id} payload.
+
+    Corrected text, the rewrite, analysis status, and the policy snapshot stay
+    on the entry itself. The same feedback fields are also nested under
+    ai_feedback for the existing entry page.
+    """
+    ai_feedback_fields = [
+        "corrected", "rewrite", "score", "tone",
+        "translation", "explanation", "rubric",
+        "grammar_suggestions", "new_words",
+    ]
+    restructured_entry: Dict[str, Any] = {}
+    ai_feedback_payload: Dict[str, Any] = {}
+
+    for key, value in flat_entry_data.items():
+        if key in ai_feedback_fields:
+            ai_feedback_payload[key] = value
+        elif key == "original_text":
+            restructured_entry["content"] = value
+        else:
+            restructured_entry[key] = value
+
+    restructured_entry["ai_feedback"] = ai_feedback_payload
+    if "content" not in restructured_entry:
+        restructured_entry["content"] = flat_entry_data.get("original_text")
+
+    # Top-level copies the entry page and the LearningPolicy contract both read.
+    restructured_entry["corrected"] = flat_entry_data.get("corrected")
+    restructured_entry["rewrite"] = flat_entry_data.get("rewrite")
+    restructured_entry["rewritten"] = flat_entry_data.get("rewrite")
+    restructured_entry["analysis_status"] = flat_entry_data.get("analysis_status")
+    restructured_entry["policy_snapshot"] = flat_entry_data.get("policy_snapshot")
+    return restructured_entry
+
+
 def fetch_single_entry(entry_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetch a single journal entry by its ID and user_id.
@@ -252,38 +345,7 @@ def fetch_single_entry(entry_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         if response.data:
             flat_entry_data = response.data
             logger.debug(f"Raw flat_entry_data from DB for {entry_id}: {flat_entry_data}")
-
-            # Fields that belong inside the ai_feedback object
-            ai_feedback_fields = [
-                "corrected", "rewrite", "score", "tone", 
-                "translation", "explanation", "rubric", 
-                "grammar_suggestions", "new_words"
-            ]
-            
-            # Initialize the main entry dictionary and the nested ai_feedback dictionary
-            restructured_entry = {}
-            ai_feedback_payload = {}
-
-            for key, value in flat_entry_data.items():
-                if key in ai_feedback_fields:
-                    ai_feedback_payload[key] = value
-                else:
-                    # Handle original_text to content mapping for JournalEntryBase
-                    if key == "original_text":
-                        restructured_entry["content"] = value
-                    else:
-                        restructured_entry[key] = value
-            
-            # Add the populated ai_feedback object to the main entry
-            # Even if ai_feedback_payload is empty, assign it so the field exists.
-            restructured_entry["ai_feedback"] = ai_feedback_payload
-
-            # Ensure essential base fields are present if not mapped from original_text
-            if "content" not in restructured_entry and "original_text" in flat_entry_data:
-                 restructured_entry["content"] = flat_entry_data["original_text"]
-            elif "content" not in restructured_entry:
-                 restructured_entry["content"] = None # Or some default / error handling
-
+            restructured_entry = shape_entry_for_api(flat_entry_data)
             logger.debug(f"Restructured entry for {entry_id} before Pydantic: {restructured_entry}")
             return restructured_entry
         else:

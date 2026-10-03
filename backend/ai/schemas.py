@@ -16,11 +16,27 @@ class Rubric(BaseModel):
     complexity: int = Field(..., ge=0, le=100, description="Complexity score (0-100)")
 
 
+class Ambiguity(BaseModel):
+    """A question for the learner when the intended meaning is unclear."""
+    question: str = Field("", description="Question in the policy's question language")
+    span: str = Field("", description="The snippet the question is about")
+
+
+class RewriteIdiom(BaseModel):
+    """An idiom in the native rewrite plus a short gloss."""
+    phrase: str = Field("", description="Idiom or fixed phrase in the rewrite")
+    gloss: str = Field("", description="Gloss in the policy's idiom language")
+
+
 class GrammarSuggestion(BaseModel):
     """A single grammar or style suggestion."""
     original: str = Field(..., description="The original problematic text snippet")
     corrected: str = Field(..., description="The suggested correction")
-    note: str = Field(..., description="Explanation of the correction")
+    note: str = Field("", description="Learner-facing explanation. Existing clients read this field")
+    note_l1: str = Field("", description="Note in the learner's language. Empty when the policy forbids L1")
+    note_l2: str = Field("", description="Note in the target language. Empty when the policy forbids L2 notes")
+    meaning_changing: bool = Field(False, description="True when the words as written mean something else")
+    literal_reading: str = Field("", description="As written, a native reads… Empty when meaning did not change")
 
 
 class NewWord(BaseModel):
@@ -43,6 +59,12 @@ class GeminiJournalFeedback(BaseModel):
     rubric: Rubric = Field(..., description="Detailed scoring breakdown")
     grammar_suggestions: List[GrammarSuggestion] = Field(default_factory=list)
     new_words: List[NewWord] = Field(default_factory=list)
+    intended_meaning: str = Field(
+        "",
+        description="What the learner meant, inferred by the tutor. Not a translation pasted in from elsewhere",
+    )
+    ambiguities: List[Ambiguity] = Field(default_factory=list)
+    rewrite_idioms: List[RewriteIdiom] = Field(default_factory=list)
 
 
 class JournalFeedback(GeminiJournalFeedback):

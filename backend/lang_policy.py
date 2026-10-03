@@ -10,6 +10,11 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any, Tuple
 import logging
 
+from learning_policy import (
+    IMMERSION_MAP,
+    resolve_policy,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,17 +34,17 @@ class EffectiveSettings:
     formality: str  # Formality level for corrections
     immersion_level: int  # Immersion level 0-3
     ui_language: str  # Interface language for this request
-
-
-# Immersion level mapping (0-3)
-# Format: level -> (explanation_language, translation_policy)
-# Matches plan specification from MULTI_LINGUAL_PROBLEM.md
-IMMERSION_MAP = {
-    0: ('native', 'L2_to_L1'),     # Level 0: Native-First - Maximum L1 support, always show translations
-    1: ('native', 'on_demand'),    # Level 1: Guided Bilingual - L1 explanations, translations on-demand
-    2: ('bilingual', 'on_demand'), # Level 2: Balanced Immersion - Bilingual explanations, translations on-demand
-    3: ('target', 'omit'),         # Level 3: Full Immersion - L2 only, no translations
-}
+    # Filled by resolve_effective from LearningPolicy. Empty explanation keeps the
+    # legacy instruction text for callers that build EffectiveSettings by hand.
+    proficiency: str = "A2"
+    explanation: str = ""
+    meaning: str = ""
+    rewrite_gloss: str = ""
+    vocab_def: str = ""
+    quiz: str = ""
+    v: int = 1
+    explanation_source: str = ""
+    immersion_source: str = ""
 
 # Default settings fallback
 DEFAULT_SETTINGS = {
@@ -88,73 +93,50 @@ def resolve_effective(
         effective = resolve_effective(profile, overrides)
         # effective.l2 == 'fr', effective.strictness == 'strict'
     """
-    # Start with defaults
-    settings = DEFAULT_SETTINGS.copy()
-    
-    # Apply profile settings if available
-    if profile:
-        settings.update({
-            'interface_lang': profile.get('interface_lang', settings['interface_lang']),
-            'native_lang': profile.get('native_lang', settings['native_lang']),
-            'default_target_lang': profile.get('default_target_lang', settings['default_target_lang']),
-            'explanation_mode': profile.get('explanation_mode', settings['explanation_mode']),
-            'immersion_level': profile.get('immersion_level', settings['immersion_level']),
-            'strictness': profile.get('strictness', settings['strictness']),
-            'formality': profile.get('formality', settings['formality'])
-        })
-    
-    # Apply request overrides if available
+    # The profile dict is the caller's already-loaded settings. Pass it through
+    # so a missing explanation_mode key stays "not explicit" (the level decides).
+    # language_profile=None skips the database; per-language rows are loaded by
+    # resolve_policy when the server calls it directly.
+    requested_l2 = None
     if overrides:
-        # Map common request field names to settings keys
-        override_mapping = {
-            'target_language': 'default_target_lang',
-            'language': 'default_target_lang',  # Alternative field name
-            'ui_language': 'interface_lang',
-            'explanation_mode': 'explanation_mode',
-            'strictness': 'strictness',
-            'formality': 'formality',
-            'immersion_level': 'immersion_level'
-        }
-        
-        for override_key, value in overrides.items():
-            if override_key in override_mapping and value is not None:
-                settings_key = override_mapping[override_key]
-                settings[settings_key] = value
-            elif override_key in settings and value is not None:
-                settings[override_key] = value
-    
-    # Determine translation policy based on immersion level
-    immersion_level = settings['immersion_level']
-    explanation_lang, translation_policy = IMMERSION_MAP.get(
-        immersion_level, 
-        IMMERSION_MAP[1]  # Default to level 1 if invalid
+        requested_l2 = overrides.get("target_language") or overrides.get("language")
+    policy = resolve_policy(
+        None,
+        requested_l2,
+        overrides,
+        settings=profile,
+        language_profile=None,
     )
-    
-    # Override explanation mode based on immersion if not explicitly set
-    if not overrides or 'explanation_mode' not in overrides:
-        if explanation_lang == 'native':
-            settings['explanation_mode'] = 'native_only'
-        elif explanation_lang == 'target':
-            settings['explanation_mode'] = 'target_only'
-        elif explanation_lang == 'bilingual':
-            settings['explanation_mode'] = 'bilingual'
-    
-    # Create effective settings
     effective = EffectiveSettings(
-        l1=settings['native_lang'],
-        l2=settings['default_target_lang'],
-        explanation_mode=settings['explanation_mode'],
-        translation_policy=translation_policy,
-        strictness=settings['strictness'],
-        formality=settings['formality'],
-        immersion_level=immersion_level,
-        ui_language=settings['interface_lang']
+        l1=policy.l1,
+        l2=policy.l2,
+        explanation_mode=policy.explanation_mode,
+        translation_policy=policy.translation_policy,
+        strictness=policy.strictness,
+        formality=policy.formality,
+        immersion_level=policy.immersion_level,
+        ui_language=policy.ui_language,
+        proficiency=policy.proficiency,
+        explanation=policy.explanation,
+        meaning=policy.meaning,
+        rewrite_gloss=policy.rewrite_gloss,
+        vocab_def=policy.vocab_def,
+        quiz=policy.quiz,
+        v=policy.v,
+        explanation_source=policy.explanation_source,
+        immersion_source=policy.immersion_source,
     )
-    
-    logger.info(f"Resolved effective settings: L1={effective.l1}, L2={effective.l2}, "
-               f"explanation={effective.explanation_mode}, translation={effective.translation_policy}, "
-               f"strictness={effective.strictness}, immersion={effective.immersion_level}")
-    
+    logger.info(
+        "Resolved effective settings via LearningPolicy: L1=%s L2=%s explanation=%s "
+        "translation=%s strictness=%s immersion=%s source=%s",
+        effective.l1,
+        effective.l2,
+        effective.explanation_mode,
+        effective.translation_policy,
+        effective.strictness,
+        effective.immersion_level,
+        effective.explanation_source,
+    )
     return effective
 
 
@@ -181,6 +163,12 @@ def explanation_instruction(effective: EffectiveSettings) -> str:
         'sv': 'Swedish', 'da': 'Danish', 'no': 'Norwegian', 'fi': 'Finnish', 'pl': 'Polish'
     }
     
+    # A resolved LearningPolicy carries the explanation flag. That path is the
+    # only level-to-behaviour wording. Hand-built settings keep the legacy text.
+    if getattr(effective, "explanation", ""):
+        from learning_policy import feedback_prompt_rules
+        return feedback_prompt_rules(effective)
+
     # Get language names, fallback to codes if not found
     l1_name = lang_names.get(effective.l1, effective.l1)
     l2_name = lang_names.get(effective.l2, effective.l2)

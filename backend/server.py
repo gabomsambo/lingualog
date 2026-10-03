@@ -28,10 +28,10 @@ from models import (
     Suggestion,
     Word,
 )
-from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate # Corrected import for JournalEntry
+from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate, LanguageProfile # Corrected import for JournalEntry
 
 # Import new language policy and prompt builder modules
-from lang_policy import resolve_effective, EffectiveSettings
+from learning_policy import LearningPolicy, resolve_policy
 from prompt_builder import build_messages, build_user_message, extract_snapshot_data
 from database import (
     save_entry,
@@ -44,7 +44,10 @@ from database import (
     fetch_user_vocabulary,
     delete_vocabulary_item,
     fetch_vocabulary_item_by_term,
-    init_db_schema
+    init_db_schema,
+    fetch_language_profile,
+    list_language_profiles,
+    upsert_language_profile,
 )
 
 # Gemini tutor adapter
@@ -77,6 +80,50 @@ logger.debug("Root logger configured, LinguaLog API logger set to DEBUG.")
 def _parse_cors_origins() -> List[str]:
     origins = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
     return [origin.strip() for origin in origins.split(",") if origin.strip()]
+
+
+def _language_profiles_for_user(user_id: str) -> list:
+    """Load per-language profiles. A missing table returns an empty list."""
+    try:
+        rows = list_language_profiles(user_id)
+    except Exception as exc:
+        logger.warning("Could not list language profiles for %s: %s", user_id, exc)
+        return []
+    profiles = []
+    for row in rows:
+        try:
+            profiles.append(
+                LanguageProfile(
+                    l2=row["l2"],
+                    immersion_level=row.get("immersion_level", 1),
+                    proficiency=row.get("proficiency") or "A2",
+                )
+            )
+        except Exception as exc:
+            logger.warning("Skipping invalid language profile %s: %s", row, exc)
+    return profiles
+
+
+def _save_language_profile(user_id: str, profile: dict) -> None:
+    """Validate and upsert one language profile row."""
+    from learning_policy import PROFICIENCY_LEVELS
+
+    l2 = profile.get("l2")
+    if not l2 or not isinstance(l2, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Language profile needs an l2 code")
+    immersion = profile.get("immersion_level", 1)
+    if immersion is None or not (0 <= int(immersion) <= 3):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="immersion_level must be 0-3",
+        )
+    proficiency = profile.get("proficiency") or "A2"
+    if proficiency not in PROFICIENCY_LEVELS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"proficiency must be one of {', '.join(PROFICIENCY_LEVELS)}",
+        )
+    upsert_language_profile(user_id, l2, int(immersion), proficiency)
 
 
 async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
@@ -113,8 +160,21 @@ async def fetch_user_profile_settings(user_id: Optional[str]) -> Optional[dict]:
         return None
 
 
+def _learner_note(suggestion) -> str:
+    """Keep the legacy `note` field filled from the language-specific slots."""
+    if suggestion.note and suggestion.note.strip():
+        return suggestion.note
+    parts = [part for part in (suggestion.note_l2, suggestion.note_l1) if part and part.strip()]
+    return "\n".join(parts)
+
+
 def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
     """Convert the Gemini structured output to the API response model."""
+    suggestions = []
+    for suggestion in result.grammar_suggestions:
+        payload = suggestion.model_dump()
+        payload["note"] = _learner_note(suggestion)
+        suggestions.append(Suggestion(**payload))
     return FeedbackResponse(
         corrected=result.corrected,
         rewritten=result.rewrite,
@@ -123,16 +183,58 @@ def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
         translation="",
         explanation=result.explanation,
         rubric=Rubric(**result.rubric.model_dump()),
-        grammar_suggestions=[
-            Suggestion(**suggestion.model_dump())
-            for suggestion in result.grammar_suggestions
-        ],
+        grammar_suggestions=suggestions,
         new_words=[
             Word(**word.model_dump())
             for word in result.new_words
         ],
         is_mock=result.is_mock,
+        intended_meaning=result.intended_meaning or None,
+        ambiguities=[item.model_dump() for item in result.ambiguities] or None,
+        rewrite_idioms=[item.model_dump() for item in result.rewrite_idioms] or None,
     )
+
+
+def _rubric_column(feedback_response: FeedbackResponse) -> Optional[dict]:
+    """Scores plus the tutor fields that have no column of their own."""
+    if feedback_response.rubric is None:
+        return None
+    payload = feedback_response.rubric.model_dump()
+    if feedback_response.intended_meaning:
+        payload["intended_meaning"] = feedback_response.intended_meaning
+    if feedback_response.ambiguities:
+        payload["ambiguities"] = feedback_response.ambiguities
+    if feedback_response.rewrite_idioms:
+        payload["rewrite_idioms"] = feedback_response.rewrite_idioms
+    return payload
+
+
+def _policy_for_request(user_id: str, profile_settings: Optional[dict], overrides: dict) -> LearningPolicy:
+    """Resolve one policy. A missing language-profile table must not block feedback."""
+    l2 = overrides.get("target_language") or overrides.get("language")
+    if not l2 and profile_settings:
+        l2 = profile_settings.get("default_target_lang")
+    language_profile = None
+    if user_id and l2:
+        try:
+            language_profile = fetch_language_profile(user_id, l2)
+        except Exception as exc:
+            logger.warning("Language profile lookup failed for %s/%s: %s", user_id, l2, exc)
+            language_profile = None
+    return resolve_policy(
+        user_id,
+        l2,
+        overrides,
+        settings=profile_settings,
+        language_profile=language_profile,
+    )
+
+
+def _snapshot_columns(policy: LearningPolicy) -> dict:
+    """Legacy snapshot columns plus the whole policy object."""
+    snapshot = extract_snapshot_data(policy)
+    snapshot["policy_snapshot"] = policy.to_dict()
+    return snapshot
 
 
 def _analysis_columns(feedback_response: FeedbackResponse) -> dict:
@@ -142,7 +244,7 @@ def _analysis_columns(feedback_response: FeedbackResponse) -> dict:
     return {"analysis_status": "ok", "analysis_model": GEMINI_MODEL_FEEDBACK, "analysis_error_code": None}
 
 
-async def _analyze_with_provider(text: str, effective: EffectiveSettings) -> JournalFeedback:
+async def _analyze_with_provider(text: str, effective: LearningPolicy) -> JournalFeedback:
     """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
     system_prompt, _user_payload = build_messages(text, effective)
     user_message = build_user_message(text, effective)
@@ -301,9 +403,9 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     if entry.immersion_level is not None:
         request_overrides['immersion_level'] = entry.immersion_level
 
-    # Resolve effective language settings
-    effective_settings = resolve_effective(profile_settings, request_overrides)
-    snapshot_data = extract_snapshot_data(effective_settings)
+    # One policy object. Per-entry overrides beat the saved explanation mode.
+    effective_settings = _policy_for_request(user_id, profile_settings, request_overrides)
+    snapshot_data = _snapshot_columns(effective_settings)
 
     try:
         result = await _analyze_with_provider(entry.text, effective_settings)
@@ -348,7 +450,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "tone": feedback_response.tone,
         "translation": feedback_response.translation,
         "explanation": feedback_response.explanation,
-        "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+        "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
         **_analysis_columns(feedback_response),
@@ -498,10 +600,15 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         )
 
     profile_settings = await fetch_user_profile_settings(user_id)
-    overrides = {
-        "target_language": entry.get("target_language") or entry.get("language"),
-    }
-    effective_settings = resolve_effective(profile_settings, overrides)
+    stored_policy = entry.get("policy_snapshot")
+    if isinstance(stored_policy, dict) and stored_policy.get("l2"):
+        # History stays on the policy that was resolved when the entry was written.
+        effective_settings = LearningPolicy.from_dict(stored_policy)
+    else:
+        overrides = {
+            "target_language": entry.get("target_language") or entry.get("language"),
+        }
+        effective_settings = _policy_for_request(user_id, profile_settings, overrides)
 
     try:
         result = await _analyze_with_provider(entry["content"], effective_settings)
@@ -533,10 +640,11 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "tone": feedback_response.tone,
         "translation": feedback_response.translation,
         "explanation": feedback_response.explanation,
-        "rubric": feedback_response.rubric.model_dump() if feedback_response.rubric else None,
+        "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
         **_analysis_columns(feedback_response),
+        **_snapshot_columns(effective_settings),
     }
     update_entry_analysis(entry_id, user_id, update_data)
 
@@ -896,7 +1004,8 @@ async def get_user_settings(request: Request):
             explanation_mode=settings_data.get('explanation_mode', 'bilingual'),
             immersion_level=settings_data.get('immersion_level', 1),
             strictness=settings_data.get('strictness', 'medium'),
-            formality=settings_data.get('formality', 'neutral')
+            formality=settings_data.get('formality', 'neutral'),
+            language_profiles=_language_profiles_for_user(user_id),
         )
         
     except Exception as e:
@@ -922,15 +1031,49 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
         from database import create_supabase_client
         supabase = create_supabase_client()
         
-        # Prepare update data, only including non-None fields
+        # Prepare update data, only including non-None fields.
+        # language_profiles is its own table; it is not a user_settings column.
         update_data = {}
         for field, value in settings_update.model_dump(exclude_none=True).items():
             update_data[field] = value
-        
-        if not update_data:
+
+        profiles = update_data.pop("language_profiles", None)
+
+        if not update_data and profiles is None:
             # If no fields to update, just return current settings
             return await get_user_settings(request)
-        
+
+        existing = supabase.table('user_settings').select(
+            'default_target_lang,immersion_level'
+        ).eq('user_id', user_id).limit(1).execute()
+        existing_row = existing.data[0] if existing.data else {}
+        default_l2 = update_data.get('default_target_lang') or existing_row.get('default_target_lang') or 'es'
+
+        if profiles is not None:
+            for profile in profiles:
+                _save_language_profile(user_id, profile)
+                if profile.get("l2") == default_l2 and profile.get("immersion_level") is not None:
+                    update_data["immersion_level"] = profile["immersion_level"]
+        elif update_data.get("immersion_level") is not None:
+            # The legacy account-wide slider still updates the default language.
+            current = None
+            try:
+                current = fetch_language_profile(user_id, default_l2)
+            except Exception:
+                current = None
+            proficiency = (current or {}).get("proficiency") or "A2"
+            _save_language_profile(
+                user_id,
+                {
+                    "l2": default_l2,
+                    "immersion_level": update_data["immersion_level"],
+                    "proficiency": proficiency,
+                },
+            )
+
+        if not update_data:
+            return await get_user_settings(request)
+
         # Update settings in database
         response = supabase.table('user_settings').update(update_data).eq('user_id', user_id).execute()
         
