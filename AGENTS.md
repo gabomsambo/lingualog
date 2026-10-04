@@ -123,7 +123,7 @@ Key reference files:
 - Foreign key: `user_id`
 
 ### `user_language_profiles`
-- One row per `(user_id, l2)`: `immersion_level` and `proficiency` (A1–C2)
+- One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), and `level_changed_at` (trigger-stamped)
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
