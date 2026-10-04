@@ -67,25 +67,25 @@ export function JournalEditor() {
   
   // User settings and overrides
   const [userSettings, setUserSettings] = useState<UserSettingsData | null>(null)
+  const [settingsStatus, setSettingsStatus] = useState<"loading" | "ready" | "failed">("loading")
   const [overrides, setOverrides] = useState<JournalEntryOverrides>({})
 
-  // Load user settings on mount
-  useEffect(() => {
-    const loadUserSettings = async () => {
-      try {
-        const settings = await getUserSettings()
-        setUserSettings(settings)
-        
-        // Set default target language from user settings
-        if (settings.default_target_lang) {
-          setTargetLanguage(settings.default_target_lang)
-        }
-      } catch (error) {
-        console.error('Failed to load user settings:', error)
-        // Continue with defaults if settings can't be loaded
+  const loadUserSettings = async () => {
+    setSettingsStatus("loading")
+    try {
+      const settings = await getUserSettings()
+      setUserSettings(settings)
+      if (settings.default_target_lang) {
+        setTargetLanguage(settings.default_target_lang)
       }
+      setSettingsStatus("ready")
+    } catch (error) {
+      console.error('Failed to load user settings:', error)
+      setSettingsStatus("failed")
     }
-    
+  }
+
+  useEffect(() => {
     loadUserSettings()
   }, [])
 
@@ -119,7 +119,7 @@ export function JournalEditor() {
    * Handle the journal entry submission
    */
   const handleSubmit = async () => {
-    if (text.length < 5) return
+    if (text.length < 5 || settingsStatus !== "ready") return
     
     setIsSubmitting(true)
     setError(null)
@@ -254,7 +254,7 @@ export function JournalEditor() {
                   className="flex flex-wrap items-center gap-2"
                   data-testid="language-picker"
                 >
-                  {pickerLanguages.map((code) => {
+                  {settingsStatus === "ready" && pickerLanguages.map((code) => {
                     const selected = code === targetLanguage
                     return (
                       <button
@@ -367,6 +367,19 @@ export function JournalEditor() {
               </CollapsibleContent>
             </Collapsible>
             
+            {settingsStatus === "failed" && (
+              <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-800" data-testid="settings-load-error">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{t('journal.settingsLoadFailed')}</span>
+                  <Button variant="outline" size="sm" onClick={loadUserSettings}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {t('journal.retryLoadSettings')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error && (
               <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-800">
                 <AlertCircle className="h-4 w-4" />
@@ -384,7 +397,7 @@ export function JournalEditor() {
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                 <Button 
                   onClick={handleSubmit} 
-                  disabled={text.length < 5 || title.length === 0 || isSubmitting}
+                  disabled={text.length < 5 || title.length === 0 || isSubmitting || settingsStatus !== "ready"}
                   className="w-full sm:w-auto bg-gradient-to-r from-fun-green to-fun-blue text-white hover:opacity-90 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 text-lg h-14 px-8"
                 >
                   {isSubmitting ? (

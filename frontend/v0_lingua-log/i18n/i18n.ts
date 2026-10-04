@@ -176,6 +176,8 @@ const resources = {
       explanationSmart: 'Smart',
       learnAnotherLanguage: 'Learn another language',
       writingIn: 'Writing in',
+      settingsLoadFailed: 'Your languages could not be loaded, so this entry cannot be sent yet.',
+      retryLoadSettings: 'Try again',
     },
     settings: {
       settings: 'Settings',
@@ -642,6 +644,8 @@ const resources = {
       explanationSmart: 'Inteligente',
       learnAnotherLanguage: 'Aprender otro idioma',
       writingIn: 'Escribiendo en',
+      settingsLoadFailed: 'No se pudieron cargar tus idiomas, así que esta entrada aún no se puede enviar.',
+      retryLoadSettings: 'Reintentar',
     },
     vocabulary: {
       myVocabulary: 'My Vocabulary',

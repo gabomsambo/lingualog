@@ -48,5 +48,7 @@
   "strictnessLevel": "Nivel de Severidad",
   "selectLanguage": "Seleccionar idioma",
   "learnAnotherLanguage": "Aprender otro idioma",
-  "writingIn": "Escribiendo en"
+  "writingIn": "Escribiendo en",
+  "settingsLoadFailed": "No se pudieron cargar tus idiomas, así que esta entrada aún no se puede enviar.",
+  "retryLoadSettings": "Reintentar"
 }

@@ -48,5 +48,7 @@
   "strictnessLevel": "Strictness Level",
   "selectLanguage": "Select language",
   "learnAnotherLanguage": "Learn another language",
-  "writingIn": "Writing in"
+  "writingIn": "Writing in",
+  "settingsLoadFailed": "Your languages could not be loaded, so this entry cannot be sent yet.",
+  "retryLoadSettings": "Try again"
 }
