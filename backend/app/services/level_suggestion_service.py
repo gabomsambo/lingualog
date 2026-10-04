@@ -29,7 +29,6 @@ from level_suggestion import (
 L2_PATTERN = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
 SNOOZE_TABLE = "level_suggestion_snoozes"
 ENTRY_LIMIT = max(STEP_DOWN_WINDOW, STEP_UP_WINDOW)
-RECENT_LANGUAGE_ENTRIES = 50
 
 
 class NoLevelSuggestion(LookupError):
@@ -184,10 +183,12 @@ def _resolved(user_id: str, l2: str, settings: Optional[dict]):
 
 
 def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> list[LanguageLevel]:
+    profiles = _owned(_table(client, "user_language_profiles", user_id), user_id)
+    studied = _studied_languages(settings, profiles)
     levels: dict[str, LanguageLevel] = {}
-    for profile in _owned(_table(client, "user_language_profiles", user_id), user_id):
+    for profile in profiles:
         l2 = str(profile.get("l2") or "")
-        if not l2:
+        if l2 not in studied:
             continue
         try:
             level = int(profile.get("immersion_level", 1))
@@ -195,47 +196,33 @@ def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> lis
             continue
         since = _aware(profile["level_changed_at"]) if profile.get("level_changed_at") else None
         levels[l2] = LanguageLevel(user_id, l2, level, since)
-    for l2 in _recent_languages(client, user_id):
+    for l2 in studied:
         if l2 not in levels:
             level = _resolved(user_id, l2, settings).immersion_level
-            levels[l2] = LanguageLevel(user_id, l2, level, _last_entry_at_other_level(client, user_id, l2, level))
+            levels[l2] = LanguageLevel(user_id, l2, level, None)
     return list(levels.values())
 
 
-def _last_entry_at_other_level(client: Any, user_id: str, l2: str, level: int) -> Optional[datetime]:
-    response = (
-        client.table("journal_entries")
-        .select("user_id,target_language,created_at,policy_snapshot")
-        .eq("user_id", user_id)
-        .eq("target_language", l2)
-        .neq("policy_snapshot->>immersion_level", str(level))
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    found = [
-        _aware(row["created_at"])
-        for row in _owned(list(response.data or []), user_id)
-        if row.get("created_at") and _entry_l2(row) == l2 and _entry_level(row) not in (None, level)
-    ]
-    return max(found, default=None)
-
-
-def _recent_languages(client: Any, user_id: str) -> list[str]:
-    response = (
-        client.table("journal_entries")
-        .select("user_id,target_language,created_at")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(RECENT_LANGUAGE_ENTRIES)
-        .execute()
-    )
-    found: list[str] = []
-    for row in _owned(list(response.data or []), user_id):
-        l2 = _entry_l2(row)
-        if L2_PATTERN.match(l2) and l2 not in found:
-            found.append(l2)
-    return found
+def _studied_languages(settings: Optional[dict], profiles: list[dict]) -> set[str]:
+    """Languages the Settings page lists under "Languages you study", minus native."""
+    codes: set[str] = set()
+    native: set[str] = set()
+    if settings:
+        for key in ("native_lang", "native_language"):
+            value = str(settings.get(key) or "").strip()
+            if value:
+                native.add(value)
+        default = str(settings.get("default_target_lang") or "").strip()
+        if default:
+            codes.add(default)
+        listed = settings.get("target_languages") or []
+        if isinstance(listed, list):
+            codes.update(str(code).strip() for code in listed if code)
+    for profile in profiles:
+        l2 = str(profile.get("l2") or "").strip()
+        if l2:
+            codes.add(l2)
+    return {code for code in codes - native if L2_PATTERN.match(code)}
 
 
 def _table(client: Any, name: str, user_id: str, columns: str = "*") -> list[dict]:
