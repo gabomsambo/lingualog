@@ -56,6 +56,7 @@ def _valid_feedback_json():
         '"rubric": {"grammar": 80, "vocabulary": 85, "complexity": 90},'
         '"grammar_suggestions": [],'
         '"new_words": []'
+        ',"sentence_mapping": [{"source_sentence": 0, "corrected_sentences": [0]}]'
         '}'
     )
 
@@ -188,13 +189,14 @@ async def test_missing_api_key_raises_unconfigured(schema, monkeypatch):
     assert exc_info.value.code == "ai_unconfigured"
 
 
-def test_gemini_schema_requires_suggestions_and_words():
+def test_gemini_schema_requires_suggestions_words_and_sentence_mapping():
     """Optional arrays came back empty from the live model; the response schema requires them."""
     from ai.schemas import GeminiJournalFeedback
 
     required = GeminiJournalFeedback.model_json_schema()["required"]
     assert "grammar_suggestions" in required
     assert "new_words" in required
+    assert "sentence_mapping" in required
     assert JournalFeedback(
         corrected="", rewrite="", score=0, tone="", explanation="",
         rubric={"grammar": 0, "vocabulary": 0, "complexity": 0},

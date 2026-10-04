@@ -164,6 +164,32 @@ describe("EntrySideBySide layout", () => {
     expect(within(within(rows[1]).getByTestId("corrected")).getByText(/viene/).tagName).toBe("DEL")
   })
 
+  it("uses an authoritative mapping for the el/es/que removal case", () => {
+    renderEntry(0, {
+      content: "El día es largo. Que es así.",
+      corrected: "El día es largo.",
+      sentence_mapping_status: "valid",
+      sentence_mapping: [
+        { source_sentence: 0, corrected_sentences: [0] },
+        { source_sentence: 1, corrected_sentences: [] },
+      ],
+    })
+    const rows = screen.getAllByTestId("sbs-row")
+    expect(within(rows[1]).getByTestId("corrected-removed")).toBeInTheDocument()
+    expect(within(rows[1]).queryByTestId("corrected-merged")).toBeNull()
+  })
+
+  it("warns visibly and uses the legacy fallback for an invalid mapping", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    renderEntry(0, {
+      sentence_mapping_status: "invalid",
+      sentence_mapping: null,
+    })
+    expect(screen.getByTestId("alignment-fallback-warning")).toBeInTheDocument()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("using legacy alignment heuristic"))
+    warn.mockRestore()
+  })
+
   it("switches to the native rewrite as one block with idiom glosses", async () => {
     renderEntry(0)
     fireEvent.click(screen.getByRole("button", { name: "Native" }))

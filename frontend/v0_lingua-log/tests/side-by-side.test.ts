@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   alignSentences,
+  alignSentencesFromMapping,
   cleanLiteralReading,
   htmlToText,
   diffWords,
@@ -50,6 +51,52 @@ describe("alignSentences", () => {
   it("keeps rows when there is nothing to align", () => {
     expect(alignSentences(["a.", "b."], [])).toEqual(["", ""])
     expect(alignSentences([], ["a."])).toEqual([])
+  })
+})
+
+describe("alignSentencesFromMapping", () => {
+  it("represents merges and splits without guessing", () => {
+    expect(
+      alignSentencesFromMapping(
+        ["Fui al cine.", "Comimos palomitas."],
+        ["Fui al cine y comimos palomitas."],
+        [
+          { source_sentence: 0, corrected_sentences: [0] },
+          { source_sentence: 1, corrected_sentences: [0] },
+        ],
+      ),
+    ).toEqual({
+      rows: ["Fui al cine y comimos palomitas.", ""],
+      fates: [null, "merged_above"],
+      authoritative: true,
+    })
+    expect(
+      alignSentencesFromMapping(
+        ["Fui al cine y comimos palomitas."],
+        ["Fui al cine.", "Comimos palomitas."],
+        [{ source_sentence: 0, corrected_sentences: [0, 1] }],
+      )?.rows,
+    ).toEqual(["Fui al cine. Comimos palomitas."])
+  })
+
+  it("marks an el/es/que sentence removed even though the legacy heuristic calls it merged", () => {
+    const source = ["El día es largo.", "Que es así."]
+    const target = ["El día es largo."]
+    const legacyRows = alignSentences(source, target)
+    expect(emptyRowFate(source, legacyRows, 1)).toBe("merged_above")
+    expect(
+      alignSentencesFromMapping(source, target, [
+        { source_sentence: 0, corrected_sentences: [0] },
+        { source_sentence: 1, corrected_sentences: [] },
+      ])?.fates[1],
+    ).toBe("removed")
+  })
+
+  it("rejects missing or out-of-range mapping data", () => {
+    expect(alignSentencesFromMapping(["A.", "B."], ["A."], [{ source_sentence: 0, corrected_sentences: [0] }])).toBeNull()
+    expect(
+      alignSentencesFromMapping(["A."], ["A."], [{ source_sentence: 0, corrected_sentences: [1] }]),
+    ).toBeNull()
   })
 })
 
@@ -143,6 +190,8 @@ describe("toSideBySideEntry", () => {
       policy_snapshot: { v: 1, l1: "en", l2: "es", meaning: "tap", explanation: "l1", rewrite_gloss: "l1_tap" },
       ai_feedback: {
         score: 80,
+        sentence_mapping_status: "valid",
+        sentence_mapping: [{ source_sentence: 0, corrected_sentences: [0] }],
         grammar_suggestions: [{ original: "a", corrected: "b", note: "n" }],
         rubric: {
           grammar: 70,
@@ -158,6 +207,8 @@ describe("toSideBySideEntry", () => {
     expect(entry.rewriteIdioms).toHaveLength(1)
     expect(entry.suggestions).toHaveLength(1)
     expect(entry.rubric?.grammar).toBe(70)
+    expect(entry.sentenceMappingStatus).toBe("valid")
+    expect(entry.sentenceMapping).toEqual([{ source_sentence: 0, corrected_sentences: [0] }])
   })
 
   it("treats rows without a status or snapshot as legacy", () => {
@@ -165,6 +216,8 @@ describe("toSideBySideEntry", () => {
     expect(entry.analysisStatus).toBe("legacy")
     expect(entry.policy).toBeNull()
     expect(entry.suggestions).toEqual([])
+    expect(entry.sentenceMapping).toBeNull()
+    expect(entry.sentenceMappingStatus).toBeNull()
   })
 })
 

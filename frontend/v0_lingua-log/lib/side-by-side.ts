@@ -55,6 +55,11 @@ export interface EntryWord {
   reading?: string | null
 }
 
+export interface SentenceMapping {
+  source_sentence: number
+  corrected_sentences: number[]
+}
+
 export interface SideBySideEntry {
   id: string
   title?: string
@@ -74,6 +79,8 @@ export interface SideBySideEntry {
   rewriteIdioms: RewriteIdiom[]
   suggestions: SuggestionData[]
   newWords: EntryWord[]
+  sentenceMapping: SentenceMapping[] | null
+  sentenceMappingStatus: string | null
 }
 
 const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -108,6 +115,10 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
       (item) => item && typeof item.original === "string",
     ),
     newWords: asArray<EntryWord>(ai.new_words).filter((item) => item && item.term),
+    sentenceMapping: Array.isArray(raw?.sentence_mapping ?? ai.sentence_mapping)
+      ? asArray<SentenceMapping>(raw?.sentence_mapping ?? ai.sentence_mapping)
+      : null,
+    sentenceMappingStatus: raw?.sentence_mapping_status ?? ai.sentence_mapping_status ?? null,
   }
 }
 
@@ -186,6 +197,51 @@ export function alignSentences(source: string[], target: string[]): string[] {
 }
 
 export type EmptyRowFate = "merged_above" | "merged_below" | "removed"
+
+export interface SentenceAlignment {
+  rows: string[]
+  fates: Array<EmptyRowFate | null>
+  authoritative: boolean
+}
+
+/** Use a validated model mapping; return null when persisted data is inconsistent. */
+export function alignSentencesFromMapping(
+  source: string[],
+  target: string[],
+  mapping: SentenceMapping[] | null,
+): SentenceAlignment | null {
+  if (!mapping) return null
+  if (mapping.length !== source.length) return null
+  if (mapping.some((item, index) => item?.source_sentence !== index || !Array.isArray(item.corrected_sentences))) {
+    return null
+  }
+  if (mapping.some((item) => item.corrected_sentences.length !== new Set(item.corrected_sentences).size)) return null
+  const indexes = mapping.flatMap((item) => item.corrected_sentences)
+  if (indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= target.length)) return null
+  if (new Set(indexes).size !== target.length || target.some((_, index) => !indexes.includes(index))) return null
+  if (indexes.some((value, index) => index > 0 && value < indexes[index - 1])) return null
+
+  const owner = new Map<number, number>()
+  mapping.forEach((item, sourceIndex) => {
+    item.corrected_sentences.forEach((targetIndex) => {
+      if (!owner.has(targetIndex)) owner.set(targetIndex, sourceIndex)
+    })
+  })
+  const rows = mapping.map((item, sourceIndex) =>
+    item.corrected_sentences
+      .filter((targetIndex) => owner.get(targetIndex) === sourceIndex)
+      .map((targetIndex) => target[targetIndex])
+      .join(" "),
+  )
+  const fates = mapping.map((item, sourceIndex): EmptyRowFate | null => {
+    if (rows[sourceIndex]) return null
+    if (!item.corrected_sentences.length) return "removed"
+    const targetOwner = owner.get(item.corrected_sentences[0])
+    if (targetOwner === undefined) return "removed"
+    return targetOwner < sourceIndex ? "merged_above" : "merged_below"
+  })
+  return { rows, fates, authoritative: true }
+}
 
 /**
  * Explain an empty aligned corrected row: merged into the nearest corrected neighbour that shares

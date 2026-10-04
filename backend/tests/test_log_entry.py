@@ -43,6 +43,7 @@ def sample_feedback(text="", is_mock=False):
         rubric={"grammar": 80, "vocabulary": 80, "complexity": 80},
         grammar_suggestions=[],
         new_words=[],
+        sentence_mapping=[{"source_sentence": 0, "corrected_sentences": [0]}],
         is_mock=is_mock,
     )
 
@@ -114,6 +115,7 @@ def test_log_entry_saves_real_feedback(client):
     assert body["id"] == "entry-123"
     assert body["corrected"] == "Corrected Hola"
     assert body["is_mock"] is False
+    assert body["sentence_mapping_status"] == "valid"
 
     mock_save.assert_called_once()
     saved = mock_save.call_args[0][0]
@@ -125,6 +127,8 @@ def test_log_entry_saves_real_feedback(client):
     assert saved["analysis_status"] == "ok"
     assert saved["analysis_model"] == "gemini-3.8-flash"
     assert saved["analysis_error_code"] is None
+    assert saved["sentence_mapping"] == [{"source_sentence": 0, "corrected_sentences": [0]}]
+    assert saved["sentence_mapping_status"] == "valid"
 
 
 def test_log_entry_honest_failure_keeps_entry(client):

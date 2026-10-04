@@ -88,6 +88,8 @@ def init_db_schema(client: Client) -> None:
                     rubric JSONB, -- Added from previous work
                     grammar_suggestions JSONB, -- Added from previous work
                     new_words JSONB, -- Added from previous work
+                    sentence_mapping JSONB,
+                    sentence_mapping_status TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );
@@ -284,6 +286,7 @@ def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:
         "corrected", "rewrite", "score", "tone",
         "translation", "explanation", "rubric",
         "grammar_suggestions", "new_words",
+        "sentence_mapping", "sentence_mapping_status",
     ]
     restructured_entry: Dict[str, Any] = {}
     ai_feedback_payload: Dict[str, Any] = {}

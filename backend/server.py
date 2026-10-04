@@ -65,6 +65,7 @@ from app.routers import vocabulary_ai # Adjusted import path
 from app.routers import entry_translation, level_suggestions, support_events
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
+from app.services.entry_translation_service import split_sentences
 
 # Configure logger
 # Ensure basicConfig is called to set up the root logger handler and level
@@ -200,13 +201,44 @@ def _learner_note(suggestion) -> str:
     return "\n".join(parts)
 
 
-def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
+def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> tuple[list[dict], str]:
+    """Validate model indexes against the exact sentences shown by the UI."""
+    source_count = len(split_sentences(original_text))
+    corrected_count = len(split_sentences(result.corrected))
+    mapping = [item.model_dump() for item in result.sentence_mapping]
+    source_indexes = [item["source_sentence"] for item in mapping]
+
+    reason = None
+    if source_indexes != list(range(source_count)):
+        reason = f"source coverage {source_indexes} does not match 0..{source_count - 1}"
+    else:
+        target_indexes = [index for item in mapping for index in item["corrected_sentences"]]
+        if any(index < 0 or index >= corrected_count for index in target_indexes):
+            reason = f"corrected index out of range for {corrected_count} sentences"
+        elif any(
+            len(item["corrected_sentences"]) != len(set(item["corrected_sentences"]))
+            for item in mapping
+        ):
+            reason = "corrected sentence indexes are duplicated within a source sentence"
+        elif set(target_indexes) != set(range(corrected_count)):
+            reason = f"corrected coverage {sorted(set(target_indexes))} does not match 0..{corrected_count - 1}"
+        elif target_indexes != sorted(target_indexes):
+            reason = "corrected sentence indexes are not monotonic across source sentences"
+
+    if reason:
+        logger.warning("Rejecting Gemini sentence mapping; using legacy heuristic: %s", reason)
+        return [], "invalid"
+    return mapping, "valid"
+
+
+def _build_feedback_response(result: JournalFeedback, original_text: str) -> FeedbackResponse:
     """Convert the Gemini structured output to the API response model."""
     suggestions = []
     for suggestion in result.grammar_suggestions:
         payload = suggestion.model_dump()
         payload["note"] = _learner_note(suggestion)
         suggestions.append(Suggestion(**payload))
+    sentence_mapping, sentence_mapping_status = _validate_sentence_mapping(result, original_text)
     return FeedbackResponse(
         corrected=result.corrected,
         rewritten=result.rewrite,
@@ -224,6 +256,8 @@ def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
         intended_meaning=result.intended_meaning or None,
         ambiguities=[item.model_dump() for item in result.ambiguities] or None,
         rewrite_idioms=[item.model_dump() for item in result.rewrite_idioms] or None,
+        sentence_mapping=sentence_mapping or None,
+        sentence_mapping_status=sentence_mapping_status,
     )
 
 
@@ -442,7 +476,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
     try:
         result = await _analyze_with_provider(entry.text, effective_settings)
-        feedback_response = _build_feedback_response(result)
+        feedback_response = _build_feedback_response(result, entry.text)
     except GeminiError as e:
         logger.error(f"AI feedback failed ({e.code}): {e.message}")
         # Keep the entry so the learner can retry later.
@@ -486,6 +520,8 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        "sentence_mapping": feedback_response.sentence_mapping,
+        "sentence_mapping_status": feedback_response.sentence_mapping_status,
         **_analysis_columns(feedback_response),
         **snapshot_data,
     }
@@ -665,7 +701,7 @@ async def analyze_existing_entry(entry_id: str, request: Request):
             },
         ) from e
 
-    feedback_response = _build_feedback_response(result)
+    feedback_response = _build_feedback_response(result, entry["content"])
     update_data = {
         "corrected": feedback_response.corrected,
         "rewrite": feedback_response.rewritten,
@@ -676,6 +712,8 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        "sentence_mapping": feedback_response.sentence_mapping,
+        "sentence_mapping_status": feedback_response.sentence_mapping_status,
         **_analysis_columns(feedback_response),
         **_snapshot_columns(effective_settings),
     }
@@ -1145,4 +1183,4 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

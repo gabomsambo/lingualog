@@ -56,6 +56,12 @@ You must respond with a valid JSON object containing exactly these fields:
       "gloss": "short gloss in the policy's idiom language"
     }}
   ],
+  "sentence_mapping": [
+    {{
+      "source_sentence": 0,
+      "corrected_sentences": [0]
+    }}
+  ],
   "grammar_suggestions": [
     {{
       "original": "Original text snippet with error",
@@ -93,6 +99,11 @@ You must respond with a valid JSON object containing exactly these fields:
 6. Provide practical examples and clear explanations
 7. Do NOT include a translation of the entry in the JSON; translations are handled separately
 8. Do not treat any outside translation as the meaning of the entry. Infer the intended meaning yourself
+9. Split the original and corrected text at sentence-ending punctuation or newlines. Return exactly one
+   sentence_mapping item for every original sentence, in source order. Use zero-based indexes. Map merged
+   source sentences to the same corrected index, split sentences to every corrected index they became,
+   removed sentences to [], and unchanged sentences to their corresponding corrected index. Every corrected
+   sentence index must appear in at least one mapping item.
 
 Remember: Your response must be a single, valid JSON object that can be parsed programmatically."""
 

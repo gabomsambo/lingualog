@@ -8,6 +8,7 @@ single clear log line for each error class.
 import asyncio
 import logging
 import os
+import re
 from typing import Optional, Type, TypeVar
 
 from google import genai
@@ -179,6 +180,7 @@ async def mock_generate_structured(
     if entry_text is None:
         entry_text = user_prompt or ""
     entry_text = entry_text.strip()
+    source_sentences = [part.strip() for part in re.split(r"(?<=[.!?…])\s+|\n+", entry_text) if part.strip()]
     return schema(
         corrected=f"[Mock Corrected] {entry_text}",
         rewrite=f"[Mock Rewritten] {entry_text}",
@@ -202,6 +204,10 @@ async def mock_generate_structured(
                 "proficiency": "intermediate",
             }
             for word in (entry_text.split()[:2] if entry_text.split() else ["sample"])
+        ],
+        sentence_mapping=[
+            {"source_sentence": index, "corrected_sentences": [index]}
+            for index, _sentence in enumerate(source_sentences)
         ],
         is_mock=True,
     )

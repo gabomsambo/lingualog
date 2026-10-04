@@ -18,6 +18,7 @@ import {
 } from "@/lib/api"
 import {
   alignSentences,
+  alignSentencesFromMapping,
   cleanLiteralReading,
   diffWords,
   emptyRowFate,
@@ -133,10 +134,23 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const rescueOnly = policy?.meaning === "rescue_only"
 
   const sentences = useMemo(() => splitSentences(entry.content), [entry.content])
-  const correctedRows = useMemo(
-    () => (entry.corrected ? alignSentences(sentences, splitSentences(entry.corrected)) : []),
-    [sentences, entry.corrected],
-  )
+  const alignment = useMemo(() => {
+    if (!entry.corrected) return { rows: [], fates: [], authoritative: false }
+    const targets = splitSentences(entry.corrected)
+    return (
+      alignSentencesFromMapping(sentences, targets, entry.sentenceMapping) || {
+        rows: alignSentences(sentences, targets),
+        fates: [],
+        authoritative: false,
+      }
+    )
+  }, [sentences, entry.corrected, entry.sentenceMapping])
+  const correctedRows = alignment.rows
+  const mappingRejected = entry.sentenceMappingStatus === "invalid" || (!!entry.sentenceMapping && !alignment.authoritative)
+
+  useEffect(() => {
+    if (mappingRejected) console.warn(`Entry ${entry.id}: invalid sentence mapping; using legacy alignment heuristic`)
+  }, [entry.id, mappingRejected])
   const marks = useMemo(() => locateSuggestions(sentences, entry.suggestions), [sentences, entry.suggestions])
   const rowOfSuggestion = useMemo(() => {
     const rows = new Map<number, number>()
@@ -368,6 +382,11 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
         <CardHeader className="bg-gradient-to-r from-fun-purple/10 to-fun-blue/10 pb-4">
           <CardTitle className="text-xl">{t("feedback.sideBySideTitle")}</CardTitle>
           {!fromSnapshot && <p className="text-xs text-muted-foreground">{t("feedback.currentPolicyNote")}</p>}
+          {mappingRejected && (
+            <p className="text-xs text-fun-orange" role="status" data-testid="alignment-fallback-warning">
+              {t("feedback.alignmentFallbackWarning")}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="grid grid-cols-1 md:grid-cols-3" data-testid="side-by-side-grid">
@@ -401,7 +420,11 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
 
             {sentences.map((sentence, index) => {
               const corrected = correctedRows[index] || ""
-              const fate = corrected.trim() ? null : emptyRowFate(sentences, correctedRows, index)
+              const fate = corrected.trim()
+                ? null
+                : alignment.authoritative
+                  ? alignment.fates[index]
+                  : emptyRowFate(sentences, correctedRows, index)
               return (
                 <div key={index} className="group contents" data-testid="sbs-row">
                   <div

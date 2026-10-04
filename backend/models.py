@@ -83,6 +83,12 @@ class FeedbackResponse(BaseModel):
     intended_meaning: Optional[str] = Field(None, description="What the learner meant, inferred by the tutor")
     ambiguities: Optional[List[Dict[str, Any]]] = Field(None, description="Questions asked when the meaning was unclear")
     rewrite_idioms: Optional[List[Dict[str, Any]]] = Field(None, description="Idiom glosses for the rewrite")
+    sentence_mapping: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Validated original-to-corrected sentence index mapping"
+    )
+    sentence_mapping_status: Optional[str] = Field(
+        None, description="valid for authoritative mappings, invalid when the model mapping was rejected"
+    )
 
     # TODO: Add metrics/analytics fields as needed for progress tracking
 
