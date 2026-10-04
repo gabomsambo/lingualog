@@ -62,7 +62,7 @@ from ai.gemini import (
 
 # Import the new router
 from app.routers import vocabulary_ai # Adjusted import path
-from app.routers import entry_translation, support_events
+from app.routers import entry_translation, level_suggestions, support_events
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 
@@ -366,6 +366,7 @@ app.add_middleware(
 app.include_router(vocabulary_ai.router)
 app.include_router(entry_translation.router)
 app.include_router(support_events.router)
+app.include_router(level_suggestions.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)

@@ -66,6 +66,8 @@ Precedence, highest first:
 
 The settings "Explanation mode" control and the new-entry immersion slider stay. Choose "Follow my immersion level" (`level`) to clear a saved choice and let the level decide notes. Settings sends the mode only when you change it. The new-entry slider shows the saved level for the selected language and is sent only after you move it.
 
+The app may suggest a different immersion level for one language. It never changes the level on its own. `GET /user/level-suggestions` reads `support_events` and recent scores; the thresholds and windows are named constants in `backend/level_suggestion.py`. Accept (`POST /user/level-suggestions/{l2}/accept`) writes that language's profile through `save_user_settings`. Dismiss snoozes the suggestion for 7 days.
+
 Gemini infers what you meant. A translation is not fed into the correction.
 
 ### Data Models

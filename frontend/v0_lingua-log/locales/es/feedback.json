@@ -66,5 +66,11 @@
   "proficient": "Competente",
   "fluent": "Fluido",
   "basic": "Básico",
-  "elementary": "Elemental"
+  "elementary": "Elemental",
+  "levelSuggestionDown": "¿Probar el nivel {level} un tiempo?",
+  "levelSuggestionUp": "¿Listo para el nivel {level}?",
+  "levelSuggestionDownBody": "Has abierto la traducción a menudo al escribir en {language}. Un nivel más bajo deja tu idioma más cerca. El nivel cambia solo cuando dices que sí.",
+  "levelSuggestionUpBody": "Casi no has necesitado una traducción al escribir en {language}, y tus puntuaciones van bien. Un nivel más alto deja un poco más en el idioma que aprendes. El nivel cambia solo cuando dices que sí.",
+  "levelSuggestionAccept": "Sí, cambiar mi nivel",
+  "levelSuggestionDismiss": "Ahora no"
 }

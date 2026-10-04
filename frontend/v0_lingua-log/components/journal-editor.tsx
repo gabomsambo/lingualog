@@ -406,7 +406,13 @@ export function JournalEditor() {
             </Button>
           </div>
           <div className="lg:-mx-12 xl:-mx-32">
-            <EntrySideBySide entry={resultEntry} onReanalyzed={() => loadResultEntry(resultEntry.id)} />
+            <EntrySideBySide
+              entry={resultEntry}
+              onReanalyzed={() => loadResultEntry(resultEntry.id)}
+              onLevelAccepted={() => {
+                getUserSettings().then(setUserSettings).catch(() => undefined)
+              }}
+            />
           </div>
         </motion.div>
       )}

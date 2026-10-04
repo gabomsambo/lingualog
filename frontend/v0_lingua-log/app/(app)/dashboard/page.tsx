@@ -11,6 +11,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Confetti } from "@/components/confetti"
+import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
 import { useLocale } from "@/i18n/LocaleProvider"
 
@@ -166,6 +167,8 @@ export default function DashboardPage() {
           </motion.div>
         </motion.div>
       </section>
+
+      <LevelSuggestionCard />
 
       {/* Stats Section */}
       <section className="mb-10">
