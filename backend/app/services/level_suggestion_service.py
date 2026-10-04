@@ -199,8 +199,27 @@ def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> lis
     for l2 in studied:
         if l2 not in levels:
             level = _resolved(user_id, l2, settings).immersion_level
-            levels[l2] = LanguageLevel(user_id, l2, level, None)
+            levels[l2] = LanguageLevel(user_id, l2, level, _last_entry_at_other_level(client, user_id, l2, level))
     return list(levels.values())
+
+
+def _last_entry_at_other_level(client: Any, user_id: str, l2: str, level: int) -> Optional[datetime]:
+    response = (
+        client.table("journal_entries")
+        .select("user_id,target_language,created_at,policy_snapshot")
+        .eq("user_id", user_id)
+        .eq("target_language", l2)
+        .neq("policy_snapshot->>immersion_level", str(level))
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    found = [
+        _aware(row["created_at"])
+        for row in _owned(list(response.data or []), user_id)
+        if row.get("created_at") and _entry_l2(row) == l2 and _entry_level(row) not in (None, level)
+    ]
+    return max(found, default=None)
 
 
 def _studied_languages(settings: Optional[dict], profiles: list[dict]) -> set[str]:

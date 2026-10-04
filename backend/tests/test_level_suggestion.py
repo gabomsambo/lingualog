@@ -486,6 +486,31 @@ def _french_entry(key: str, minutes_ago: int, level: int, score: float) -> dict:
     }
 
 
+def test_studied_language_without_a_profile_row_ignores_history_from_before_its_level_changed():
+    from app.services.level_suggestion_service import current_suggestions
+
+    tables = _history_tables()
+    tables["user_settings"] = [
+        {"user_id": USER, "default_target_lang": "es", "target_languages": ["es", "fr"], "immersion_level": 2}
+    ]
+    old = [_french_entry(f"old{i}", 300 + i, 2, 50) for i in range(STEP_DOWN_WINDOW)]
+    calm = [_french_entry(f"calm{i}", 200 + i, 1, 90) for i in range(STEP_UP_WINDOW)]
+    tables["journal_entries"] += old + calm
+    tables["support_events"] += [
+        {"user_id": USER, "entry_id": row["id"], "kind": "reveal_meaning"} for row in old[:3]
+    ]
+    found = current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
+    assert [row["l2"] for row in found] == ["es"]
+
+    fresh = [_french_entry(f"new{i}", 100 + i, 2, 50) for i in range(STEP_DOWN_WINDOW)]
+    tables["journal_entries"] += fresh
+    tables["support_events"] += [
+        {"user_id": USER, "entry_id": row["id"], "kind": "reveal_meaning"} for row in fresh[:3]
+    ]
+    found = current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
+    assert {"l2": "fr", "direction": "down", "from_level": 2, "to_level": 1} in found
+
+
 def test_entry_only_and_native_languages_get_no_suggestion():
     from app.services.level_suggestion_service import current_suggestions
 
