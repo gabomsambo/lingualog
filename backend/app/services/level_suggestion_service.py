@@ -197,8 +197,28 @@ def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> lis
         levels[l2] = LanguageLevel(user_id, l2, level, since)
     for l2 in _recent_languages(client, user_id):
         if l2 not in levels:
-            levels[l2] = LanguageLevel(user_id, l2, _resolved(user_id, l2, settings).immersion_level)
+            level = _resolved(user_id, l2, settings).immersion_level
+            levels[l2] = LanguageLevel(user_id, l2, level, _last_entry_at_other_level(client, user_id, l2, level))
     return list(levels.values())
+
+
+def _last_entry_at_other_level(client: Any, user_id: str, l2: str, level: int) -> Optional[datetime]:
+    response = (
+        client.table("journal_entries")
+        .select("user_id,target_language,created_at,policy_snapshot")
+        .eq("user_id", user_id)
+        .eq("target_language", l2)
+        .neq("policy_snapshot->>immersion_level", str(level))
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    found = [
+        _aware(row["created_at"])
+        for row in _owned(list(response.data or []), user_id)
+        if row.get("created_at") and _entry_l2(row) == l2 and _entry_level(row) not in (None, level)
+    ]
+    return max(found, default=None)
 
 
 def _recent_languages(client: Any, user_id: str) -> list[str]:
