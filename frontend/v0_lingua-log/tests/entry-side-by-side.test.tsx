@@ -179,14 +179,20 @@ describe("EntrySideBySide layout", () => {
     expect(within(rows[1]).queryByTestId("corrected-merged")).toBeNull()
   })
 
-  it("warns visibly and uses the legacy fallback for an invalid mapping", () => {
+  it("warns visibly and does not guess merged or removed for an invalid mapping", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     renderEntry(0, {
+      content: "El día es largo. Que es así.",
+      corrected: "El día es largo.",
       sentence_mapping_status: "invalid",
       sentence_mapping: null,
     })
     expect(screen.getByTestId("alignment-fallback-warning")).toBeInTheDocument()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("using legacy alignment heuristic"))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("invalid sentence mapping"))
+    const rows = screen.getAllByTestId("sbs-row")
+    expect(within(rows[1]).getByTestId("corrected-unaligned")).toBeInTheDocument()
+    expect(within(rows[1]).queryByTestId("corrected-merged")).toBeNull()
+    expect(within(rows[1]).queryByTestId("corrected-removed")).toBeNull()
     warn.mockRestore()
   })
 

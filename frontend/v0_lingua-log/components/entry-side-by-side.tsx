@@ -149,7 +149,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const mappingRejected = entry.sentenceMappingStatus === "invalid" || (!!entry.sentenceMapping && !alignment.authoritative)
 
   useEffect(() => {
-    if (mappingRejected) console.warn(`Entry ${entry.id}: invalid sentence mapping; using legacy alignment heuristic`)
+    if (mappingRejected) console.warn(`Entry ${entry.id}: invalid sentence mapping; empty rows are left unlabelled`)
   }, [entry.id, mappingRejected])
   const marks = useMemo(() => locateSuggestions(sentences, entry.suggestions), [sentences, entry.suggestions])
   const rowOfSuggestion = useMemo(() => {
@@ -424,7 +424,9 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                 ? null
                 : alignment.authoritative
                   ? alignment.fates[index]
-                  : emptyRowFate(sentences, correctedRows, index)
+                  : mappingRejected
+                    ? "unaligned"
+                    : emptyRowFate(sentences, correctedRows, index)
               return (
                 <div key={index} className="group contents" data-testid="sbs-row">
                   <div
@@ -448,6 +450,10 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                       <MobileLabel>{t("feedback.howToWriteIt")}</MobileLabel>
                       {!entry.corrected || failed ? (
                         index === 0 ? <span className="text-sm text-muted-foreground">{t("feedback.noCorrectionYet")}</span> : null
+                      ) : fate === "unaligned" ? (
+                        <span className="text-sm italic text-muted-foreground" data-testid="corrected-unaligned">
+                          {t("feedback.notAligned")}
+                        </span>
                       ) : !corrected.trim() && fate !== "removed" ? (
                         <span className="text-sm italic text-muted-foreground" data-testid="corrected-merged">
                           {fate === "merged_above" ? t("feedback.mergedIntoAbove") : t("feedback.mergedIntoBelow")}
