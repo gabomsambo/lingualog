@@ -57,6 +57,20 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 ## Learning policy
 
+### Languages
+
+Settings holds the whole language model; the rest of the app follows it.
+
+- **Explain things to me in** (`user_settings.native_lang`) is the learner's own language. Notes, meaning translations and rescues are written in it.
+- **Languages I'm learning** are the active rows of `user_language_profiles`, each with its own immersion level and proficiency. `user_settings.default_target_lang` marks one as the default. Any language can be studied, including English and the learner's own language.
+- **Removing** a language sets `active = false`. Its entries and its row stay; adding it again restores its level and proficiency. The default cannot be removed.
+- **Studying your own language** (`native_lang` equals the target) is full immersion: `resolve_policy` always returns level 3 with `same_language` sources, and nothing is translated.
+- The **new-entry picker** offers only the studied languages, default first, plus a link to Settings.
+- **Did you mean…?** Gemini reports the language it read (`detected_language`, stored on the entry) in the same call. When it differs from the chosen language, the result asks the learner to switch or keep. Switch (`POST /entries/{id}/analyze` with `target_language`) is offered only for a studied language; otherwise the learner is sent to Settings. Keep is stored as `detected_language_kept`. The app never switches on its own.
+- Legacy `user_settings.native_language` and `target_languages` are no longer read or written.
+
+### Immersion
+
 Immersion is how much of your own language you want while practising a target language. Proficiency (A1–C2) is separate, and both are stored per target language in `user_language_profiles`. `resolve_policy()` in `backend/learning_policy.py` is the only place a level becomes behaviour. The resolved object (`v: 1`) is stored on the entry as `policy_snapshot`.
 
 Precedence, highest first:
@@ -66,7 +80,7 @@ Precedence, highest first:
 
 The settings "Explanation mode" control and the new-entry immersion slider stay. Choose "Follow my immersion level" (`level`) to clear a saved choice and let the level decide notes. Settings sends the mode only when you change it. The new-entry slider shows the saved level for the selected language and is sent only after you move it.
 
-The app may suggest a different immersion level for one language. It never changes the level on its own. `GET /user/level-suggestions` reads `support_events` and scores from recent entries written at the current level, since it last changed (`user_language_profiles.level_changed_at`), with a real (`ok`) analysis. It does this only for the languages Settings lists under "Languages you study" (`target_languages`, `default_target_lang`, and every `user_language_profiles` row), never the native language and never a language that only appears on an entry. A studied language with no profile row uses the level `resolve_policy` gives it today and counts only entries newer than its newest entry written at another level. An accept never cascades into a second suggestion, and returning to a level does not reuse its old history; the thresholds and windows are named constants in `backend/level_suggestion.py`. Accept (`POST /user/level-suggestions/{l2}/accept`) writes that language's profile through `save_user_settings`. Dismiss snoozes the suggestion for 7 days.
+The app may suggest a different immersion level for one language. It never changes the level on its own. `GET /user/level-suggestions` reads `support_events` and scores from recent entries written at the current level, since it last changed (`user_language_profiles.level_changed_at`), with a real (`ok`) analysis. It does this only for the languages Settings lists under "Languages I'm learning" (active `user_language_profiles` rows and `default_target_lang`), never a removed language or one that only appears on an entry. A studied language that is also the native language stays at level 3. A default language with no profile row uses the level `resolve_policy` gives it today and counts only entries newer than its newest entry written at another level. An accept never cascades into a second suggestion, and returning to a level does not reuse its old history; the thresholds and windows are named constants in `backend/level_suggestion.py`. Accept (`POST /user/level-suggestions/{l2}/accept`) writes that language's profile through `save_user_settings`. Dismiss snoozes the suggestion for 7 days.
 
 Gemini infers what you meant. A translation is not fed into the correction.
 
