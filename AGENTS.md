@@ -120,7 +120,7 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + `sentence_mapping` (+ `_status`)
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + `sentence_mapping` (+ `_status`), `sentence_actions`
 - `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
 
