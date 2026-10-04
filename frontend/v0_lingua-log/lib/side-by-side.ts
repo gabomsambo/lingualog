@@ -244,7 +244,7 @@ export function alignSentencesFromMapping(
 }
 
 /**
- * Explain an empty aligned corrected row: merged into the nearest corrected neighbour that shares
+ * Legacy fallback for entries without a sentence mapping. Explain an empty aligned corrected row: merged into the nearest corrected neighbour that shares
  * words with the source sentence (the one sharing more), otherwise removed in the correction.
  */
 export function emptyRowFate(source: string[], correctedRows: string[], index: number): EmptyRowFate {
