@@ -3,6 +3,7 @@
 import { CSSProperties, Fragment, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AlertCircle, FlaskConical, HelpCircle, Loader2, RotateCcw } from "lucide-react"
 
+import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
@@ -49,6 +50,8 @@ interface EntrySideBySideProps {
   showOverview?: boolean
   /** Called after a successful analysis retry so the parent can reload the entry. */
   onReanalyzed?: () => void | Promise<void>
+  /** Called after the learner accepts a suggested immersion change. */
+  onLevelAccepted?: () => void
 }
 
 function languageName(code: string, uiLang: string): string {
@@ -104,7 +107,7 @@ function LinkButton({ onClick, children }: { onClick: () => void; children: Reac
   )
 }
 
-export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: EntrySideBySideProps) {
+export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLevelAccepted }: EntrySideBySideProps) {
   const { t, uiLang } = useLocale()
   const { policy, fromSnapshot } = useEntryPolicy(entry)
 
@@ -325,6 +328,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed }: En
 
   return (
     <div className="space-y-6" data-testid="entry-side-by-side">
+      <LevelSuggestionCard l2={entry.policy?.l2 || entry.language} onAccepted={onLevelAccepted} />
       {failed && (
         <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-4" role="alert" data-testid="analysis-failed">
           <div className="flex items-start gap-3">

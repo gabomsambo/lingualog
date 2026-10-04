@@ -74,5 +74,11 @@
   "proficient": "Proficient",
   "fluent": "Fluent",
   "basic": "Basic",
-  "elementary": "Elementary"
+  "elementary": "Elementary",
+  "levelSuggestionDown": "Try level {level} for a while?",
+  "levelSuggestionUp": "Ready for level {level}?",
+  "levelSuggestionDownBody": "You have been opening translations often while writing in {language}. A lower level keeps more of your own language nearby. The level changes only when you tap yes.",
+  "levelSuggestionUpBody": "You have rarely needed a translation while writing in {language}, and your scores are strong. A higher level keeps a bit more in the language you are learning. The level changes only when you tap yes.",
+  "levelSuggestionAccept": "Yes, change my level",
+  "levelSuggestionDismiss": "Not now"
 }

@@ -227,6 +227,44 @@ export type SupportEventKind =
   | "reveal_rewrite_gloss"
   | "reveal_example";
 
+export interface LevelSuggestion {
+  l2: string;
+  direction: "down" | "up";
+  from_level: number;
+  to_level: number;
+  snoozed_until?: string;
+}
+
+export async function getLevelSuggestions(): Promise<{ suggestions: LevelSuggestion[] }> {
+  const res = await fetch(`${API_BASE}/user/level-suggestions`, {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as { suggestions: LevelSuggestion[] };
+}
+
+export async function acceptLevelSuggestion(l2: string): Promise<LevelSuggestion> {
+  const res = await fetch(`${API_BASE}/user/level-suggestions/${encodeURIComponent(l2)}/accept`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as LevelSuggestion;
+}
+
+export async function dismissLevelSuggestion(l2: string): Promise<LevelSuggestion> {
+  const res = await fetch(`${API_BASE}/user/level-suggestions/${encodeURIComponent(l2)}/dismiss`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as LevelSuggestion;
+}
+
 export async function postSupportEvent(payload: {
   kind: SupportEventKind;
   entry_id?: string;

@@ -435,7 +435,13 @@ const resources = {
       rubricComplexity: 'Complexity',
       newWordsTitle: 'New words',
       nativeTranslationLabel: 'In {language}',
-      fixLabel: 'Fix'
+      fixLabel: 'Fix',
+      levelSuggestionDown: 'Try level {level} for a while?',
+      levelSuggestionUp: 'Ready for level {level}?',
+      levelSuggestionDownBody: 'You have been opening translations often while writing in {language}. A lower level keeps more of your own language nearby. The level changes only when you tap yes.',
+      levelSuggestionUpBody: 'You have rarely needed a translation while writing in {language}, and your scores are strong. A higher level keeps a bit more in the language you are learning. The level changes only when you tap yes.',
+      levelSuggestionAccept: 'Yes, change my level',
+      levelSuggestionDismiss: 'Not now'
     }
   },
   es: {
@@ -912,7 +918,13 @@ const resources = {
       rubricComplexity: 'Complejidad',
       newWordsTitle: 'Palabras nuevas',
       nativeTranslationLabel: 'En {language}',
-      fixLabel: 'Corrección'
+      fixLabel: 'Corrección',
+      levelSuggestionDown: '¿Probar el nivel {level} un tiempo?',
+      levelSuggestionUp: '¿Listo para el nivel {level}?',
+      levelSuggestionDownBody: 'Has abierto la traducción a menudo al escribir en {language}. Un nivel más bajo deja tu idioma más cerca. El nivel cambia solo cuando dices que sí.',
+      levelSuggestionUpBody: 'Casi no has necesitado una traducción al escribir en {language}, y tus puntuaciones van bien. Un nivel más alto deja un poco más en el idioma que aprendes. El nivel cambia solo cuando dices que sí.',
+      levelSuggestionAccept: 'Sí, cambiar mi nivel',
+      levelSuggestionDismiss: 'Ahora no'
     }
   }
 }

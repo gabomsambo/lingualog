@@ -14,5 +14,11 @@
   "overallAssessment": "التقييم العام",
   "strengths": "نقاط القوة",
   "areasForImprovement": "مجالات التحسين",
-  "recommendations": "التوصيات"
+  "recommendations": "التوصيات",
+  "levelSuggestionDown": "هل تجرب المستوى {level} لبعض الوقت؟",
+  "levelSuggestionUp": "هل أنت مستعد للمستوى {level}؟",
+  "levelSuggestionDownBody": "كنت تفتح الترجمة كثيراً وأنت تكتب بـ{language}. المستوى الأقل يُبقي لغتك أقرب. يتغير المستوى فقط عندما توافق.",
+  "levelSuggestionUpBody": "نادراً ما احتجت إلى ترجمة وأنت تكتب بـ{language}، ودرجاتك قوية. المستوى الأعلى يُبقي المزيد في اللغة التي تتعلمها. يتغير المستوى فقط عندما توافق.",
+  "levelSuggestionAccept": "نعم، غيّر مستواي",
+  "levelSuggestionDismiss": "ليس الآن"
 }

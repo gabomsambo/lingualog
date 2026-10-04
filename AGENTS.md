@@ -83,7 +83,8 @@ Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls
 1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
 2. Immersion and proficiency (A1–C2) are per target language in `user_language_profiles`. Proficiency is not derived from immersion.
 3. Each entry stores the resolved object on `journal_entries.policy_snapshot` (`v: 1`). The older `*_snapshot` columns stay.
-4. A per-entry override, or a saved explanation mode the learner picked (`user_settings.explanation_mode_explicit`), is honoured.
+4. Suggested level changes are computed in `backend/level_suggestion.py` (named thresholds). Accept goes through `save_user_settings`. Dismiss snoozes in `level_suggestion_snoozes` for 7 days. The level never changes on its own.
+5. A per-entry override, or a saved explanation mode the learner picked (`user_settings.explanation_mode_explicit`), is honoured.
    Otherwise the immersion level decides note language; the `bilingual` column default is not a choice.
 
 ## Security
@@ -122,7 +123,7 @@ Key reference files:
 - Foreign key: `user_id`
 
 ### `user_language_profiles`
-- One row per `(user_id, l2)`: `immersion_level` and `proficiency` (A1–C2)
+- One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), and `level_changed_at` (trigger-stamped)
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
@@ -149,6 +150,9 @@ Key reference files:
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/policy?l2=` - The learner's current LearningPolicy for one language
+- `GET /user/level-suggestions` - Current step-up/step-down suggestion per language, or none
+- `POST /user/level-suggestions/{l2}/accept` - Apply that suggestion via `save_user_settings`
+- `POST /user/level-suggestions/{l2}/dismiss` - Snooze that language's suggestion for 7 days
 - `GET /user/stats` - Get user statistics
 - `POST /events` - Log a support event (reveal/rescue taps)
 

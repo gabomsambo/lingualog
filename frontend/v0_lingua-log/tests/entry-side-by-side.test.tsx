@@ -10,6 +10,9 @@ const api = vi.hoisted(() => ({
   postSupportEvent: vi.fn(),
   analyzeEntry: vi.fn(),
   getCurrentPolicy: vi.fn(),
+  getLevelSuggestions: vi.fn(),
+  acceptLevelSuggestion: vi.fn(),
+  dismissLevelSuggestion: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -114,6 +117,9 @@ beforeEach(() => {
   api.postSupportEvent.mockResolvedValue(undefined)
   api.analyzeEntry.mockResolvedValue(undefined)
   api.getCurrentPolicy.mockResolvedValue({ v: 1, l1: "en", l2: "es", ...LEVELS[1] })
+  api.getLevelSuggestions.mockResolvedValue({ suggestions: [] })
+  api.acceptLevelSuggestion.mockResolvedValue({})
+  api.dismissLevelSuggestion.mockResolvedValue({})
 })
 
 describe("EntrySideBySide layout", () => {
