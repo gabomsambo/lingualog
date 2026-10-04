@@ -86,14 +86,9 @@ def _parse_cors_origins() -> List[str]:
 
 
 def _language_profiles_for_user(user_id: str) -> list:
-    """Load per-language profiles. A missing table returns an empty list."""
-    try:
-        rows = list_language_profiles(user_id)
-    except Exception as exc:
-        logger.warning("Could not list language profiles for %s: %s", user_id, exc)
-        return []
+    """Load per-language profiles. A failed read raises; it is never reported as no profiles."""
     profiles = []
-    for row in rows:
+    for row in list_language_profiles(user_id) or []:
         try:
             profiles.append(
                 LanguageProfile(

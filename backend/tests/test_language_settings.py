@@ -341,6 +341,35 @@ def test_settings_report_which_languages_are_studied(monkeypatch):
     assert [(p.l2, p.active) for p in profiles] == [("es", True), ("fr", False), ("ja", True)]
 
 
+def test_settings_fail_to_load_when_profiles_cannot_be_read(monkeypatch):
+    now = datetime.now(timezone.utc).isoformat()
+    row = {
+        "id": str(uuid.uuid4()), "user_id": str(uuid.uuid4()), "native_language": "en",
+        "target_languages": ["es"], "email_notifications": True, "push_notifications": True,
+        "daily_reminders": True, "weekly_progress": True, "reminder_time": "09:00", "theme": "system",
+        "app_language": "en", "sound_effects": True, "animations": True, "difficulty_level": "intermediate",
+        "daily_goal": 100, "weekly_goal": 700, "auto_save": True, "show_hints": True, "public_profile": False,
+        "share_progress": False, "analytics_opt_in": True, "created_at": now, "updated_at": now,
+    }
+
+    class _SettingsSupabase:
+        def table(self, _name):
+            return _Query([row])
+
+    def failing_list(user_id):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("database.create_supabase_client", lambda: _SettingsSupabase())
+    monkeypatch.setattr(server, "list_language_profiles", failing_list)
+    response = TestClient(server.app).get("/user/settings", headers={"X-User-ID": "user-1"})
+    assert response.status_code == 500
+
+    monkeypatch.setattr(server, "list_language_profiles", lambda user_id: [])
+    response = TestClient(server.app).get("/user/settings", headers={"X-User-ID": "user-1"})
+    assert response.status_code == 200
+    assert response.json()["language_profiles"] == []
+
+
 @pytest.mark.asyncio
 async def test_meaning_translation_refuses_the_entrys_own_language():
     from app.services import entry_translation_service as svc
