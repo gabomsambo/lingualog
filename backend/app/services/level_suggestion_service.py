@@ -88,8 +88,9 @@ def current_suggestions(user_id: str, supabase: Any = None, now: Optional[dateti
             level = int(profile.get("immersion_level", 1))
         except (TypeError, ValueError):
             continue
-        levels.append(LanguageLevel(user_id, l2, level))
-        for row in _owned(_entries_for_language(client, user_id, l2, level), user_id):
+        since = _aware(profile["level_changed_at"]) if profile.get("level_changed_at") else None
+        levels.append(LanguageLevel(user_id, l2, level, since))
+        for row in _owned(_entries_for_language(client, user_id, l2, level, since), user_id):
             if not row.get("id") or not row.get("created_at"):
                 continue
             if _entry_l2(row) != l2 or _entry_level(row) != level:
@@ -185,8 +186,10 @@ def _table(client: Any, name: str, user_id: str, columns: str = "*") -> list[dic
     return list(response.data or [])
 
 
-def _entries_for_language(client: Any, user_id: str, l2: str, level: int) -> list[dict]:
-    response = (
+def _entries_for_language(
+    client: Any, user_id: str, l2: str, level: int, since: Optional[datetime]
+) -> list[dict]:
+    query = (
         client.table("journal_entries")
         .select("id,user_id,target_language,score,created_at,analysis_status,policy_snapshot")
         .eq("user_id", user_id)
@@ -194,10 +197,10 @@ def _entries_for_language(client: Any, user_id: str, l2: str, level: int) -> lis
         .eq("analysis_status", EVIDENCE_STATUS)
         .eq("policy_snapshot->>immersion_level", str(level))
         .not_.is_("score", "null")
-        .order("created_at", desc=True)
-        .limit(ENTRY_LIMIT)
-        .execute()
     )
+    if since is not None:
+        query = query.gt("created_at", since.isoformat())
+    response = query.order("created_at", desc=True).limit(ENTRY_LIMIT).execute()
     return list(response.data or [])
 
 

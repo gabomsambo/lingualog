@@ -8,8 +8,9 @@ Step up: at level L <= 2, any support tap was used on at most
 score is at least ``STEP_UP_MIN_SCORE``.
 
 Only entries written at the learner's current level, with a real score
-(``analysis_status`` ``ok``), count toward either window. Right after an accept
-there is no history at the new level, so nothing cascades.
+(``analysis_status`` ``ok``) and after the last level change (``since``), count
+toward either window. Right after an accept there is no history at the new
+level, so nothing cascades, and returning to an earlier level starts afresh.
 
 Dismiss hides the suggestion for ``SNOOZE_DAYS``. These names are the knobs to
 tune later; nothing else should hard-code the numbers.
@@ -72,6 +73,7 @@ class LanguageLevel:
     user_id: str
     l2: str
     level: int
+    since: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +135,7 @@ def suggestions_for(
             taps=owned_taps,
             snoozed_until=snooze_by_l2.get(level.l2),
             now=now,
+            since=level.since,
         )
         if suggestion is not None:
             found.append(suggestion)
@@ -148,10 +151,11 @@ def suggest_for_language(
     taps: Sequence[SupportTap],
     snoozed_until: Optional[datetime],
     now: datetime,
+    since: Optional[datetime] = None,
 ) -> Optional[LevelSuggestion]:
     if snooze_active(snoozed_until, now):
         return None
-    entries = [row for row in entries if _is_evidence(row, level)]
+    entries = [row for row in entries if _is_evidence(row, level, since)]
     # Read the windows here so tests can retune the named config.
     down_window = STEP_DOWN_WINDOW
     up_window = STEP_UP_WINDOW
@@ -170,11 +174,12 @@ def suggest_for_language(
     return None
 
 
-def _is_evidence(row: EntrySignal, level: int) -> bool:
+def _is_evidence(row: EntrySignal, level: int, since: Optional[datetime]) -> bool:
     return (
         row.immersion_level == level
         and row.analysis_status == EVIDENCE_STATUS
         and row.score is not None
+        and (since is None or _aware(row.created_at) > _aware(since))
     )
 
 

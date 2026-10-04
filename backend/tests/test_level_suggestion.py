@@ -218,6 +218,19 @@ def test_entries_without_a_real_score_are_not_evidence(status):
     assert _suggest(down, [_tap(row.entry_id) for row in down], level=2) == []
 
 
+def test_returning_to_a_level_ignores_history_from_before_the_last_change():
+    old = [_entry(i, level=2) for i in range(100, 100 + STEP_DOWN_WINDOW)]
+    taps = [_tap(row.entry_id) for row in old[:3]]
+    assert _suggest(old, taps, level=2)[0].to_level == 1
+
+    returned = [LanguageLevel(USER, "es", 2, since=NOW - timedelta(minutes=10))]
+    assert _suggest(old, taps, levels=returned) == []
+
+    fresh = [_entry(i, level=2) for i in range(STEP_DOWN_WINDOW)]
+    fresh_taps = [_tap(row.entry_id) for row in fresh[:3]]
+    assert _suggest(old + fresh, taps + fresh_taps, levels=returned)[0].to_level == 1
+
+
 def test_entry_without_score_does_not_fill_a_window():
     entries = [_entry(i, level=1, score=90) for i in range(STEP_UP_WINDOW - 1)]
     entries.append(_entry(20, level=1, score=None))
@@ -261,6 +274,9 @@ class FakeSupabase:
         return self
 
     def limit(self, *_args, **_kwargs):
+        return self
+
+    def gt(self, *_args, **_kwargs):
         return self
 
     def in_(self, key, values):
