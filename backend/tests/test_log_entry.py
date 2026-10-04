@@ -43,6 +43,8 @@ def sample_feedback(text="", is_mock=False):
         rubric={"grammar": 80, "vocabulary": 80, "complexity": 80},
         grammar_suggestions=[],
         new_words=[],
+        sentence_mapping=[{"source_sentence": 0, "corrected_sentences": [0]}],
+        sentence_actions=[],
         is_mock=is_mock,
     )
 
@@ -77,6 +79,10 @@ def test_policy_prompt_respects_immersion_levels():
         assert '"translation"' not in system_prompt, (
             f"Level {level} prompt must not ask for a translation field"
         )
+        # The new contract: never drop an odd sentence, and every removal/merge
+        # must carry an explanation. Both rules live in the system prompt.
+        assert "never drop" in system_prompt.lower()
+        assert "sentence_actions" in system_prompt
         # Proficiency is its own setting. With none stored, every level is A2.
         assert user_payload["proficiency_estimate"] == "A2"
         assert user_payload["proficiency"] == "A2"
@@ -114,6 +120,7 @@ def test_log_entry_saves_real_feedback(client):
     assert body["id"] == "entry-123"
     assert body["corrected"] == "Corrected Hola"
     assert body["is_mock"] is False
+    assert body["sentence_mapping_status"] == "valid"
 
     mock_save.assert_called_once()
     saved = mock_save.call_args[0][0]
@@ -125,6 +132,8 @@ def test_log_entry_saves_real_feedback(client):
     assert saved["analysis_status"] == "ok"
     assert saved["analysis_model"] == "gemini-3.8-flash"
     assert saved["analysis_error_code"] is None
+    assert saved["sentence_mapping"] == [{"source_sentence": 0, "corrected_sentences": [0]}]
+    assert saved["sentence_mapping_status"] == "valid"
 
 
 def test_log_entry_honest_failure_keeps_entry(client):

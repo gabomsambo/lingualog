@@ -65,6 +65,7 @@ from app.routers import vocabulary_ai # Adjusted import path
 from app.routers import entry_translation, level_suggestions, support_events
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
+from app.services.entry_translation_service import split_sentences
 
 # Configure logger
 # Ensure basicConfig is called to set up the root logger handler and level
@@ -200,13 +201,111 @@ def _learner_note(suggestion) -> str:
     return "\n".join(parts)
 
 
-def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
+def _action_reason(action) -> str:
+    """Resolve the learner-facing reason from language-specific slots."""
+    if action.reason and action.reason.strip():
+        return action.reason
+    parts = [part for part in (action.reason_l2, action.reason_l1) if part and part.strip()]
+    return "\n".join(parts)
+
+
+def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> tuple[list[dict], list[dict], str]:
+    """Validate model indexes against the exact sentences shown by the UI.
+
+    Returns the persisted mapping, the action explanations (always present when the
+    mapping is accepted), and the status string. ``invalid_no_explanation`` is a
+    separate status from ``invalid`` so the UI can distinguish a mapping the model
+    got structurally wrong from one it explained badly - the latter is the
+    contract violation that drops the mapping but still surfaces a warning.
+    """
+    source_count = len(split_sentences(original_text))
+    corrected_count = len(split_sentences(result.corrected))
+    mapping = [item.model_dump() for item in result.sentence_mapping]
+    source_indexes = [item["source_sentence"] for item in mapping]
+
+    reason = None
+    if source_indexes != list(range(source_count)):
+        reason = f"source coverage {source_indexes} does not match 0..{source_count - 1}"
+    else:
+        target_indexes = [index for item in mapping for index in item["corrected_sentences"]]
+        if any(index < 0 or index >= corrected_count for index in target_indexes):
+            reason = f"corrected index out of range for {corrected_count} sentences"
+        elif any(
+            len(item["corrected_sentences"]) != len(set(item["corrected_sentences"]))
+            for item in mapping
+        ):
+            reason = "corrected sentence indexes are duplicated within a source sentence"
+        elif set(target_indexes) != set(range(corrected_count)):
+            reason = f"corrected coverage {sorted(set(target_indexes))} does not match 0..{corrected_count - 1}"
+        elif target_indexes != sorted(target_indexes):
+            reason = "corrected sentence indexes are not monotonic across source sentences"
+
+    if reason:
+        logger.warning("Rejecting Gemini sentence mapping; rows will be shown unaligned: %s", reason)
+        return [], [], "invalid"
+
+    # A corrected sentence is owned by the first source that references it
+    # (same rule the side-by-side UI uses), so any subsequent source that
+    # only points at already-owned indexes is "merged into" that neighbour.
+    owner: dict[int, int] = {}
+    for item in mapping:
+        for target_index in item["corrected_sentences"]:
+            owner.setdefault(target_index, item["source_sentence"])
+
+    required_indexes: set[int] = set()
+    actions_by_index = {action.source_sentence: action for action in result.sentence_actions}
+
+    actions: list[dict] = []
+    for item in mapping:
+        source_index = item["source_sentence"]
+        corrected_indexes = item["corrected_sentences"]
+        if not corrected_indexes:
+            expected = "removed"
+        elif all(owner.get(idx) != source_index for idx in corrected_indexes):
+            expected = "merged"
+        else:
+            continue
+        required_indexes.add(source_index)
+        action = actions_by_index.get(source_index)
+        if action is None:
+            logger.warning(
+                "Gemini %s source sentence %d without an explanation; dropping mapping",
+                expected,
+                source_index,
+            )
+            return [], [], "invalid_no_explanation"
+        if action.action != expected:
+            logger.warning(
+                "Gemini action %r for source sentence %d does not match mapping kind %r; dropping mapping",
+                action.action,
+                source_index,
+                expected,
+            )
+            return [], [], "invalid_no_explanation"
+        if not _action_reason(action).strip():
+            logger.warning(
+                "Gemini gave an empty explanation for source sentence %d (%s); dropping mapping",
+                source_index,
+                action.action,
+            )
+            return [], [], "invalid_no_explanation"
+        payload = action.model_dump()
+        payload["reason"] = _action_reason(action)
+        actions.append(payload)
+
+    return mapping, actions, "valid"
+
+
+def _build_feedback_response(result: JournalFeedback, original_text: str) -> FeedbackResponse:
     """Convert the Gemini structured output to the API response model."""
     suggestions = []
     for suggestion in result.grammar_suggestions:
         payload = suggestion.model_dump()
         payload["note"] = _learner_note(suggestion)
         suggestions.append(Suggestion(**payload))
+    sentence_mapping, sentence_actions, sentence_mapping_status = _validate_sentence_mapping(
+        result, original_text
+    )
     return FeedbackResponse(
         corrected=result.corrected,
         rewritten=result.rewrite,
@@ -224,6 +323,9 @@ def _build_feedback_response(result: JournalFeedback) -> FeedbackResponse:
         intended_meaning=result.intended_meaning or None,
         ambiguities=[item.model_dump() for item in result.ambiguities] or None,
         rewrite_idioms=[item.model_dump() for item in result.rewrite_idioms] or None,
+        sentence_mapping=sentence_mapping or None,
+        sentence_mapping_status=sentence_mapping_status,
+        sentence_actions=sentence_actions or None,
     )
 
 
@@ -442,7 +544,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
     try:
         result = await _analyze_with_provider(entry.text, effective_settings)
-        feedback_response = _build_feedback_response(result)
+        feedback_response = _build_feedback_response(result, entry.text)
     except GeminiError as e:
         logger.error(f"AI feedback failed ({e.code}): {e.message}")
         # Keep the entry so the learner can retry later.
@@ -486,6 +588,9 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        "sentence_mapping": feedback_response.sentence_mapping,
+        "sentence_mapping_status": feedback_response.sentence_mapping_status,
+        "sentence_actions": feedback_response.sentence_actions,
         **_analysis_columns(feedback_response),
         **snapshot_data,
     }
@@ -665,7 +770,7 @@ async def analyze_existing_entry(entry_id: str, request: Request):
             },
         ) from e
 
-    feedback_response = _build_feedback_response(result)
+    feedback_response = _build_feedback_response(result, entry["content"])
     update_data = {
         "corrected": feedback_response.corrected,
         "rewrite": feedback_response.rewritten,
@@ -676,6 +781,9 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "rubric": _rubric_column(feedback_response),
         "grammar_suggestions": [sugg.model_dump() for sugg in feedback_response.grammar_suggestions] if feedback_response.grammar_suggestions else [],
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
+        "sentence_mapping": feedback_response.sentence_mapping,
+        "sentence_mapping_status": feedback_response.sentence_mapping_status,
+        "sentence_actions": feedback_response.sentence_actions,
         **_analysis_columns(feedback_response),
         **_snapshot_columns(effective_settings),
     }
@@ -1145,4 +1253,4 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

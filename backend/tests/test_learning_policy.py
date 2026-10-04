@@ -225,6 +225,8 @@ class TestSnapshotRoundTrip:
                 "rubric": {"grammar": 70, "vocabulary": 70, "complexity": 70},
                 "grammar_suggestions": [],
                 "new_words": [],
+                "sentence_mapping": [{"source_sentence": 0, "corrected_sentences": [0]}],
+                "sentence_mapping_status": "valid",
                 "analysis_status": "ok",
                 "policy_snapshot": policy.to_dict(),
                 "created_at": now,
@@ -240,6 +242,8 @@ class TestSnapshotRoundTrip:
         assert dumped["rewritten"] == "El agua estaba helada."
         assert dumped["analysis_status"] == "ok"
         assert dumped["ai_feedback"]["corrected"] == dumped["corrected"]
+        assert dumped["ai_feedback"]["sentence_mapping_status"] == "valid"
+        assert dumped["ai_feedback"]["sentence_mapping"][0]["corrected_sentences"] == [0]
 
 
 class TestPromptRules:

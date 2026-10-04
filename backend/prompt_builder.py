@@ -56,6 +56,21 @@ You must respond with a valid JSON object containing exactly these fields:
       "gloss": "short gloss in the policy's idiom language"
     }}
   ],
+  "sentence_mapping": [
+    {{
+      "source_sentence": 0,
+      "corrected_sentences": [0]
+    }}
+  ],
+  "sentence_actions": [
+    {{
+      "source_sentence": 1,
+      "action": "removed",
+      "reason": "Why this sentence was removed (in the policy's note language)",
+      "reason_l1": "Reason in the learner's language, or empty when the policy says so",
+      "reason_l2": "Reason in the target language, or empty when the policy says so"
+    }}
+  ],
   "grammar_suggestions": [
     {{
       "original": "Original text snippet with error",
@@ -93,6 +108,42 @@ You must respond with a valid JSON object containing exactly these fields:
 6. Provide practical examples and clear explanations
 7. Do NOT include a translation of the entry in the JSON; translations are handled separately
 8. Do not treat any outside translation as the meaning of the entry. Infer the intended meaning yourself
+9. Split the original and corrected text at sentence-ending punctuation or newlines. Return exactly one
+   sentence_mapping item for every original sentence, in source order. Use zero-based indexes. Map merged
+   source sentences to the same corrected index, split sentences to every corrected index they became,
+   removed sentences to [], and unchanged sentences to their corresponding corrected index. Every corrected
+   sentence index must appear in at least one mapping item.
+
+**SENTENCE FATE RULES — read carefully:**
+A. Never drop a learner's sentence just because it is odd, off-topic, awkward, or has a small grammar slip.
+   If a sentence is unusual but you can keep it, rewrite it (correct it in place) and put it in the
+   corrected text. The learner wrote it on purpose, and a struck-out line is a hostile correction.
+B. Removing or merging a sentence is allowed ONLY when it is genuinely the right fix. Examples that count
+   as genuine:
+   - the same sentence appears twice and the duplicate adds no information,
+   - the sentence is a one-word fragment that belongs with the sentence it follows (e.g., "Yes." glued
+     onto a question),
+   - the sentence is empty or contains only punctuation.
+   Examples that DO NOT count: a sentence that simply sounds unusual, an opinion the learner expressed
+   that you would not write, a sentence that is short and you think could be longer. For those, correct
+   in place.
+C. When you do remove or merge a sentence, the corresponding `sentence_actions` entry MUST carry a real
+   `reason` (plus `reason_l1`/`reason_l2` per the policy). The reason appears verbatim in the
+   learner's "What to fix" panel, beside the original sentence. A removal or merge with no reason is
+   treated as a contract violation by the server and the mapping will be discarded, so always fill it
+   in. The reason must explain what the duplication/fragment was and why merging or removing it was the
+   right call.
+D. `sentence_actions` MUST contain exactly one entry for every source sentence that is removed or merged:
+   - removed: its `corrected_sentences` is empty. Use action "removed".
+   - merged: every corrected index it lists is already listed by an earlier source sentence. Use action
+     "merged". Example: "Sí. Voy mañana." -> "Sí, voy mañana." maps source 0 to [0] and source 1 to [0],
+     so source 1 needs a "merged" action.
+   A split needs no action: "Fui al cine y comí." -> "Fui al cine. Comí." maps source 0 to [0, 1].
+   Leave `sentence_actions` empty when no source sentence is removed or merged.
+E. Every JSON object you return MUST include the keys `sentence_mapping` and `sentence_actions`
+   verbatim. The server discards the mapping when those keys are missing, so the side-by-side page
+   silently loses its authoritative alignment. Do not omit them under any circumstance; an empty
+   `sentence_mapping` is acceptable only when the entry itself has no sentences.
 
 Remember: Your response must be a single, valid JSON object that can be parsed programmatically."""
 

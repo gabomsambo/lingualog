@@ -142,6 +142,9 @@ class AiFeedback(BaseModel):
     # Add any fields that appear in logs but aren't in the model (or that you know might be present)
     translation: Optional[str] = Field(None)
     rubric: Optional[Dict[str, Any]] = Field(None) # Example of a potentially complex field
+    sentence_mapping: Optional[List[Dict[str, Any]]] = None
+    sentence_mapping_status: Optional[str] = None
+    sentence_actions: Optional[List[Dict[str, Any]]] = None
 
     model_config = {
         "populate_by_name": True, # Allows use of aliases for population
@@ -163,6 +166,9 @@ class JournalEntry(JournalEntryBase):
     rewritten: Optional[str] = None
     analysis_status: Optional[str] = None
     analysis_error_code: Optional[str] = None
+    sentence_mapping: Optional[List[Dict[str, Any]]] = None
+    sentence_mapping_status: Optional[str] = None
+    sentence_actions: Optional[List[Dict[str, Any]]] = None
 
     model_config = {
         "from_attributes": True, # Pydantic V2 way for orm_mode
@@ -359,4 +365,4 @@ class AppEnvironment(BaseModel):
     }
 
 class MessageResponse(BaseModel):
-    message: str 
+    message: str

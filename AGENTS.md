@@ -68,7 +68,9 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 5. On Gemini failure, persists the entry as `failed` and returns 503 `{code, entry_id, message}`; retry via `/entries/{id}/analyze`
 6. The result renders in `components/entry-side-by-side.tsx`, both after submit and on `/entries/[id]`. It reads the
    entry's `policy_snapshot` flags (`GET /user/policy` when an older entry has none), never the raw level number.
-   Pure alignment/diff logic is in `lib/side-by-side.ts`.
+   Pure alignment/diff logic is in `lib/side-by-side.ts`. Rows align from Gemini's `sentence_mapping`, which is validated
+   in `server.py` and stored with `sentence_mapping_status`. A row is labelled merged/removed only with a Gemini
+   `sentence_actions` reason. Rejected mappings and legacy entries show empty rows as not aligned, never guessed.
 
 Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 
@@ -118,7 +120,7 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot`
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + `sentence_mapping` (+ `_status`), `sentence_actions`
 - `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
 
