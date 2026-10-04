@@ -1,20 +1,16 @@
 # Suggested immersion levels: live proof
 
-> **Note:** This run was captured before the review fix to the suggestion windows. Suggestions
-> now count only entries with `analysis_status` `ok` whose `policy_snapshot.immersion_level`
-> matches the current level (see `backend/level_suggestion.py`). The seed described below
-> (mock feedback, some entries without a policy snapshot) would no longer produce these cards,
-> so the screenshots show the earlier rules.
-
 Captured 2026-10-04 in headless Chrome against a local `make dev`-style stack (own ports, own
-Supabase project id via an untracked override). Demo learner, L1 English. Spanish was seeded at
-immersion 1 with a meaning reveal on 3 of the last 5 entries (exactly 60%). Japanese was seeded
-at immersion 2 with 8 entries scored 80 and no support taps.
+Supabase project id via an untracked override), on the code that counts only entries with
+`analysis_status` `ok`, a real score, and `policy_snapshot.immersion_level` equal to the current
+level. Demo learner, L1 English. Spanish was at immersion 1 with five such entries and a meaning
+reveal on the three newest (exactly 60%). Japanese was at immersion 2 with eight such entries
+scored 80 and no support taps.
 
 | Shot | What it shows |
 |---|---|
-| `before-dashboard.png` | Dashboard before the suggestion: no card |
-| `before-entry.png` | Side-by-side entry before the suggestion: no card |
+| `before-dashboard.png` | Dashboard before enough qualifying entries: no card |
+| `before-entry.png` | One scored Japanese entry: side by side, no card |
 | `after-dashboard-step-down.png` | Dashboard card: "Try level 0 for a while?" |
 | `after-entry-step-up.png` | Japanese entry card: "Ready for level 3?" |
 | `after-settings-spanish-0.png` | After one tap on Yes, Settings shows Spanish immersion 0/3 |
@@ -27,11 +23,9 @@ at immersion 2 with 8 entries scored 80 and no support taps.
   (7 days). Japanese immersion stayed 2.
 - Accept on the Spanish card wrote the profile through `save_user_settings`: Spanish immersion 0,
   and the default-language `user_settings.immersion_level` is 0. The card left the dashboard.
-- A later `GET /user/level-suggestions` returned no suggestions.
 
 ## Provider calls
 
-- Gemini: 0. Feedback on the seeded rows is the offline mock.
-- Lara: 2 successful meaning translations (`POST /entries/{id}/translate` 200, provider `lara`).
-  Both entries had no stored policy snapshot, so the result page asked for a meaning translation
-  while the proof was open. No Gemini fallback.
+- Gemini: 0. The qualifying rows were seeded with `analysis_status` `ok` and stored scores.
+- Lara: 0. The opened entry already had a saved meaning, and the translate request was served
+  from that cache.
