@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from database import create_supabase_client, fetch_language_profile, save_user_settings
+from learning_policy import resolve_policy
 from level_suggestion import (
     EVIDENCE_STATUS,
     STEP_DOWN_WINDOW,
@@ -28,6 +29,7 @@ from level_suggestion import (
 L2_PATTERN = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
 SNOOZE_TABLE = "level_suggestion_snoozes"
 ENTRY_LIMIT = max(STEP_DOWN_WINDOW, STEP_UP_WINDOW)
+RECENT_LANGUAGE_ENTRIES = 50
 
 
 class NoLevelSuggestion(LookupError):
@@ -75,21 +77,12 @@ def _entry_level(row: dict) -> Optional[int]:
 def current_suggestions(user_id: str, supabase: Any = None, now: Optional[datetime] = None) -> list[dict]:
     client = supabase or create_supabase_client()
     moment = now or _now()
-    profiles = _owned(_table(client, "user_language_profiles", user_id), user_id)
-    settings_rows = _owned(_table(client, "user_settings", user_id, columns="user_id,default_target_lang"), user_id)
-    default_l2 = (settings_rows[0].get("default_target_lang") if settings_rows else None) or ""
-    levels: list[LanguageLevel] = []
+    settings = _settings_row(client, user_id)
+    default_l2 = (settings or {}).get("default_target_lang") or ""
+    levels = _language_levels(client, user_id, settings)
     entries: list[EntrySignal] = []
-    for profile in profiles:
-        l2 = str(profile.get("l2") or "")
-        if not l2:
-            continue
-        try:
-            level = int(profile.get("immersion_level", 1))
-        except (TypeError, ValueError):
-            continue
-        since = _aware(profile["level_changed_at"]) if profile.get("level_changed_at") else None
-        levels.append(LanguageLevel(user_id, l2, level, since))
+    for language in levels:
+        l2, level, since = language.l2, language.level, language.since
         for row in _owned(_entries_for_language(client, user_id, l2, level, since), user_id):
             if not row.get("id") or not row.get("created_at"):
                 continue
@@ -132,9 +125,9 @@ def accept_level_suggestion(user_id: str, l2: str, supabase: Any = None) -> dict
     profile = fetch_language_profile(user_id, l2) or {}
     if str(profile.get("user_id") or user_id) != str(user_id):
         raise NoLevelSuggestion(l2)
-    proficiency = profile.get("proficiency") or "A2"
-    settings_rows = _owned(_table(client, "user_settings", user_id, columns="user_id,default_target_lang"), user_id)
-    default_l2 = settings_rows[0].get("default_target_lang") if settings_rows else None
+    settings = _settings_row(client, user_id)
+    proficiency = profile.get("proficiency") or _resolved(user_id, l2, settings).proficiency
+    default_l2 = (settings or {}).get("default_target_lang")
     settings: dict[str, Any] = {}
     if default_l2 == l2:
         settings["immersion_level"] = match["to_level"]
@@ -179,6 +172,50 @@ def _public(row: LevelSuggestion) -> dict:
         "from_level": row.from_level,
         "to_level": row.to_level,
     }
+
+
+def _settings_row(client: Any, user_id: str) -> Optional[dict]:
+    rows = _owned(_table(client, "user_settings", user_id), user_id)
+    return rows[0] if rows else None
+
+
+def _resolved(user_id: str, l2: str, settings: Optional[dict]):
+    return resolve_policy(user_id, l2, settings=settings, language_profile=None)
+
+
+def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> list[LanguageLevel]:
+    levels: dict[str, LanguageLevel] = {}
+    for profile in _owned(_table(client, "user_language_profiles", user_id), user_id):
+        l2 = str(profile.get("l2") or "")
+        if not l2:
+            continue
+        try:
+            level = int(profile.get("immersion_level", 1))
+        except (TypeError, ValueError):
+            continue
+        since = _aware(profile["level_changed_at"]) if profile.get("level_changed_at") else None
+        levels[l2] = LanguageLevel(user_id, l2, level, since)
+    for l2 in _recent_languages(client, user_id):
+        if l2 not in levels:
+            levels[l2] = LanguageLevel(user_id, l2, _resolved(user_id, l2, settings).immersion_level)
+    return list(levels.values())
+
+
+def _recent_languages(client: Any, user_id: str) -> list[str]:
+    response = (
+        client.table("journal_entries")
+        .select("user_id,target_language,created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(RECENT_LANGUAGE_ENTRIES)
+        .execute()
+    )
+    found: list[str] = []
+    for row in _owned(list(response.data or []), user_id):
+        l2 = _entry_l2(row)
+        if L2_PATTERN.match(l2) and l2 not in found:
+            found.append(l2)
+    return found
 
 
 def _table(client: Any, name: str, user_id: str, columns: str = "*") -> list[dict]:

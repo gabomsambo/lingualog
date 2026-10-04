@@ -426,6 +426,42 @@ def test_accept_leaves_legacy_immersion_when_language_is_not_the_default(monkeyp
     assert saved[0][2][0]["immersion_level"] == 1
 
 
+def test_second_language_without_a_profile_row_gets_a_suggestion(monkeypatch):
+    from app.services import level_suggestion_service as service
+
+    tables = _history_tables()
+    tables["user_settings"] = [{"user_id": USER, "default_target_lang": "es", "immersion_level": 2}]
+    for index in range(STEP_DOWN_WINDOW):
+        tables["journal_entries"].append(
+            {
+                "id": f"f{index}",
+                "user_id": USER,
+                "target_language": "fr",
+                "language": "fr",
+                "score": 50,
+                "created_at": (NOW - timedelta(hours=1, minutes=index)).isoformat(),
+                "analysis_status": "ok",
+                "policy_snapshot": {"v": 1, "immersion_level": 2},
+            }
+        )
+    tables["support_events"] += [
+        {"user_id": USER, "entry_id": f"f{index}", "kind": "rescue_note"} for index in range(3)
+    ]
+    found = service.current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
+    assert {"l2": "fr", "direction": "down", "from_level": 2, "to_level": 1} in found
+    assert [row["l2"] for row in found] == ["es", "fr"]
+
+    saved = []
+    monkeypatch.setattr(service, "fetch_language_profile", lambda user_id, l2: None)
+    monkeypatch.setattr(
+        service,
+        "save_user_settings",
+        lambda user_id, settings, profiles: saved.append((user_id, settings, profiles)),
+    )
+    service.accept_level_suggestion(USER, "fr", supabase=FakeSupabase(tables))
+    assert saved == [(USER, {}, [{"l2": "fr", "immersion_level": 1, "proficiency": "A2"}])]
+
+
 def test_dismiss_snoozes_for_seven_days_and_then_expires(monkeypatch):
     from app.services import level_suggestion_service as service
 
