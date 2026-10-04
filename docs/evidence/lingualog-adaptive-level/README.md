@@ -1,5 +1,11 @@
 # Suggested immersion levels: live proof
 
+> **Note:** This run was captured before the review fix to the suggestion windows. Suggestions
+> now count only entries with `analysis_status` `ok` whose `policy_snapshot.immersion_level`
+> matches the current level (see `backend/level_suggestion.py`). The seed described below
+> (mock feedback, some entries without a policy snapshot) would no longer produce these cards,
+> so the screenshots show the earlier rules.
+
 Captured 2026-10-04 in headless Chrome against a local `make dev`-style stack (own ports, own
 Supabase project id via an untracked override). Demo learner, L1 English. Spanish was seeded at
 immersion 1 with a meaning reveal on 3 of the last 5 entries (exactly 60%). Japanese was seeded
