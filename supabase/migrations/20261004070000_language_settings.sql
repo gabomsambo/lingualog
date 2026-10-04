@@ -38,12 +38,15 @@ COMMENT ON COLUMN public.journal_entries.detected_language IS
 COMMENT ON COLUMN public.journal_entries.detected_language_kept IS
   'True after the learner chose to keep the entry''s language despite a detected mismatch.';
 
--- Every language in the legacy list was shown as studied in Settings; keep it studied.
+-- Languages in the legacy list stay studied. The native language there may be the untouched
+-- column default ({es}), not a choice, so it is only kept when it already has a profile or is
+-- the default target language (inserted below). Learning one's own language is added in Settings.
 INSERT INTO public.user_language_profiles (user_id, l2, immersion_level, proficiency, active)
 SELECT DISTINCT s.user_id, legacy.l2, s.immersion_level, 'A2', true
 FROM public.user_settings s
 CROSS JOIN LATERAL unnest(s.target_languages) AS legacy(l2)
 WHERE legacy.l2 ~ '^[a-z]{2}(-[A-Z]{2})?$'
+  AND split_part(legacy.l2, '-', 1) IS DISTINCT FROM split_part(s.native_lang, '-', 1)
 ON CONFLICT (user_id, l2) DO NOTHING;
 
 -- The default target language is always a studied language.

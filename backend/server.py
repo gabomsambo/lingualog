@@ -138,12 +138,7 @@ def _validated_language_profile(profile: dict) -> dict:
 def _studied_languages(user_id: str, profile_rows: Optional[list] = None) -> dict:
     """l2 -> active for the saved profiles, with this request's rows applied on top."""
     studied: dict = {}
-    try:
-        rows = list_language_profiles(user_id)
-    except Exception as exc:
-        logger.warning("Could not list language profiles for %s: %s", user_id, exc)
-        rows = []
-    for row in rows or []:
+    for row in list_language_profiles(user_id) or []:
         if row.get("l2"):
             studied[row["l2"]] = row.get("active") is not False
     for row in profile_rows or []:
@@ -781,7 +776,18 @@ async def analyze_existing_entry(
         switch_to = None
     stored_policy = entry.get("policy_snapshot")
     if switch_to:
-        if not _studied_languages(user_id).get(switch_to):
+        try:
+            studied = _studied_languages(user_id)
+        except Exception as exc:
+            logger.error(f"Could not list language profiles for {user_id}: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "profiles_unavailable",
+                    "message": "Your languages could not be loaded. Try again in a moment.",
+                },
+            )
+        if not studied.get(switch_to):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -1307,11 +1313,7 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
                     update_data["immersion_level"] = row["immersion_level"]
         elif update_data.get("immersion_level") is not None:
             # The legacy account-wide slider still updates the default language.
-            current = None
-            try:
-                current = fetch_language_profile(user_id, default_l2)
-            except Exception:
-                current = None
+            current = fetch_language_profile(user_id, default_l2)
             proficiency = (current or {}).get("proficiency") or "A2"
             profile_rows = [
                 _validated_language_profile(

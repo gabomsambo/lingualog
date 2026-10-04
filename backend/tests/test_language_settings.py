@@ -172,6 +172,20 @@ class TestSwitchLanguage:
         update.assert_not_called()
         generate.assert_not_called()
 
+    def test_switch_when_profiles_cannot_be_read_is_unavailable(self, client):
+        with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value={"native_lang": "en"})), patch(
+            "server.fetch_single_entry", return_value=dict(ENTRY)
+        ), patch("server.list_language_profiles", side_effect=RuntimeError("db down")), patch(
+            "server.update_entry_analysis"
+        ) as update, patch("server.generate_structured", new=AsyncMock()) as generate:
+            response = client.post(
+                "/entries/entry-1/analyze", json={"target_language": "fr"}, headers={"X-User-ID": "user-1"}
+            )
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "profiles_unavailable"
+        update.assert_not_called()
+        generate.assert_not_called()
+
     def test_plain_retry_keeps_the_language_and_snapshot(self, client):
         response, update, _ = self._analyze(client, None, [])
         assert response.status_code == 200
@@ -261,6 +275,36 @@ class TestStudiedLanguagesSave:
             },
         )
         assert response.status_code == 400
+        assert saves == []
+
+    def test_a_failed_profile_read_saves_nothing(self, monkeypatch):
+        saves = []
+        monkeypatch.setattr("database.create_supabase_client", lambda: _Supabase())
+
+        def failing_list(user_id):
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(server, "list_language_profiles", failing_list)
+        monkeypatch.setattr(server, "save_user_settings", lambda user_id, s, p: saves.append((s, p)))
+        response = TestClient(server.app).put(
+            "/user/settings", json={"default_target_lang": "es"}, headers={"X-User-ID": "user-1"}
+        )
+        assert response.status_code == 500
+        assert saves == []
+
+    def test_a_failed_profile_read_does_not_reset_proficiency(self, monkeypatch):
+        saves = []
+        monkeypatch.setattr("database.create_supabase_client", lambda: _Supabase())
+
+        def failing_fetch(user_id, l2):
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(server, "fetch_language_profile", failing_fetch)
+        monkeypatch.setattr(server, "save_user_settings", lambda user_id, s, p: saves.append((s, p)))
+        response = TestClient(server.app).put(
+            "/user/settings", json={"immersion_level": 3}, headers={"X-User-ID": "user-1"}
+        )
+        assert response.status_code == 500
         assert saves == []
 
     def test_a_new_default_is_added_to_the_studied_list(self, monkeypatch):
