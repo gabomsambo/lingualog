@@ -69,8 +69,8 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 6. The result renders in `components/entry-side-by-side.tsx`, both after submit and on `/entries/[id]`. It reads the
    entry's `policy_snapshot` flags (`GET /user/policy` when an older entry has none), never the raw level number.
    Pure alignment/diff logic is in `lib/side-by-side.ts`. Rows align from Gemini's `sentence_mapping`, which is validated
-   in `server.py` and stored with `sentence_mapping_status`. If the mapping is rejected, empty rows show as not aligned.
-   Only legacy entries with no mapping fall back to the word-overlap heuristic.
+   in `server.py` and stored with `sentence_mapping_status`. A row is labelled merged/removed only with a Gemini
+   `sentence_actions` reason. Rejected mappings and legacy entries show empty rows as not aligned, never guessed.
 
 Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 

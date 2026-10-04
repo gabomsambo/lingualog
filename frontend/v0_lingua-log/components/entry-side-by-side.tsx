@@ -21,7 +21,6 @@ import {
   alignSentencesFromMapping,
   cleanLiteralReading,
   diffWords,
-  emptyRowFate,
   htmlToText,
   locateSuggestions,
   noteTexts,
@@ -104,9 +103,6 @@ interface ComputeFateArgs {
   corrected: string
   index: number
   showFate: boolean
-  authoritative: boolean
-  sourceSentences: string[]
-  correctedRows: string[]
   fates: Array<"merged_above" | "merged_below" | "removed" | null>
   hasAction: boolean
 }
@@ -118,28 +114,19 @@ interface ComputeFateArgs {
  *   present, the fate label from the mapping is authoritative.
  * - When the mapping is authoritative but the model forgot the explanation,
  *   fall back to a neutral "no explanation" state so the page never shows
- *   "Removed in the correction" beside an empty What to fix list.
+ *   a removed or merged label beside an empty What to fix list.
  * - Otherwise (legacy entries, rejected mappings, etc.) the row is left
- *   unlabelled and the explanation card carries the only message.
+ *   unlabelled rather than guessed.
  */
 function computeFate({
   corrected,
   index,
   showFate,
-  authoritative,
-  sourceSentences,
-  correctedRows,
   fates,
   hasAction,
 }: ComputeFateArgs): "merged_above" | "merged_below" | "removed" | null {
-  if (corrected.trim()) return null
-  if (authoritative && showFate) {
-    const fate = fates[index] ?? null
-    if (fate === "removed" && !hasAction) return null
-    return fate
-  }
-  // No authoritative fate label here. Show nothing rather than guess.
-  return null
+  if (corrected.trim() || !showFate || !hasAction) return null
+  return fates[index] ?? null
 }
 
 function renderEmptyFate(
@@ -234,7 +221,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
       : mappingStatus === "invalid"
         ? "model mapping was structurally invalid"
         : "model mapping did not match the sentences"
-    console.warn(`Entry ${entry.id}: ${reason}; using legacy alignment heuristic`)
+    console.warn(`Entry ${entry.id}: ${reason}; rows will be shown unaligned`)
   }, [entry.id, mappingRejected, mappingStatus])
 
   const actionsByRow = useMemo(() => {
@@ -521,10 +508,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
               const fate = computeFate({
                 corrected,
                 index,
-                showFate: mappingIsAuthoritative && !mappingRejected,
-                authoritative: alignment.authoritative,
-                sourceSentences: sentences,
-                correctedRows,
+                showFate: mappingIsAuthoritative,
                 fates: alignment.fates,
                 hasAction: !!action,
               })
@@ -569,11 +553,6 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                             </Fragment>
                           ))}
                         </p>
-                        {fate === "removed" && action && (
-                          <span className="text-sm italic text-muted-foreground" data-testid="corrected-removed">
-                            {t("feedback.removedInCorrection")}
-                          </span>
-                        )}
                         </>
                       )}
                     </div>
@@ -686,8 +665,19 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
             <CardTitle className="text-xl">{t("feedback.whatToFix")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {entry.suggestions.length === 0 && (entry.sentenceActions?.length ?? 0) === 0 && (
+            {entry.suggestions.length === 0 && (entry.sentenceActions?.length ?? 0) === 0 && !mappingRejected && (
               <p className="text-sm text-muted-foreground">{t("feedback.nothingToFix")}</p>
+            )}
+            {mappingRejected && (
+              <div
+                data-testid="unexplained-change-card"
+                className="min-w-0 rounded-2xl border border-fun-orange/40 bg-fun-orange/5 p-3"
+              >
+                <div className="text-[11px] font-extrabold uppercase text-fun-orange">
+                  {t("feedback.unexplainedChangeLabel")}
+                </div>
+                <p className="mt-1.5 text-sm">{t("feedback.unexplainedChangeBody")}</p>
+              </div>
             )}
             {entry.sentenceActions?.map((action, index) => {
               const sourceSentence = sentences[action.source_sentence] || ""

@@ -236,13 +236,17 @@ describe("EntrySideBySide layout", () => {
         { source_sentence: 1, corrected_sentences: [] },
       ],
       sentence_actions: [],
+      grammar_suggestions: [],
     })
     // No "removed" / "merged" label - the row stays neutral.
     expect(screen.queryAllByTestId("corrected-removed")).toHaveLength(0)
     expect(screen.queryAllByTestId("corrected-merged")).toHaveLength(0)
     expect(screen.getAllByTestId("corrected-unaligned")).toHaveLength(1)
-    expect(screen.getByTestId("alignment-fallback-warning")).toHaveTextContent(/removed or softened/i)
+    expect(screen.getByTestId("alignment-fallback-warning")).toHaveTextContent(/shown unaligned/i)
+    expect(screen.getByTestId("unexplained-change-card")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing to fix. Nice work!")).toBeNull()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("without a reason"))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("rows will be shown unaligned"))
     warn.mockRestore()
   })
 

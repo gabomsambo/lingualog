@@ -65,8 +65,9 @@ class SentenceAction(BaseModel):
     """Explanation for a sentence the correction removed or merged into a neighbour.
 
     Gemini must emit exactly one of these for every source sentence whose mapping
-    is a removal (empty corrected_sentences) or a merge (multiple corrected_sentences).
-    The server rejects any mapping where that is not the case.
+    is a removal (empty corrected_sentences) or a merge (every corrected index it lists
+    is already listed by an earlier source). The server rejects any mapping where that
+    is not the case.
     """
     source_sentence: int = Field(..., description="Zero-based original sentence index")
     action: Literal["removed", "merged"] = Field(
@@ -111,8 +112,9 @@ class GeminiJournalFeedback(BaseModel):
             "One item per removed or merged source sentence, with the learner-facing"
             " reason that will appear in 'What to fix'. Required whenever"
             " sentence_mapping contains a removal (empty corrected_sentences) or a"
-            " merge (more than one corrected_sentence). An empty array is only valid"
-            " when every source sentence maps to exactly one corrected sentence."
+            " merge (every corrected index the source lists is already listed by an"
+            " earlier source). Splits need no action. An empty array is only valid"
+            " when no source sentence is removed or merged."
         ),
     )
     intended_meaning: str = Field(

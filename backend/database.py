@@ -90,6 +90,7 @@ def init_db_schema(client: Client) -> None:
                     new_words JSONB, -- Added from previous work
                     sentence_mapping JSONB,
                     sentence_mapping_status TEXT,
+                    sentence_actions JSONB,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );

@@ -133,10 +133,13 @@ C. When you do remove or merge a sentence, the corresponding `sentence_actions` 
    treated as a contract violation by the server and the mapping will be discarded, so always fill it
    in. The reason must explain what the duplication/fragment was and why merging or removing it was the
    right call.
-D. `sentence_actions` MUST contain exactly one entry for every source sentence whose mapping is a
-   removal (empty `corrected_sentences`) or a merge (more than one `corrected_sentence`). `action`
-   must match the mapping: use "removed" when `corrected_sentences` is empty and "merged" otherwise.
-   Leave `sentence_actions` empty when every source sentence maps to exactly one corrected sentence.
+D. `sentence_actions` MUST contain exactly one entry for every source sentence that is removed or merged:
+   - removed: its `corrected_sentences` is empty. Use action "removed".
+   - merged: every corrected index it lists is already listed by an earlier source sentence. Use action
+     "merged". Example: "Sí. Voy mañana." -> "Sí, voy mañana." maps source 0 to [0] and source 1 to [0],
+     so source 1 needs a "merged" action.
+   A split needs no action: "Fui al cine y comí." -> "Fui al cine. Comí." maps source 0 to [0, 1].
+   Leave `sentence_actions` empty when no source sentence is removed or merged.
 E. Every JSON object you return MUST include the keys `sentence_mapping` and `sentence_actions`
    verbatim. The server discards the mapping when those keys are missing, so the side-by-side page
    silently loses its authoritative alignment. Do not omit them under any circumstance; an empty
