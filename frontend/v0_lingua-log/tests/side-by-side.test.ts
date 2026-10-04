@@ -11,6 +11,8 @@ import {
   noteTexts,
   splitParagraphs,
   splitSentences,
+  languageMismatch,
+  sameLanguage,
   toSideBySideEntry,
 } from "@/lib/side-by-side"
 
@@ -273,5 +275,23 @@ describe("emptyRowFate", () => {
   it("reports a removal when no neighbour shares its words", () => {
     const rows = ["Tengo un perro.", "", "Lo adoro.", "Me gusta mucho."]
     expect(emptyRowFate(["Tengo un perro.", "Hace sol hoy.", "Lo adoro.", "Me gusta mucho."], rows, 1)).toBe("removed")
+  })
+})
+
+describe("language model helpers", () => {
+  it("treats regional variants as the same language", () => {
+    expect(sameLanguage("pt", "pt-BR")).toBe(true)
+    expect(sameLanguage("es", "fr")).toBe(false)
+    expect(sameLanguage("", "")).toBe(false)
+  })
+
+  it("reports a mismatch only for a detected, different, unkept language on a finished analysis", () => {
+    const entry = (raw: Record<string, unknown>) =>
+      toSideBySideEntry({ id: "e", language: "es", content: "x", analysis_status: "ok", ...raw })
+    expect(languageMismatch(entry({ detected_language: "fr" }))).toBe("fr")
+    expect(languageMismatch(entry({ detected_language: "es" }))).toBeNull()
+    expect(languageMismatch(entry({ detected_language: "fr", detected_language_kept: true }))).toBeNull()
+    expect(languageMismatch(entry({ detected_language: "fr", analysis_status: "failed" }))).toBeNull()
+    expect(languageMismatch(entry({}))).toBeNull()
   })
 })

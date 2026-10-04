@@ -6,6 +6,7 @@ and generating AI feedback for language learning.
 """
 import logging
 import os
+import re
 import sys
 import uuid
 from typing import List, Optional
@@ -19,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
 from models import (
+    AnalyzeEntryRequest,
     JournalEntryRequest,
     FeedbackResponse,
     LoginRequest,
@@ -31,7 +33,7 @@ from models import (
 from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate, LanguageProfile # Corrected import for JournalEntry
 
 # Import new language policy and prompt builder modules
-from learning_policy import LearningPolicy, resolve_policy
+from learning_policy import LearningPolicy, is_same_language, resolve_policy
 from prompt_builder import build_messages, build_user_message, extract_snapshot_data
 from database import (
     save_entry,
@@ -84,20 +86,16 @@ def _parse_cors_origins() -> List[str]:
 
 
 def _language_profiles_for_user(user_id: str) -> list:
-    """Load per-language profiles. A missing table returns an empty list."""
-    try:
-        rows = list_language_profiles(user_id)
-    except Exception as exc:
-        logger.warning("Could not list language profiles for %s: %s", user_id, exc)
-        return []
+    """Load per-language profiles. A failed read raises; it is never reported as no profiles."""
     profiles = []
-    for row in rows:
+    for row in list_language_profiles(user_id) or []:
         try:
             profiles.append(
                 LanguageProfile(
                     l2=row["l2"],
                     immersion_level=row.get("immersion_level", 1),
                     proficiency=row.get("proficiency") or "A2",
+                    active=row.get("active") is not False,
                 )
             )
         except Exception as exc:
@@ -124,7 +122,29 @@ def _validated_language_profile(profile: dict) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"proficiency must be one of {', '.join(PROFICIENCY_LEVELS)}",
         )
-    return {"l2": l2, "immersion_level": int(immersion), "proficiency": proficiency}
+    return {
+        "l2": l2,
+        "immersion_level": int(immersion),
+        "proficiency": proficiency,
+        "active": profile.get("active") is not False,
+    }
+
+
+def _studied_languages(user_id: str, profile_rows: Optional[list] = None) -> dict:
+    """l2 -> active for the saved profiles, with this request's rows applied on top."""
+    studied: dict = {}
+    for row in list_language_profiles(user_id) or []:
+        if row.get("l2"):
+            studied[row["l2"]] = row.get("active") is not False
+    for row in profile_rows or []:
+        studied[row["l2"]] = row["active"]
+    return studied
+
+
+def _detected_language(value: Optional[str]) -> Optional[str]:
+    """The tutor's language report as an ISO 639-1 code, or None when it is unclear."""
+    code = (value or "").strip().lower().replace("_", "-").split("-")[0]
+    return code if re.fullmatch(r"[a-z]{2}", code) else None
 
 
 def _apply_explanation_choice(update_data: dict) -> None:
@@ -326,6 +346,7 @@ def _build_feedback_response(result: JournalFeedback, original_text: str) -> Fee
         sentence_mapping=sentence_mapping or None,
         sentence_mapping_status=sentence_mapping_status,
         sentence_actions=sentence_actions or None,
+        detected_language=_detected_language(result.detected_language),
     )
 
 
@@ -591,6 +612,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "sentence_mapping": feedback_response.sentence_mapping,
         "sentence_mapping_status": feedback_response.sentence_mapping_status,
         "sentence_actions": feedback_response.sentence_actions,
+        "detected_language": feedback_response.detected_language,
         **_analysis_columns(feedback_response),
         **snapshot_data,
     }
@@ -715,13 +737,18 @@ async def get_single_entry(entry_id: str, request: Request):
 
 
 @app.post("/entries/{entry_id}/analyze", response_model=FeedbackResponse)
-async def analyze_existing_entry(entry_id: str, request: Request):
+async def analyze_existing_entry(
+    entry_id: str,
+    request: Request,
+    body: Optional[AnalyzeEntryRequest] = None,
+):
     """
     Retry AI analysis for an existing journal entry.
 
-    The entry must belong to the authenticated user. The current language
-    settings are used, with the entry's target language preserved from the
-    snapshot.
+    The entry must belong to the authenticated user. Without a body the entry
+    keeps its language and stored policy snapshot. With ``target_language`` set
+    to another studied language (the "did you mean…?" switch), the entry moves to
+    that language and is analysed with the learner's current policy for it.
     """
     user_id = request.headers.get("X-User-ID")
     if not user_id:
@@ -738,8 +765,33 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         )
 
     profile_settings = await fetch_user_profile_settings(user_id)
+    current_l2 = entry.get("target_language") or entry.get("language")
+    switch_to = body.target_language if body and body.target_language else None
+    if switch_to == current_l2:
+        switch_to = None
     stored_policy = entry.get("policy_snapshot")
-    if isinstance(stored_policy, dict) and stored_policy.get("l2"):
+    if switch_to:
+        try:
+            studied = _studied_languages(user_id)
+        except Exception as exc:
+            logger.error(f"Could not list language profiles for {user_id}: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "profiles_unavailable",
+                    "message": "Your languages could not be loaded. Try again in a moment.",
+                },
+            )
+        if not studied.get(switch_to):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "language_not_studied",
+                    "message": "Add this language to the languages you are learning in Settings first.",
+                },
+            )
+        effective_settings = _policy_for_request(user_id, profile_settings, {"target_language": switch_to})
+    elif isinstance(stored_policy, dict) and stored_policy.get("l2"):
         # History stays on the policy that was resolved when the entry was written.
         effective_settings = LearningPolicy.from_dict(stored_policy)
     else:
@@ -784,13 +836,34 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "sentence_mapping": feedback_response.sentence_mapping,
         "sentence_mapping_status": feedback_response.sentence_mapping_status,
         "sentence_actions": feedback_response.sentence_actions,
+        "detected_language": feedback_response.detected_language,
         **_analysis_columns(feedback_response),
         **_snapshot_columns(effective_settings),
     }
+    if switch_to:
+        # Translations of the old rewrite and notes no longer match the new analysis.
+        update_data.update(
+            {
+                "language": switch_to,
+                "meaning_translations_cache": {},
+                "detected_language_kept": False,
+            }
+        )
     update_entry_analysis(entry_id, user_id, update_data)
 
     feedback_response.id = entry_id
     return feedback_response
+
+
+@app.post("/entries/{entry_id}/keep-language", status_code=status.HTTP_204_NO_CONTENT)
+async def keep_entry_language(entry_id: str, request: Request):
+    """The learner answered "keep" to the did-you-mean prompt; stop asking for this entry."""
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
+    if not fetch_single_entry(entry_id, user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
+    update_entry_analysis(entry_id, user_id, {"detected_language_kept": True})
 
 
 @app.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1214,17 +1287,28 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
         existing_row = existing.data[0] if existing.data else {}
         default_l2 = update_data.get('default_target_lang') or existing_row.get('default_target_lang') or 'es'
 
+        if profile_rows is not None or 'default_target_lang' in update_data:
+            studied = _studied_languages(user_id, profile_rows)
+            if studied.get(default_l2) is False:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The default language must be one you are learning; pick another default first",
+                )
+            if default_l2 not in studied:
+                # Choosing a default adds it to the studied list.
+                profile_rows = (profile_rows or []) + [
+                    _validated_language_profile(
+                        {"l2": default_l2, "immersion_level": existing_row.get("immersion_level", 1)}
+                    )
+                ]
+
         if profile_rows is not None:
             for row in profile_rows:
                 if row["l2"] == default_l2:
                     update_data["immersion_level"] = row["immersion_level"]
         elif update_data.get("immersion_level") is not None:
             # The legacy account-wide slider still updates the default language.
-            current = None
-            try:
-                current = fetch_language_profile(user_id, default_l2)
-            except Exception:
-                current = None
+            current = fetch_language_profile(user_id, default_l2)
             proficiency = (current or {}).get("proficiency") or "A2"
             profile_rows = [
                 _validated_language_profile(

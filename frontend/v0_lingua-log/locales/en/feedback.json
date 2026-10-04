@@ -80,5 +80,12 @@
   "levelSuggestionDownBody": "You have been opening translations often while writing in {language}. A lower level keeps more of your own language nearby. The level changes only when you tap yes.",
   "levelSuggestionUpBody": "You have rarely needed a translation while writing in {language}, and your scores are strong. A higher level keeps a bit more in the language you are learning. The level changes only when you tap yes.",
   "levelSuggestionAccept": "Yes, change my level",
-  "levelSuggestionDismiss": "Not now"
+  "levelSuggestionDismiss": "Not now",
+  "mismatchTitle": "This looks like {detected}, but you're set to {chosen}.",
+  "mismatchStudied": "Switch to re-check it as {detected}, or keep it as {chosen}.",
+  "mismatchNotStudied": "{detected} isn't one of your languages yet. Add it in Settings to switch, or keep it as {chosen}.",
+  "mismatchSwitch": "Switch to {detected}",
+  "mismatchAdd": "Learn {detected}",
+  "mismatchKeep": "Keep {chosen}",
+  "mismatchFailed": "Couldn't switch right now. Try again."
 }

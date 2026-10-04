@@ -84,6 +84,8 @@ Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls
 ### Language Policy Resolution
 1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
 2. Immersion and proficiency (A1–C2) are per target language in `user_language_profiles`. Proficiency is not derived from immersion.
+   Active rows are the studied languages (removal sets `active = false`); `native_lang` is the explanation language.
+   L1 == L2 is full immersion (level 3). The language model is described in `README.md` (Learning policy › Languages).
 3. Each entry stores the resolved object on `journal_entries.policy_snapshot` (`v: 1`). The older `*_snapshot` columns stay.
 4. Suggested level changes are computed in `backend/level_suggestion.py` (named thresholds). Accept goes through `save_user_settings`. Dismiss snoozes in `level_suggestion_snoozes` for 7 days. The level never changes on its own.
 5. A per-entry override, or a saved explanation mode the learner picked (`user_settings.explanation_mode_explicit`), is honoured.
@@ -121,11 +123,12 @@ Key reference files:
 
 ### `journal_entries`
 - Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + `sentence_mapping` (+ `_status`), `sentence_actions`
+- `detected_language` (Gemini's read of the written language) and `detected_language_kept` drive the did-you-mean prompt
 - `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
 
 ### `user_language_profiles`
-- One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), and `level_changed_at` (trigger-stamped)
+- One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), `active`, and `level_changed_at` (trigger-stamped)
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
@@ -140,7 +143,8 @@ Key reference files:
 
 - `POST /login` - Magic link authentication
 - `POST /log-entry` - Submit journal entry with AI feedback
-- `POST /entries/{id}/analyze` - Retry AI analysis for an entry
+- `POST /entries/{id}/analyze` - Retry AI analysis; `{target_language}` re-analyses as another studied language
+- `POST /entries/{id}/keep-language` - Keep the entry's language after a detected mismatch
 - `GET /entries` - Fetch user journal entries
 - `GET /entries/{id}` - Get single entry, including `policy_snapshot`, `corrected`, `rewrite`, and `analysis_status`
 - `DELETE /entries/{id}` - Delete entry

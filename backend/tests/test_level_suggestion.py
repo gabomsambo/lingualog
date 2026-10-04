@@ -429,15 +429,14 @@ def test_accept_leaves_legacy_immersion_when_language_is_not_the_default(monkeyp
     assert saved[0][2][0]["immersion_level"] == 1
 
 
-def test_studied_language_without_a_profile_row_gets_a_suggestion(monkeypatch):
+def test_default_language_without_a_profile_row_gets_a_suggestion(monkeypatch):
     from app.services import level_suggestion_service as service
 
     tables = _history_tables()
     tables["user_settings"] = [
         {
             "user_id": USER,
-            "default_target_lang": "es",
-            "target_languages": ["es", "fr"],
+            "default_target_lang": "fr",
             "native_lang": "en",
             "immersion_level": 2,
         }
@@ -460,7 +459,7 @@ def test_studied_language_without_a_profile_row_gets_a_suggestion(monkeypatch):
     ]
     found = service.current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
     assert {"l2": "fr", "direction": "down", "from_level": 2, "to_level": 1} in found
-    assert [row["l2"] for row in found] == ["es", "fr"]
+    assert [row["l2"] for row in found] == ["fr", "es"]
 
     saved = []
     monkeypatch.setattr(service, "fetch_language_profile", lambda user_id, l2: None)
@@ -470,7 +469,7 @@ def test_studied_language_without_a_profile_row_gets_a_suggestion(monkeypatch):
         lambda user_id, settings, profiles: saved.append((user_id, settings, profiles)),
     )
     service.accept_level_suggestion(USER, "fr", supabase=FakeSupabase(tables))
-    assert saved == [(USER, {}, [{"l2": "fr", "immersion_level": 1, "proficiency": "A2"}])]
+    assert saved == [(USER, {"immersion_level": 1}, [{"l2": "fr", "immersion_level": 1, "proficiency": "A2"}])]
 
 
 def _french_entry(key: str, minutes_ago: int, level: int, score: float) -> dict:
@@ -486,13 +485,11 @@ def _french_entry(key: str, minutes_ago: int, level: int, score: float) -> dict:
     }
 
 
-def test_studied_language_without_a_profile_row_ignores_history_from_before_its_level_changed():
+def test_default_language_without_a_profile_row_ignores_history_from_before_its_level_changed():
     from app.services.level_suggestion_service import current_suggestions
 
     tables = _history_tables()
-    tables["user_settings"] = [
-        {"user_id": USER, "default_target_lang": "es", "target_languages": ["es", "fr"], "immersion_level": 2}
-    ]
+    tables["user_settings"] = [{"user_id": USER, "default_target_lang": "fr", "immersion_level": 2}]
     old = [_french_entry(f"old{i}", 300 + i, 2, 50) for i in range(STEP_DOWN_WINDOW)]
     calm = [_french_entry(f"calm{i}", 200 + i, 1, 90) for i in range(STEP_UP_WINDOW)]
     tables["journal_entries"] += old + calm
@@ -511,46 +508,58 @@ def test_studied_language_without_a_profile_row_ignores_history_from_before_its_
     assert {"l2": "fr", "direction": "down", "from_level": 2, "to_level": 1} in found
 
 
-def test_entry_only_and_native_languages_get_no_suggestion():
+def _entries_in(l2: str, count: int, minutes_ago: int, level: int = 2) -> list[dict]:
+    rows = [_french_entry(f"{l2}{i}", minutes_ago + i, level, 40) for i in range(count)]
+    for row in rows:
+        row["target_language"] = l2
+        row["language"] = l2
+    return rows
+
+
+def _struggling(tables: dict, l2: str, minutes_ago: int, level: int = 2) -> None:
+    tables["journal_entries"] += _entries_in(l2, STEP_DOWN_WINDOW, minutes_ago, level)
+    tables["support_events"] += [
+        {"user_id": USER, "entry_id": f"{l2}{index}", "kind": "reveal_meaning"} for index in range(3)
+    ]
+
+
+def test_suggestions_follow_the_studied_list_exactly():
     from app.services.level_suggestion_service import current_suggestions
 
     tables = _history_tables()
     tables["user_settings"] = [
-        {
-            "user_id": USER,
-            "default_target_lang": "es",
-            "target_languages": ["es", "en"],
-            "native_lang": "en",
-            "immersion_level": 2,
-        }
+        {"user_id": USER, "default_target_lang": "es", "native_lang": "fr", "immersion_level": 2}
     ]
-    # A former default that still has a profile row stays studied.
+    tables["user_language_profiles"] += [
+        # A former default that is still studied.
+        {"user_id": USER, "l2": "ja", "immersion_level": 2, "proficiency": "B1"},
+        # The native language can be studied too (Settings lists it like any other).
+        {"user_id": USER, "l2": "en", "immersion_level": 2, "proficiency": "C1", "active": True},
+        # Removed in Settings: the row and its entries stay, the suggestions stop.
+        {"user_id": USER, "l2": "de", "immersion_level": 2, "proficiency": "A2", "active": False},
+    ]
+    for l2, minutes_ago in (("ja", 40), ("en", 30), ("de", 20), ("it", 10)):
+        _struggling(tables, l2, minutes_ago)
+    found = current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
+    # "it" exists only on entries and was never added.
+    assert [row["l2"] for row in found] == ["es", "en", "ja"]
+
+
+def test_studying_your_own_language_stays_full_immersion():
+    from app.services.level_suggestion_service import current_suggestions
+
+    tables = _history_tables()
+    tables["user_settings"] = [
+        {"user_id": USER, "default_target_lang": "es", "native_lang": "en", "immersion_level": 2}
+    ]
     tables["user_language_profiles"].append(
-        {"user_id": USER, "l2": "ja", "immersion_level": 2, "proficiency": "B1"}
+        {"user_id": USER, "l2": "en", "immersion_level": 1, "proficiency": "C1", "active": True}
     )
-    tables["journal_entries"] += [_french_entry(f"ja{i}", 40 + i, 2, 40) for i in range(STEP_DOWN_WINDOW)]
-    for row in tables["journal_entries"]:
-        if str(row["id"]).startswith("ja"):
-            row["target_language"] = "ja"
-            row["language"] = "ja"
-    tables["support_events"] += [
-        {"user_id": USER, "entry_id": f"ja{index}", "kind": "reveal_meaning"} for index in range(3)
-    ]
-    # French exists only on entries. English is the native language, even though it is listed.
-    tables["journal_entries"] += [_french_entry(f"fr{i}", 20 + i, 2, 40) for i in range(STEP_DOWN_WINDOW)]
-    tables["journal_entries"] += [_french_entry(f"en{i}", 10 + i, 2, 40) for i in range(STEP_DOWN_WINDOW)]
-    for row in tables["journal_entries"]:
-        if str(row["id"]).startswith("en"):
-            row["target_language"] = "en"
-            row["language"] = "en"
-    tables["support_events"] += [
-        {"user_id": USER, "entry_id": f"fr{index}", "kind": "reveal_meaning"} for index in range(3)
-    ]
-    tables["support_events"] += [
-        {"user_id": USER, "entry_id": f"en{index}", "kind": "reveal_meaning"} for index in range(3)
+    tables["journal_entries"] += [
+        {**row, "score": 95} for row in _entries_in("en", STEP_UP_WINDOW, 10, level=1)
     ]
     found = current_suggestions(USER, supabase=FakeSupabase(tables), now=NOW)
-    assert [row["l2"] for row in found] == ["es", "ja"]
+    assert "en" not in [row["l2"] for row in found]
 
 
 def test_dismiss_snoozes_for_seven_days_and_then_expires(monkeypatch):

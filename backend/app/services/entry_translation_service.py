@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ai.gemini_translate import translate_sentences_gemini
 from ai.lara import translate_texts
 from ai.locale_map import to_lara_locale
+from learning_policy import is_same_language
 from database import create_supabase_client, fetch_single_entry
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,9 @@ async def translate_entry_part(
         raise PermissionError("Entry not found")
 
     source_lang = entry.get("language") or entry.get("target_language") or "es"
+    if is_same_language(source_lang, target_lang):
+        # Never pass the text off as a translation of itself.
+        raise ValueError("The entry is already written in that language")
     cache: Dict[str, Any] = entry.get("meaning_translations_cache") or {}
     if not isinstance(cache, dict):
         cache = {}

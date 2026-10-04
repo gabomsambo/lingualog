@@ -145,7 +145,7 @@ export default function EntryInsightPage() {
   useEffect(() => {
     getUserSettings()
       .then((settings) => {
-        setNativeLanguage(settings.native_lang || settings.native_language || "en")
+        setNativeLanguage(settings.native_lang || "en")
         setImmersionLevel(settings.immersion_level)
         if (settings.immersion_level === 0) {
           setShowTranslation(true)

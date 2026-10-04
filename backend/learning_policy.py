@@ -32,6 +32,14 @@ the language profile, then an optional override, then ``A2``.
 
 A per-entry explanation mode changes note language only. It does not change
 meaning, rewrite glosses, vocabulary definitions, or quiz shape.
+
+Same language (full immersion)
+------------------------------
+When the target language is also the learner's own language (L1 == L2, e.g. a
+Spanish speaker improving Spanish, or English studied with explanations in
+English), there is nothing to translate into. The policy is always level 3
+(``immersion_source`` and ``explanation_source`` are ``same_language``): notes in
+L2, no meaning translation, no L1 rescue. This beats every override above.
 """
 
 from __future__ import annotations
@@ -195,9 +203,17 @@ class LearningPolicy:
         return cls(**fields)
 
 
+def _base_code(code: Optional[str]) -> str:
+    return (code or "").split("-")[0].lower()
+
+
 def _language_name(code: str) -> str:
-    base = (code or "").split("-")[0].lower()
-    return LANG_NAMES.get(base, code)
+    return LANG_NAMES.get(_base_code(code), code)
+
+
+def is_same_language(l1: Optional[str], l2: Optional[str]) -> bool:
+    """True when the learner studies their own language: nothing to translate into."""
+    return bool(_base_code(l1)) and _base_code(l1) == _base_code(l2)
 
 
 def _clamp_immersion(level: Any) -> int:
@@ -232,6 +248,13 @@ def feedback_language_rules(policy: LearningPolicy) -> str:
         "not from the immersion level: short sentences and common words at A1-A2, "
         "a fuller range at B1-B2, near-native range at C1-C2."
     )
+    if is_same_language(policy.l1, policy.l2):
+        return (
+            f"Full immersion: the learner studies {l2}, and {l2} is also the language they want "
+            f"explanations in. Write every note (`note_l2`), the explanation and `intended_meaning` "
+            f"(a simple {l2} paraphrase of what the learner meant) in {l2}. {graded} "
+            "Leave `note_l1` empty."
+        )
     rules = {
         "l1": (
             f"Write every note, explanation and `intended_meaning` in {l1} only. "
@@ -311,6 +334,12 @@ def feedback_prompt_rules(policy: Any) -> str:
             (
                 "Also fill `note` with the learner-facing explanation: `note_l1`, or `note_l2`, "
                 "or `note_l2` followed by the one-line `note_l1` gloss. Existing clients read `note`."
+            ),
+            (
+                "Set `detected_language` to the ISO 639-1 code of the language the entry is actually "
+                f"written in, judged from the text alone (the main language when mixed). Do not assume {l2}. "
+                f"Whatever it reports, still give feedback for {l2} as instructed: the learner decides what "
+                "to do about a mismatch."
             ),
             f"Proficiency is {policy.proficiency} and is separate from immersion level {immersion}.",
             strictness,
@@ -407,11 +436,25 @@ def resolve_policy(
         immersion_level = DEFAULT_SETTINGS["immersion_level"]
         immersion_source = "default"
 
+    l1 = (
+        overrides.get("native_lang")
+        or (settings or {}).get("native_lang")
+        or DEFAULT_SETTINGS["native_lang"]
+    )
+    same_language = is_same_language(l1, resolved_l2)
+    if same_language:
+        immersion_level = 3
+        immersion_source = "same_language"
+
     level = _level_spec(immersion_level)
 
     request_mode = overrides.get("explanation_mode")
     saved_mode = _explicit_saved_explanation(settings)
-    if request_mode and request_mode != EXPLANATION_MODE_FOLLOW_LEVEL and request_mode in EXPLANATION_MODE_TO_FLAG:
+    if same_language:
+        explanation = level["explanation"]
+        explanation_mode = FLAG_TO_EXPLANATION_MODE[explanation]
+        explanation_source = "same_language"
+    elif request_mode and request_mode != EXPLANATION_MODE_FOLLOW_LEVEL and request_mode in EXPLANATION_MODE_TO_FLAG:
         explanation = EXPLANATION_MODE_TO_FLAG[request_mode]
         explanation_mode = request_mode
         explanation_source = "request_explanation_mode"
@@ -435,11 +478,6 @@ def resolve_policy(
         or DEFAULT_PROFICIENCY
     )
 
-    l1 = (
-        overrides.get("native_lang")
-        or (settings or {}).get("native_lang")
-        or DEFAULT_SETTINGS["native_lang"]
-    )
     ui_language = (
         overrides.get("ui_language")
         or (settings or {}).get("interface_lang")

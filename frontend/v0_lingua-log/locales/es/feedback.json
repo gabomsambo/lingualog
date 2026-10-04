@@ -72,5 +72,12 @@
   "levelSuggestionDownBody": "Has abierto la traducción a menudo al escribir en {language}. Un nivel más bajo deja tu idioma más cerca. El nivel cambia solo cuando dices que sí.",
   "levelSuggestionUpBody": "Casi no has necesitado una traducción al escribir en {language}, y tus puntuaciones van bien. Un nivel más alto deja un poco más en el idioma que aprendes. El nivel cambia solo cuando dices que sí.",
   "levelSuggestionAccept": "Sí, cambiar mi nivel",
-  "levelSuggestionDismiss": "Ahora no"
+  "levelSuggestionDismiss": "Ahora no",
+  "mismatchTitle": "Esto parece {detected}, pero tienes elegido {chosen}.",
+  "mismatchStudied": "Cambia para revisarlo como {detected}, o mantenlo como {chosen}.",
+  "mismatchNotStudied": "{detected} todavía no es uno de tus idiomas. Añádelo en Ajustes para cambiar, o mantenlo como {chosen}.",
+  "mismatchSwitch": "Cambiar a {detected}",
+  "mismatchAdd": "Aprender {detected}",
+  "mismatchKeep": "Mantener {chosen}",
+  "mismatchFailed": "No se pudo cambiar ahora. Inténtalo de nuevo."
 }

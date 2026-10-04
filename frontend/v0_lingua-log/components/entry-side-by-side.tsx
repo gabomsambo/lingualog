@@ -1,7 +1,8 @@
 "use client"
 
 import { CSSProperties, Fragment, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertCircle, FlaskConical, HelpCircle, Loader2, RotateCcw } from "lucide-react"
+import Link from "next/link"
+import { AlertCircle, FlaskConical, HelpCircle, Languages, Loader2, RotateCcw } from "lucide-react"
 
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +12,8 @@ import { getLanguageDisplayName } from "@/i18n/languages"
 import {
   analyzeEntry,
   getCurrentPolicy,
+  getUserSettings,
+  keepEntryLanguage,
   postSupportEvent,
   translateEntryPart,
   type EntryTranslationResult,
@@ -22,7 +25,9 @@ import {
   cleanLiteralReading,
   diffWords,
   htmlToText,
+  languageMismatch,
   locateSuggestions,
+  sameLanguage,
   noteTexts,
   splitParagraphs,
   splitSentences,
@@ -30,6 +35,7 @@ import {
   type LearningPolicySnapshot,
   type SideBySideEntry,
 } from "@/lib/side-by-side"
+import { studiedLanguages } from "@/lib/studied-languages"
 import { cn } from "@/lib/utils"
 
 type Fetched = { status: "idle" | "loading" | "ok" | "unavailable"; sentences: string[]; text: string; label?: string | null }
@@ -62,6 +68,137 @@ function languageName(code: string, uiLang: string): string {
     // Older runtimes without Intl.DisplayNames fall through to the static list.
   }
   return getLanguageDisplayName(code)
+}
+
+/**
+ * "This looks like French, but you're set to Spanish": shown only when the tutor read the entry as
+ * another language. Never switches on its own; switching is offered only for a studied language.
+ */
+function LanguageMismatchPrompt({
+  entry,
+  onSwitched,
+}: {
+  entry: SideBySideEntry
+  onSwitched?: () => void | Promise<void>
+}) {
+  const { t, uiLang } = useLocale()
+  const detected = languageMismatch(entry)
+  const [studied, setStudied] = useState<string[] | null>(null)
+  const [busy, setBusy] = useState<"switch" | "keep" | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [kept, setKept] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!detected) return
+    let cancelled = false
+    getUserSettings()
+      .then((settings) => {
+        if (cancelled) return
+        setStudied(studiedLanguages(settings))
+        setLoadFailed(false)
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
+    return () => {
+      cancelled = true
+    }
+  }, [detected, loadAttempt])
+
+  if (!detected || kept || (studied === null && !loadFailed)) return null
+  const detectedName = languageName(detected, uiLang)
+  const chosenName = languageName(entry.language, uiLang)
+  const canSwitch = !!studied?.some((code) => sameLanguage(code, detected))
+  const switchTo = studied?.find((code) => sameLanguage(code, detected)) || detected
+
+  const switchLanguage = async () => {
+    setBusy("switch")
+    setFailed(false)
+    try {
+      await analyzeEntry(entry.id, switchTo)
+      await onSwitched?.()
+    } catch {
+      setFailed(true)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const keep = async () => {
+    setBusy("keep")
+    setKept(true)
+    try {
+      await keepEntryLanguage(entry.id)
+    } catch {
+      // Hidden for this view either way; the prompt returns next time if the save failed.
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const button =
+    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold disabled:opacity-60"
+  return (
+    <div
+      className="flex flex-wrap items-start gap-3 rounded-3xl border border-fun-blue/40 bg-fun-blue/5 p-4"
+      role="status"
+      data-testid="language-mismatch"
+    >
+      <Languages className="mt-0.5 h-5 w-5 text-fun-blue" />
+      <div className="min-w-0 flex-1">
+        <p className="font-bold">{t("feedback.mismatchTitle", { detected: detectedName, chosen: chosenName })}</p>
+        <p className="text-sm text-muted-foreground">
+          {studied === null
+            ? t("feedback.mismatchLoadFailed")
+            : canSwitch
+              ? t("feedback.mismatchStudied", { detected: detectedName, chosen: chosenName })
+              : t("feedback.mismatchNotStudied", { detected: detectedName, chosen: chosenName })}
+        </p>
+        {failed && <p className="mt-1 text-sm text-destructive">{t("feedback.mismatchFailed")}</p>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {studied === null ? (
+          <button
+            type="button"
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            disabled={busy !== null}
+            className={cn(button, "bg-gradient-green-blue text-white")}
+            data-testid="mismatch-retry-load"
+          >
+            {t("feedback.retry")}
+          </button>
+        ) : canSwitch ? (
+          <button
+            type="button"
+            onClick={() => void switchLanguage()}
+            disabled={busy !== null}
+            className={cn(button, "bg-gradient-green-blue text-white")}
+            data-testid="mismatch-switch"
+          >
+            {busy === "switch" && <Loader2 className="h-4 w-4 animate-spin" />}
+            {t("feedback.mismatchSwitch", { detected: detectedName })}
+          </button>
+        ) : (
+          <Link
+            href={`/settings?tab=languages&add=${encodeURIComponent(detected)}`}
+            className={cn(button, "bg-gradient-green-blue text-white")}
+            data-testid="mismatch-add"
+          >
+            {t("feedback.mismatchAdd", { detected: detectedName })}
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={() => void keep()}
+          disabled={busy !== null}
+          className={cn(button, "border border-fun-blue text-fun-blue hover:bg-fun-blue/10")}
+          data-testid="mismatch-keep"
+        >
+          {t("feedback.mismatchKeep", { chosen: chosenName })}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function useEntryPolicy(entry: SideBySideEntry) {
@@ -186,6 +323,8 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const l1Name = languageName(l1, uiLang)
   const l2Name = languageName(l2, uiLang)
   const rescueOnly = policy?.meaning === "rescue_only"
+  // Studying your own language: there is nothing to translate into, so no meaning or rescue fetches.
+  const canTranslate = !sameLanguage(l1, l2)
 
   const sentences = useMemo(() => splitSentences(entry.content), [entry.content])
   const mappingStatus = entry.sentenceMappingStatus
@@ -270,14 +409,14 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   // Which translations run up front is the policy's call: the meaning at open/tap/tap_hidden
   // (visibility is presentation), the rewrite gloss only when it is shown open.
   useEffect(() => {
-    if (!policy || !entry.id || !entry.content) return
+    if (!policy || !entry.id || !entry.content || !canTranslate) return
     if (policy.meaning !== "rescue_only") void loadMeaning()
-  }, [policy, entry.id, entry.content, loadMeaning])
+  }, [policy, entry.id, entry.content, canTranslate, loadMeaning])
 
   useEffect(() => {
-    if (!policy || !entry.id || !entry.rewrite || failed) return
+    if (!policy || !entry.id || !entry.rewrite || failed || !canTranslate) return
     if (policy.rewrite_gloss === "l1_open") void loadRewriteGloss()
-  }, [policy, entry.id, entry.rewrite, failed, loadRewriteGloss])
+  }, [policy, entry.id, entry.rewrite, failed, canTranslate, loadRewriteGloss])
 
   const revealSentence = (index: number) => {
     setRevealed((prev) => new Set(prev).add(index))
@@ -424,6 +563,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
 
   return (
     <div className="space-y-6" data-testid="entry-side-by-side">
+      <LanguageMismatchPrompt entry={entry} onSwitched={onReanalyzed} />
       <LevelSuggestionCard l2={entry.policy?.l2 || entry.language} onAccepted={onLevelAccepted} />
       {failed && (
         <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-4" role="alert" data-testid="analysis-failed">
@@ -573,7 +713,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                     {entry.intendedMeaning}
                   </p>
                 )}
-                {!meaningRescued ? (
+                {!canTranslate ? null : !meaningRescued ? (
                   <PillButton onClick={rescueMeaning}>{t("feedback.explainIn", { language: l1Name })}</PillButton>
                 ) : meaning.status === "unavailable" ? (
                   <div className="mt-2">{meaningUnavailable}</div>
@@ -626,6 +766,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                     ))}
                   </div>
                 )}
+                {canTranslate && (
                 <div className="mt-3 text-sm text-muted-foreground" data-testid="rewrite-gloss">
                   {policy.rewrite_gloss === "l1_open" || rewriteGlossShown ? (
                     rewriteGloss.status === "ok" ? (
@@ -644,6 +785,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                     <PillButton onClick={showRewriteGloss}>{t("feedback.explainIn", { language: l1Name })}</PillButton>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -730,6 +872,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                   {primary && <p className="text-sm" data-testid="note-primary">{primary}</p>}
                   {secondary && <p className="mt-1 text-[13px] text-muted-foreground" data-testid="note-secondary">{secondary}</p>}
                   {policy.explanation === "l2" &&
+                    canTranslate &&
                     (!rescue ? (
                       <PillButton onClick={() => rescueNote(index)}>{t("feedback.explainIn", { language: l1Name })}</PillButton>
                     ) : rescue.status === "ok" ? (

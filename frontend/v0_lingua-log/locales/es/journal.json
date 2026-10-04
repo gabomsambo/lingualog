@@ -46,5 +46,9 @@
   "explanationModeHint": "Déjalo vacío para seguir la inmersión. Elegir un modo cambia el idioma de las notas en esta entrada.",
   "explanationMode": "Modo de Explicación",
   "strictnessLevel": "Nivel de Severidad",
-  "selectLanguage": "Seleccionar idioma"
+  "selectLanguage": "Seleccionar idioma",
+  "learnAnotherLanguage": "Aprender otro idioma",
+  "writingIn": "Escribiendo en",
+  "settingsLoadFailed": "No se pudieron cargar tus idiomas, así que esta entrada aún no se puede enviar.",
+  "retryLoadSettings": "Reintentar"
 }
