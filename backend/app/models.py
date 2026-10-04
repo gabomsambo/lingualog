@@ -45,6 +45,8 @@ class LanguageProfile(BaseModel):
     l2: str
     immersion_level: int = Field(1, ge=0, le=3)
     proficiency: str = "A2"
+    # False once the learner removes the language; the profile and its entries are kept.
+    active: bool = True
 
 
 class UserSettings(BaseModel):
@@ -169,6 +171,9 @@ class JournalEntry(JournalEntryBase):
     sentence_mapping: Optional[List[Dict[str, Any]]] = None
     sentence_mapping_status: Optional[str] = None
     sentence_actions: Optional[List[Dict[str, Any]]] = None
+    target_language: Optional[str] = None
+    detected_language: Optional[str] = None
+    detected_language_kept: bool = False
 
     model_config = {
         "from_attributes": True, # Pydantic V2 way for orm_mode

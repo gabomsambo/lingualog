@@ -152,11 +152,12 @@ begin
 
   -- Spanish profile matches the seeded immersion (2 → B1 is the one-time map only).
   insert into public.user_language_profiles (user_id, l2, immersion_level, proficiency)
-  values (demo_user_id, 'es', 2, 'B1')
+  values (demo_user_id, 'es', 2, 'B1'), (demo_user_id, 'fr', 2, 'A2')
   on conflict (user_id, l2) do update
   set
     immersion_level = excluded.immersion_level,
     proficiency = excluded.proficiency,
+    active = true,
     updated_at = now();
 
   delete from public.word_ai_cache

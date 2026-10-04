@@ -358,7 +358,7 @@ class TestSettingsSave:
 
         monkeypatch.setattr(server, "fetch_language_profile", lambda user_id, l2: {"proficiency": "C1"})
         _, saves = self._put(monkeypatch, {"immersion_level": 2})
-        assert saves == [({"immersion_level": 2}, [{"l2": "es", "immersion_level": 2, "proficiency": "C1"}])]
+        assert saves == [({"immersion_level": 2}, [{"l2": "es", "immersion_level": 2, "proficiency": "C1", "active": True}])]
 
     def test_picking_a_mode_marks_it_explicit(self, monkeypatch):
         _, saves = self._put(monkeypatch, {"explanation_mode": "target_only"})

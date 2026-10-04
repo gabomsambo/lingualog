@@ -45,6 +45,7 @@ You must respond with a valid JSON object containing exactly these fields:
     "complexity": 90
   }},
   "intended_meaning": "What the learner meant, in the language the policy names",
+  "detected_language": "ISO 639-1 code of the language the entry is actually written in (e.g. fr)",
   "ambiguities": [
     {{
       "question": "A question, only when the intended meaning is unclear"

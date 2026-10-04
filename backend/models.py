@@ -10,6 +10,15 @@ from datetime import datetime
 import uuid
 
 
+class AnalyzeEntryRequest(BaseModel):
+    """Optional body for POST /entries/{id}/analyze."""
+    target_language: Optional[str] = Field(
+        None,
+        pattern=r"^[a-z]{2}(-[A-Z]{2})?$",
+        description="Re-analyse the entry as this studied language (the did-you-mean switch)",
+    )
+
+
 class JournalEntryRequest(BaseModel):
     """Schema for submitting a journal entry."""
     text: str = Field(..., description="The journal entry text in the target language")
@@ -97,6 +106,9 @@ class FeedbackResponse(BaseModel):
             " non-empty when sentence_mapping contains a removal or merge and is null"
             " otherwise. The UI shows these in 'What to fix'."
         ),
+    )
+    detected_language: Optional[str] = Field(
+        None, description="ISO 639-1 code of the language the entry is written in, as read by the tutor"
     )
 
     # TODO: Add metrics/analytics fields as needed for progress tracking
