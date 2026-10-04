@@ -75,10 +75,11 @@ export function getUILanguages(): Language[] {
 }
 
 /**
- * Get languages available for learning (target languages)
+ * Languages that can be studied: every language, including English and the learner's own
+ * (studying your own language is full immersion).
  */
 export function getTargetLanguages(): Language[] {
-  return LANGUAGES.filter(lang => !['en'].includes(lang.code)) // All except English for English speakers
+  return LANGUAGES
 }
 
 /**

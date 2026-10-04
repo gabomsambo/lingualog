@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   getLevelSuggestions: vi.fn(),
   acceptLevelSuggestion: vi.fn(),
   dismissLevelSuggestion: vi.fn(),
+  getUserSettings: vi.fn(),
+  keepEntryLanguage: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -120,6 +122,15 @@ beforeEach(() => {
   api.getLevelSuggestions.mockResolvedValue({ suggestions: [] })
   api.acceptLevelSuggestion.mockResolvedValue({})
   api.dismissLevelSuggestion.mockResolvedValue({})
+  api.keepEntryLanguage.mockResolvedValue(undefined)
+  api.getUserSettings.mockResolvedValue({
+    default_target_lang: "es",
+    language_profiles: [
+      { l2: "es", immersion_level: 2, proficiency: "B1", active: true },
+      { l2: "fr", immersion_level: 1, proficiency: "A2", active: true },
+      { l2: "de", immersion_level: 1, proficiency: "A2", active: false },
+    ],
+  })
 })
 
 describe("EntrySideBySide layout", () => {
@@ -424,5 +435,68 @@ describe("failure states", () => {
   it("labels mock feedback as a sample", () => {
     renderEntry(0, { analysis_status: "mock" })
     expect(screen.getByTestId("sample-banner")).toHaveTextContent("Sample feedback")
+  })
+})
+
+describe("did you mean another language?", () => {
+  it("offers a switch when the entry reads as another studied language, and never switches alone", async () => {
+    const onReanalyzed = vi.fn()
+    renderEntry(2, { detected_language: "fr" }, { onReanalyzed })
+    const prompt = await screen.findByTestId("language-mismatch")
+    expect(prompt).toHaveTextContent("This looks like French, but you're set to Spanish.")
+    expect(api.analyzeEntry).not.toHaveBeenCalled()
+
+    fireEvent.click(within(prompt).getByRole("button", { name: "Switch to French" }))
+    await waitFor(() => expect(onReanalyzed).toHaveBeenCalled())
+    expect(api.analyzeEntry).toHaveBeenCalledWith("entry-1", "fr")
+  })
+
+  it("sends a language that is not studied (or was removed) to Settings instead", async () => {
+    for (const detected of ["it", "de"]) {
+      const { unmount } = renderEntry(2, { detected_language: detected })
+      const prompt = await screen.findByTestId("language-mismatch")
+      expect(within(prompt).queryByTestId("mismatch-switch")).toBeNull()
+      expect(within(prompt).getByTestId("mismatch-add")).toHaveAttribute(
+        "href",
+        `/settings?tab=languages&add=${detected}`,
+      )
+      unmount()
+    }
+  })
+
+  it("keeps the chosen language and stops asking", async () => {
+    renderEntry(2, { detected_language: "fr" })
+    const prompt = await screen.findByTestId("language-mismatch")
+    fireEvent.click(within(prompt).getByRole("button", { name: "Keep Spanish" }))
+    await waitFor(() => expect(screen.queryByTestId("language-mismatch")).toBeNull())
+    expect(api.keepEntryLanguage).toHaveBeenCalledWith("entry-1")
+    expect(api.analyzeEntry).not.toHaveBeenCalled()
+  })
+
+  it("stays quiet when the languages match, the learner kept it, or nothing was detected", async () => {
+    for (const overrides of [
+      { detected_language: "es" },
+      { detected_language: "fr", detected_language_kept: true },
+      { detected_language: null },
+    ]) {
+      const { unmount } = renderEntry(2, overrides)
+      await waitFor(() => expect(screen.getByTestId("entry-side-by-side")).toBeInTheDocument())
+      expect(screen.queryByTestId("language-mismatch")).toBeNull()
+      unmount()
+    }
+    expect(api.getUserSettings).not.toHaveBeenCalled()
+  })
+})
+
+describe("studying your own language (full immersion)", () => {
+  it("translates nothing and offers no rescue into the same language", async () => {
+    renderEntry(3, {
+      policy_snapshot: { v: 1, l1: "es", l2: "es", immersion_level: 3, proficiency: "C1", ...LEVELS[3] },
+    })
+    expect(screen.getByTestId("meaning-paraphrase")).toHaveTextContent("Mi hermana está aburrida")
+    expect(screen.queryByRole("button", { name: /Explain in/ })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Native" }))
+    expect(screen.queryByTestId("rewrite-gloss")).toBeNull()
+    expect(api.translateEntryPart).not.toHaveBeenCalled()
   })
 })

@@ -90,6 +90,9 @@ export interface SideBySideEntry {
   sentenceMapping: SentenceMapping[] | null
   sentenceMappingStatus: string | null
   sentenceActions: SentenceAction[] | null
+  /** The language the tutor read the entry as, when it reported one. */
+  detectedLanguage: string | null
+  detectedLanguageKept: boolean
 }
 
 const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -137,7 +140,22 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
             item.reason.trim().length > 0,
         )
       : null,
+    detectedLanguage: typeof raw?.detected_language === "string" && raw.detected_language ? raw.detected_language : null,
+    detectedLanguageKept: raw?.detected_language_kept === true,
   }
+}
+
+const baseCode = (code?: string | null) => (code || "").split(/[-_]/)[0].toLowerCase()
+
+/** Same language once regional variants are ignored ("pt" and "pt-BR"). */
+export function sameLanguage(a?: string | null, b?: string | null): boolean {
+  return !!baseCode(a) && baseCode(a) === baseCode(b)
+}
+
+/** The detected language when it differs from the entry's language and the learner has not kept it. */
+export function languageMismatch(entry: SideBySideEntry): string | null {
+  if (!entry.detectedLanguage || entry.detectedLanguageKept || entry.analysisStatus === "failed") return null
+  return sameLanguage(entry.detectedLanguage, entry.language) ? null : entry.detectedLanguage
 }
 
 // Same rule as backend/app/services/entry_translation_service.py split_sentences, so the

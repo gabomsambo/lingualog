@@ -91,10 +91,22 @@ async function userHeaders(json = false): Promise<Record<string, string>> {
 }
 
 /** Re-run AI analysis for a saved entry (POST /entries/{id}/analyze). */
-export async function analyzeEntry(entryId: string): Promise<void> {
+/** Retry analysis. With `targetLanguage`, re-analyse the entry as that studied language instead. */
+export async function analyzeEntry(entryId: string, targetLanguage?: string): Promise<void> {
   const res = await fetch(`${API_BASE}/entries/${entryId}/analyze`, {
     method: "POST",
     headers: await userHeaders(true),
+    credentials: "include",
+    ...(targetLanguage ? { body: JSON.stringify({ target_language: targetLanguage }) } : {}),
+  });
+  if (!res.ok) throw await apiError(res);
+}
+
+/** The learner keeps the entry's language after a detected mismatch; stop asking. */
+export async function keepEntryLanguage(entryId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/entries/${entryId}/keep-language`, {
+    method: "POST",
+    headers: await userHeaders(),
     credentials: "include",
   });
   if (!res.ok) throw await apiError(res);
@@ -768,6 +780,8 @@ export interface LanguageProfileData {
   l2: string;
   immersion_level: number;
   proficiency: string;
+  /** False once removed in Settings; the profile and entries are kept for re-adding. */
+  active?: boolean;
 }
 
 export interface UserSettingsUpdate {

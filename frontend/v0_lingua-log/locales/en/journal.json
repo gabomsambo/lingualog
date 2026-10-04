@@ -46,5 +46,7 @@
   "explanationModeHint": "Leave this unset to follow the immersion level. A choice here overrides note language for this entry.",
   "explanationMode": "Explanation Mode",
   "strictnessLevel": "Strictness Level",
-  "selectLanguage": "Select language"
+  "selectLanguage": "Select language",
+  "learnAnotherLanguage": "Learn another language",
+  "writingIn": "Writing in"
 }

@@ -20,7 +20,8 @@ import {
   Target,
   Languages,
   Mail,
-  Smartphone
+  Smartphone,
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,16 +39,34 @@ import { getUserProfile, type UserProfile } from "@/lib/user-service"
 import { getUserSettings, updateUserSettings, updateUserProfile, type UserSettingsData, type UserSettingsUpdate } from "@/lib/api"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { LANGUAGES, getUILanguages, getTargetLanguages } from "@/i18n/languages"
+import { sameLanguage } from "@/lib/side-by-side"
+import { studiedLanguages as savedStudiedLanguages } from "@/lib/studied-languages"
+
+type LanguageProfileState = { immersion_level: number; proficiency: string; active: boolean }
+
+// "Learn French" from an entry's did-you-mean prompt lands here as ?add=fr.
+function requestedLanguage(): string | null {
+  if (typeof window === "undefined") return null
+  const code = new URLSearchParams(window.location.search).get("add")
+  return code && LANGUAGES.some((lang) => lang.code === code) ? code : null
+}
+
+// Applied to every load, so a second load cannot drop it. Re-adding keeps the saved level and proficiency.
+function withRequestedLanguage(
+  profiles: Record<string, LanguageProfileState>,
+  defaultLanguage: string,
+): Record<string, LanguageProfileState> {
+  const code = requestedLanguage()
+  if (!code || code === defaultLanguage || profiles[code]?.active) return profiles
+  const saved = profiles[code]
+  return { ...profiles, [code]: saved ? { ...saved, active: true } : { immersion_level: 1, proficiency: "A2", active: true } }
+}
 
 interface SettingsState {
   // Account
   email: string
   username: string
   password: string
-  
-  // Language Preferences
-  nativeLanguage: string
-  targetLanguages: string[]
   
   // Notifications
   emailNotifications: boolean
@@ -82,7 +101,8 @@ interface SettingsState {
   immersionLevel: number
   strictness: string
   formality: string
-  languageProfiles: Record<string, { immersion_level: number; proficiency: string }>
+  // Every profile ever added; removed languages stay here with active: false.
+  languageProfiles: Record<string, LanguageProfileState>
 }
 
 const savedExplanationChoice = (data: UserSettingsData) =>
@@ -96,8 +116,6 @@ export default function SettingsPage() {
     email: "",
     username: "",
     password: "",
-    nativeLanguage: "en",
-    targetLanguages: ["es"],
     emailNotifications: true,
     pushNotifications: true,
     dailyReminders: true,
@@ -153,8 +171,6 @@ export default function SettingsPage() {
             ...prev,
             email: profile?.email || "",
             username: profile?.username || "",
-            nativeLanguage: settingsData.native_language,
-            targetLanguages: settingsData.target_languages,
             emailNotifications: settingsData.email_notifications,
             pushNotifications: settingsData.push_notifications,
             dailyReminders: settingsData.daily_reminders,
@@ -180,13 +196,19 @@ export default function SettingsPage() {
             immersionLevel: settingsData.immersion_level,
             strictness: settingsData.strictness,
             formality: settingsData.formality,
-            languageProfiles: Object.fromEntries(
-              (settingsData.language_profiles ?? []).map((row) => [
-                row.l2,
-                { immersion_level: row.immersion_level, proficiency: row.proficiency },
-              ])
+            languageProfiles: withRequestedLanguage(
+              Object.fromEntries(
+                (settingsData.language_profiles ?? []).map((row) => [
+                  row.l2,
+                  { immersion_level: row.immersion_level, proficiency: row.proficiency, active: row.active !== false },
+                ])
+              ),
+              settingsData.default_target_lang || "es",
             ),
           }))
+          if (requestedLanguage() && !savedStudiedLanguages(settingsData).includes(requestedLanguage()!)) {
+            setHasChanges(true)
+          }
         }
       } catch (error) {
         console.error('Error loading profile and settings:', error)
@@ -207,28 +229,27 @@ export default function SettingsPage() {
     setHasChanges(true)
   }
 
-  const studiedLanguages = Array.from(
-    new Set([
-      ...(settings.targetLanguages || []),
-      settings.defaultTargetLanguage,
-      ...Object.keys(settings.languageProfiles),
-    ].filter(Boolean))
-  )
+  // Settings is the one place the studied list changes: default first, then every active profile.
+  const studiedLanguages = [
+    settings.defaultTargetLanguage,
+    ...Object.entries(settings.languageProfiles)
+      .filter(([code, profile]) => profile.active && code !== settings.defaultTargetLanguage)
+      .map(([code]) => code),
+  ].filter(Boolean)
 
-  const profileFor = (code: string) =>
+  const profileFor = (code: string): LanguageProfileState =>
     settings.languageProfiles[code] ?? {
       immersion_level: settings.immersionLevel,
       proficiency: "A2",
+      active: true,
     }
 
-  const updateLanguageProfile = (
-    code: string,
-    patch: Partial<{ immersion_level: number; proficiency: string }>
-  ) => {
+  const updateLanguageProfile = (code: string, patch: Partial<LanguageProfileState>) => {
     setSettings(prev => {
       const current = prev.languageProfiles[code] ?? {
         immersion_level: prev.immersionLevel,
         proficiency: "A2",
+        active: true,
       }
       const nextProfile = { ...current, ...patch }
       return {
@@ -247,15 +268,22 @@ export default function SettingsPage() {
     updateLanguageProfile(settings.defaultTargetLanguage, { immersion_level: level })
   }
 
-  const addTargetLanguage = (languageCode: string) => {
-    if (!settings.targetLanguages.includes(languageCode)) {
-      updateSetting("targetLanguages", [...settings.targetLanguages, languageCode])
-    }
+  // Re-adding a removed language brings back its saved level and proficiency.
+  const addStudiedLanguage = (code: string) => {
+    const saved = settings.languageProfiles[code]
+    updateLanguageProfile(code, saved ? { active: true } : { immersion_level: 1, proficiency: "A2", active: true })
   }
 
-  const removeTargetLanguage = (languageCode: string) => {
-    updateSetting("targetLanguages", settings.targetLanguages.filter(lang => lang !== languageCode))
+  const removeStudiedLanguage = (code: string) => {
+    if (code === settings.defaultTargetLanguage) return
+    updateLanguageProfile(code, { active: false })
   }
+
+  const [activeTab, setActiveTab] = useState("account")
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("tab") === "languages" || requestedLanguage()) setActiveTab("languages")
+  }, [])
 
   const handleSaveSettings = async () => {
     if (!userSettingsData) {
@@ -279,9 +307,8 @@ export default function SettingsPage() {
       }
 
       // Map frontend state format to API format
+      // Legacy native_language and target_languages are no longer written.
       const updateData: UserSettingsUpdate = {
-        native_language: settings.nativeLanguage,
-        target_languages: settings.targetLanguages,
         email_notifications: settings.emailNotifications,
         push_notifications: settings.pushNotifications,
         daily_reminders: settings.dailyReminders,
@@ -310,11 +337,14 @@ export default function SettingsPage() {
         immersion_level: settings.immersionLevel,
         strictness: settings.strictness,
         formality: settings.formality,
-        language_profiles: studiedLanguages.map((code) => ({
-          l2: code,
-          immersion_level: profileFor(code).immersion_level,
-          proficiency: profileFor(code).proficiency,
-        })),
+        language_profiles: Array.from(new Set([...studiedLanguages, ...Object.keys(settings.languageProfiles)])).map(
+          (code) => ({
+            l2: code,
+            immersion_level: profileFor(code).immersion_level,
+            proficiency: profileFor(code).proficiency,
+            active: code === settings.defaultTargetLanguage || profileFor(code).active,
+          })
+        ),
       }
 
       const updatedSettings = await updateUserSettings(updateData)
@@ -436,7 +466,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Settings Tabs */}
-        <Tabs defaultValue="account" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
             <TabsTrigger value="account" className="gap-2">
               <User className="h-4 w-4" />
@@ -564,10 +594,10 @@ export default function SettingsPage() {
                     </div>
 
                     <div>
-                      <Label htmlFor="native-language">{t('settings.nativeLanguage')}</Label>
-                      <p className="text-sm text-muted-foreground mb-2">{t('settings.nativeLanguageDesc')}</p>
+                      <Label htmlFor="native-language">{t('settings.explainIn')}</Label>
+                      <p className="text-sm text-muted-foreground mb-2">{t('settings.explainInDesc')}</p>
                       <Select value={settings.nativeLang} onValueChange={(value) => updateSetting("nativeLang", value)}>
-                        <SelectTrigger>
+                        <SelectTrigger id="native-language">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -584,44 +614,17 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="default-target-language">{t('settings.defaultTargetLanguage')}</Label>
-                    <p className="text-sm text-muted-foreground mb-2">{t('settings.defaultTargetLanguageDesc')}</p>
-                    <Select value={settings.defaultTargetLanguage} onValueChange={(value) => {
-                      const profile = settings.languageProfiles[value]
-                      setSettings(prev => ({
-                        ...prev,
-                        defaultTargetLanguage: value,
-                        immersionLevel: profile?.immersion_level ?? prev.immersionLevel,
-                      }))
-                      setHasChanges(true)
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getTargetLanguages()
-                          .filter(lang => lang.code !== settings.nativeLang)
-                          .map((lang) => (
-                            <SelectItem key={lang.code} value={lang.code}>
-                              <div className="flex items-center gap-2">
-                                <span>{lang.flag}</span>
-                                <span>{lang.name}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4">
+                  <div className="space-y-4" data-testid="studied-languages">
                     <div>
                       <Label>{t('settings.languagesYouStudy')}</Label>
                       <p className="text-sm text-muted-foreground">{t('settings.languagesYouStudyDesc')}</p>
                     </div>
                     {studiedLanguages.map((code) => {
                       const lang = LANGUAGES.find((item) => item.code === code)
+                      const name = lang?.name || code
                       const profile = profileFor(code)
+                      const isDefault = code === settings.defaultTargetLanguage
+                      const fullImmersion = sameLanguage(code, settings.nativeLang)
                       const descriptions = [
                         t('settings.immersion0Desc'),
                         t('settings.immersion1Desc'),
@@ -629,30 +632,57 @@ export default function SettingsPage() {
                         t('settings.immersion3Desc'),
                       ]
                       return (
-                        <div key={code} className="rounded-2xl border border-fun-purple/15 p-4 space-y-3">
-                          <div className="flex items-center gap-2 font-medium">
-                            <span>{lang?.flag}</span>
-                            <span>{lang?.name || code}</span>
-                          </div>
-                          <div>
-                            <Label>
-                              {t('settings.immersionLevel')}: {profile.immersion_level}/3
-                            </Label>
-                            <p className="text-sm text-muted-foreground mb-2">{descriptions[profile.immersion_level]}</p>
-                            <Slider
-                              value={[profile.immersion_level]}
-                              onValueChange={(value) => updateLanguageProfile(code, { immersion_level: value[0] })}
-                              max={3}
-                              min={0}
-                              step={1}
-                            />
-                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                              <span>0: {t('settings.immersionNativeFirst')}</span>
-                              <span>1: {t('settings.immersionGuidedBilingual')}</span>
-                              <span>2: {t('settings.immersionBalanced')}</span>
-                              <span>3: {t('settings.immersionImmersive')}</span>
+                        <div
+                          key={code}
+                          className="rounded-2xl border border-fun-purple/15 p-4 space-y-3"
+                          data-testid={`studied-language-${code}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-medium">
+                              <span>{lang?.flag}</span>
+                              <span>{name}</span>
+                              {isDefault && <Badge variant="outline">{t('settings.defaultBadge')}</Badge>}
+                              {fullImmersion && <Badge variant="outline">{t('settings.fullImmersion')}</Badge>}
                             </div>
+                            {!isDefault && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1 text-muted-foreground hover:text-destructive"
+                                onClick={() => removeStudiedLanguage(code)}
+                                aria-label={t('settings.removeLanguage', { language: name })}
+                              >
+                                <X className="h-4 w-4" />
+                                <span className="hidden sm:inline">{t('settings.removeLanguage', { language: name })}</span>
+                              </Button>
+                            )}
                           </div>
+                          {fullImmersion ? (
+                            <p className="text-sm text-muted-foreground" data-testid="full-immersion-note">
+                              {t('settings.fullImmersionDesc', { language: name })}
+                            </p>
+                          ) : (
+                            <div>
+                              <Label>
+                                {t('settings.immersionLevel')}: {profile.immersion_level}/3
+                              </Label>
+                              <p className="text-sm text-muted-foreground mb-2">{descriptions[profile.immersion_level]}</p>
+                              <Slider
+                                value={[profile.immersion_level]}
+                                onValueChange={(value) => updateLanguageProfile(code, { immersion_level: value[0] })}
+                                max={3}
+                                min={0}
+                                step={1}
+                              />
+                              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                <span>0: {t('settings.immersionNativeFirst')}</span>
+                                <span>1: {t('settings.immersionGuidedBilingual')}</span>
+                                <span>2: {t('settings.immersionBalanced')}</span>
+                                <span>3: {t('settings.immersionImmersive')}</span>
+                              </div>
+                            </div>
+                          )}
                           <div>
                             <Label>{t('settings.proficiency')}</Label>
                             <p className="text-sm text-muted-foreground mb-2">{t('settings.proficiencyDesc')}</p>
@@ -675,8 +705,60 @@ export default function SettingsPage() {
                         </div>
                       )
                     })}
+                    <div>
+                      <Select value="" onValueChange={addStudiedLanguage}>
+                        <SelectTrigger aria-label={t('settings.addLanguage')} data-testid="add-language">
+                          <SelectValue placeholder={`+ ${t('settings.addLanguage')}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getTargetLanguages()
+                            .filter((lang) => !studiedLanguages.includes(lang.code))
+                            .map((lang) => (
+                              <SelectItem key={lang.code} value={lang.code}>
+                                <div className="flex items-center gap-2">
+                                  <span>{lang.flag}</span>
+                                  <span>{lang.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">{t('settings.removeLanguageHint')}</p>
+                    </div>
                   </div>
 
+                  <div>
+                    <Label htmlFor="default-target-language">{t('settings.defaultTargetLanguage')}</Label>
+                    <p className="text-sm text-muted-foreground mb-2">{t('settings.defaultTargetLanguageDesc')}</p>
+                    <Select value={settings.defaultTargetLanguage} onValueChange={(value) => {
+                      const profile = settings.languageProfiles[value]
+                      setSettings(prev => ({
+                        ...prev,
+                        defaultTargetLanguage: value,
+                        immersionLevel: profile?.immersion_level ?? prev.immersionLevel,
+                      }))
+                      setHasChanges(true)
+                    }}>
+                      <SelectTrigger id="default-target-language">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {studiedLanguages.map((code) => {
+                          const lang = LANGUAGES.find((item) => item.code === code)
+                          return (
+                            <SelectItem key={code} value={code}>
+                              <div className="flex items-center gap-2">
+                                <span>{lang?.flag}</span>
+                                <span>{lang?.name || code}</span>
+                              </div>
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!sameLanguage(settings.defaultTargetLanguage, settings.nativeLang) && (
                   <div>
                     <Label>{t('settings.immersionLevel')}: {settings.immersionLevel}/3</Label>
                     <p className="text-sm text-muted-foreground mb-2">{t('settings.immersionLevelDesc')}</p>
@@ -697,52 +779,6 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Deprecated: Target Languages array UI - Hidden but kept for backward compatibility */}
-                  {/* Language switching is now done via "Default Target Language" above */}
-                  {false && (
-                    <div>
-                      <Label>{t('settings.targetLanguagesLegacy')}</Label>
-                      <div className="mt-2 space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          {settings.targetLanguages.map((langCode) => {
-                            const lang = LANGUAGES.find(l => l.code === langCode)
-                            return lang ? (
-                              <Badge key={langCode} variant="outline" className="gap-2">
-                                <span>{lang.flag}</span>
-                                <span>{lang.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                                  onClick={() => removeTargetLanguage(langCode)}
-                                >
-                                  ×
-                                </Button>
-                              </Badge>
-                            ) : null
-                          })}
-                        </div>
-
-                        <Select onValueChange={addTargetLanguage}>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('settings.addLanguageToLearn')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {LANGUAGES
-                              .filter(lang => !settings.targetLanguages.includes(lang.code) && lang.code !== settings.nativeLanguage)
-                              .map((lang) => (
-                                <SelectItem key={lang.code} value={lang.code}>
-                                  <div className="flex items-center gap-2">
-                                    <span>{lang.flag}</span>
-                                    <span>{lang.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
                   )}
                 </CardContent>
               </Card>

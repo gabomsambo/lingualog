@@ -72,7 +72,7 @@ export default function EntryInsightPage() {
       ])
 
       if (settings) {
-        setNativeLanguage(settings.native_lang || settings.native_language || "en")
+        setNativeLanguage(settings.native_lang || "en")
         setImmersionLevel(settings.immersion_level)
       }
 

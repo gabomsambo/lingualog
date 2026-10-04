@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Feather, RefreshCw, AlertCircle, Copy, Save, Eye, EyeOff, ChevronDown, Settings, Languages, ArrowRight } from "lucide-react"
+import { Feather, RefreshCw, AlertCircle, Copy, Save, Eye, EyeOff, ChevronDown, Settings, Languages, ArrowRight, Plus } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -30,12 +30,20 @@ import { EntrySideBySide } from "@/components/entry-side-by-side"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
 
-import { ApiError, getEntryById, postLogEntry, getUserSettings, type JournalEntryOverrides, type UserSettingsData } from "@/lib/api"
+import {
+  ApiError,
+  getEntryById,
+  postLogEntry,
+  getUserSettings,
+  type JournalEntryOverrides,
+  type UserSettingsData,
+} from "@/lib/api"
+import { studiedLanguages } from "@/lib/studied-languages"
 import { toSideBySideEntry, type SideBySideEntry } from "@/lib/side-by-side"
 import type { Entry } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
-import { LANGUAGES, getLanguageDisplayName } from "@/i18n/languages"
+import { LANGUAGES, getLanguageDisplayName, getLanguageFlag } from "@/i18n/languages"
 
 export function JournalEditor() {
   const { t } = useLocale()
@@ -196,6 +204,18 @@ export function JournalEditor() {
     return LANGUAGES.find(l => l.code === targetLanguage) || LANGUAGES[1] // Default to Spanish
   }
 
+  // The picker offers only what Settings lists; a new language is added there, not here.
+  const pickerLanguages = studiedLanguages(userSettings)
+
+  const chooseLanguage = (code: string) => {
+    setTargetLanguage(code)
+    setOverrides((prev) => {
+      const next = { ...prev }
+      delete next.immersion_level
+      return next
+    })
+  }
+
   const savedImmersionLevel = userSettings?.language_profiles?.find((row) => row.l2 === targetLanguage)?.immersion_level
     ?? userSettings?.immersion_level
     ?? 1
@@ -225,33 +245,46 @@ export function JournalEditor() {
               disabled={isSubmitting}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">{t('journal.targetLanguage')}</label>
-                <Select value={targetLanguage} onValueChange={(value) => {
-                  setTargetLanguage(value)
-                  setOverrides((prev) => {
-                    const next = { ...prev }
-                    delete next.immersion_level
-                    return next
-                  })
-                }} disabled={isSubmitting}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('journal.selectTargetLanguage')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        <div className="flex items-center gap-2">
-                          <span>{lang.flag}</span>
-                          <span>{lang.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <span className="text-sm font-medium mb-2 block" id="writing-in-label">{t('journal.writingIn')}</span>
+                <div
+                  role="radiogroup"
+                  aria-labelledby="writing-in-label"
+                  className="flex flex-wrap items-center gap-2"
+                  data-testid="language-picker"
+                >
+                  {pickerLanguages.map((code) => {
+                    const selected = code === targetLanguage
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => chooseLanguage(code)}
+                        disabled={isSubmitting}
+                        className={`inline-flex items-center gap-2 rounded-full border-2 px-4 py-1.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
+                          selected
+                            ? "border-fun-purple bg-fun-purple/10 text-fun-purple"
+                            : "border-border text-muted-foreground hover:border-fun-purple/40 hover:text-foreground"
+                        }`}
+                      >
+                        <span>{getLanguageFlag(code)}</span>
+                        <span>{getLanguageDisplayName(code)}</span>
+                      </button>
+                    )
+                  })}
+                  <Link
+                    href="/settings?tab=languages"
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold text-fun-purple hover:underline"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('journal.learnAnotherLanguage')}
+                  </Link>
+                </div>
               </div>
-              <div className="flex items-end justify-end text-sm text-muted-foreground pr-2">
+              <div className="text-sm text-muted-foreground pr-2">
                 {t('journal.wordCount')}: {wordCount}
               </div>
             </div>
@@ -499,7 +532,7 @@ export function JournalEditor() {
           entryId={savedEntryId || ""}
           entryContent={text}
           entryLanguage={targetLanguage}
-          defaultTargetLanguage={userSettings?.native_lang || userSettings?.native_language || "en"}
+          defaultTargetLanguage={userSettings?.native_lang || "en"}
         />
       )}
     </div>
