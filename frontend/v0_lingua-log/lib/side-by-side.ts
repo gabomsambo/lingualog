@@ -60,6 +60,14 @@ export interface SentenceMapping {
   corrected_sentences: number[]
 }
 
+export interface SentenceAction {
+  source_sentence: number
+  action: "removed" | "merged"
+  reason: string
+  reason_l1?: string
+  reason_l2?: string
+}
+
 export interface SideBySideEntry {
   id: string
   title?: string
@@ -81,6 +89,7 @@ export interface SideBySideEntry {
   newWords: EntryWord[]
   sentenceMapping: SentenceMapping[] | null
   sentenceMappingStatus: string | null
+  sentenceActions: SentenceAction[] | null
 }
 
 const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -119,6 +128,15 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
       ? asArray<SentenceMapping>(raw?.sentence_mapping ?? ai.sentence_mapping)
       : null,
     sentenceMappingStatus: raw?.sentence_mapping_status ?? ai.sentence_mapping_status ?? null,
+    sentenceActions: Array.isArray(raw?.sentence_actions ?? ai.sentence_actions)
+      ? asArray<SentenceAction>(raw?.sentence_actions ?? ai.sentence_actions).filter(
+          (item) =>
+            item &&
+            (item.action === "removed" || item.action === "merged") &&
+            typeof item.reason === "string" &&
+            item.reason.trim().length > 0,
+        )
+      : null,
   }
 }
 

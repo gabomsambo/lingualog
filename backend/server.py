@@ -201,8 +201,23 @@ def _learner_note(suggestion) -> str:
     return "\n".join(parts)
 
 
-def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> tuple[list[dict], str]:
-    """Validate model indexes against the exact sentences shown by the UI."""
+def _action_reason(action) -> str:
+    """Resolve the learner-facing reason from language-specific slots."""
+    if action.reason and action.reason.strip():
+        return action.reason
+    parts = [part for part in (action.reason_l2, action.reason_l1) if part and part.strip()]
+    return "\n".join(parts)
+
+
+def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> tuple[list[dict], list[dict], str]:
+    """Validate model indexes against the exact sentences shown by the UI.
+
+    Returns the persisted mapping, the action explanations (always present when the
+    mapping is accepted), and the status string. ``invalid_no_explanation`` is a
+    separate status from ``invalid`` so the UI can distinguish a mapping the model
+    got structurally wrong from one it explained badly - the latter is the
+    contract violation that drops the mapping but still surfaces a warning.
+    """
     source_count = len(split_sentences(original_text))
     corrected_count = len(split_sentences(result.corrected))
     mapping = [item.model_dump() for item in result.sentence_mapping]
@@ -226,9 +241,59 @@ def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> t
             reason = "corrected sentence indexes are not monotonic across source sentences"
 
     if reason:
-        logger.warning("Rejecting Gemini sentence mapping; rows will be shown unaligned: %s", reason)
-        return [], "invalid"
-    return mapping, "valid"
+        logger.warning("Rejecting Gemini sentence mapping; using legacy heuristic: %s", reason)
+        return [], [], "invalid"
+
+    # A corrected sentence is owned by the first source that references it
+    # (same rule the side-by-side UI uses), so any subsequent source that
+    # only points at already-owned indexes is "merged into" that neighbour.
+    owner: dict[int, int] = {}
+    for item in mapping:
+        for target_index in item["corrected_sentences"]:
+            owner.setdefault(target_index, item["source_sentence"])
+
+    required_indexes: set[int] = set()
+    actions_by_index = {action.source_sentence: action for action in result.sentence_actions}
+
+    actions: list[dict] = []
+    for item in mapping:
+        source_index = item["source_sentence"]
+        corrected_indexes = item["corrected_sentences"]
+        if not corrected_indexes:
+            expected = "removed"
+        elif all(owner.get(idx) != source_index for idx in corrected_indexes):
+            expected = "merged"
+        else:
+            continue
+        required_indexes.add(source_index)
+        action = actions_by_index.get(source_index)
+        if action is None:
+            logger.warning(
+                "Gemini %s source sentence %d without an explanation; dropping mapping",
+                expected,
+                source_index,
+            )
+            return [], [], "invalid_no_explanation"
+        if action.action != expected:
+            logger.warning(
+                "Gemini action %r for source sentence %d does not match mapping kind %r; dropping mapping",
+                action.action,
+                source_index,
+                expected,
+            )
+            return [], [], "invalid_no_explanation"
+        if not _action_reason(action).strip():
+            logger.warning(
+                "Gemini gave an empty explanation for source sentence %d (%s); dropping mapping",
+                source_index,
+                action.action,
+            )
+            return [], [], "invalid_no_explanation"
+        payload = action.model_dump()
+        payload["reason"] = _action_reason(action)
+        actions.append(payload)
+
+    return mapping, actions, "valid"
 
 
 def _build_feedback_response(result: JournalFeedback, original_text: str) -> FeedbackResponse:
@@ -238,7 +303,9 @@ def _build_feedback_response(result: JournalFeedback, original_text: str) -> Fee
         payload = suggestion.model_dump()
         payload["note"] = _learner_note(suggestion)
         suggestions.append(Suggestion(**payload))
-    sentence_mapping, sentence_mapping_status = _validate_sentence_mapping(result, original_text)
+    sentence_mapping, sentence_actions, sentence_mapping_status = _validate_sentence_mapping(
+        result, original_text
+    )
     return FeedbackResponse(
         corrected=result.corrected,
         rewritten=result.rewrite,
@@ -258,6 +325,7 @@ def _build_feedback_response(result: JournalFeedback, original_text: str) -> Fee
         rewrite_idioms=[item.model_dump() for item in result.rewrite_idioms] or None,
         sentence_mapping=sentence_mapping or None,
         sentence_mapping_status=sentence_mapping_status,
+        sentence_actions=sentence_actions or None,
     )
 
 
@@ -522,6 +590,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
         "sentence_mapping": feedback_response.sentence_mapping,
         "sentence_mapping_status": feedback_response.sentence_mapping_status,
+        "sentence_actions": feedback_response.sentence_actions,
         **_analysis_columns(feedback_response),
         **snapshot_data,
     }
@@ -714,6 +783,7 @@ async def analyze_existing_entry(entry_id: str, request: Request):
         "new_words": [word.model_dump() for word in feedback_response.new_words] if feedback_response.new_words else [],
         "sentence_mapping": feedback_response.sentence_mapping,
         "sentence_mapping_status": feedback_response.sentence_mapping_status,
+        "sentence_actions": feedback_response.sentence_actions,
         **_analysis_columns(feedback_response),
         **_snapshot_columns(effective_settings),
     }

@@ -287,6 +287,7 @@ def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:
         "translation", "explanation", "rubric",
         "grammar_suggestions", "new_words",
         "sentence_mapping", "sentence_mapping_status",
+        "sentence_actions",
     ]
     restructured_entry: Dict[str, Any] = {}
     ai_feedback_payload: Dict[str, Any] = {}

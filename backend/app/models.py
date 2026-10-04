@@ -144,6 +144,7 @@ class AiFeedback(BaseModel):
     rubric: Optional[Dict[str, Any]] = Field(None) # Example of a potentially complex field
     sentence_mapping: Optional[List[Dict[str, Any]]] = None
     sentence_mapping_status: Optional[str] = None
+    sentence_actions: Optional[List[Dict[str, Any]]] = None
 
     model_config = {
         "populate_by_name": True, # Allows use of aliases for population
@@ -167,6 +168,7 @@ class JournalEntry(JournalEntryBase):
     analysis_error_code: Optional[str] = None
     sentence_mapping: Optional[List[Dict[str, Any]]] = None
     sentence_mapping_status: Optional[str] = None
+    sentence_actions: Optional[List[Dict[str, Any]]] = None
 
     model_config = {
         "from_attributes": True, # Pydantic V2 way for orm_mode

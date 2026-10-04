@@ -44,6 +44,7 @@ def sample_feedback(text="", is_mock=False):
         grammar_suggestions=[],
         new_words=[],
         sentence_mapping=[{"source_sentence": 0, "corrected_sentences": [0]}],
+        sentence_actions=[],
         is_mock=is_mock,
     )
 
@@ -78,6 +79,10 @@ def test_policy_prompt_respects_immersion_levels():
         assert '"translation"' not in system_prompt, (
             f"Level {level} prompt must not ask for a translation field"
         )
+        # The new contract: never drop an odd sentence, and every removal/merge
+        # must carry an explanation. Both rules live in the system prompt.
+        assert "never drop" in system_prompt.lower()
+        assert "sentence_actions" in system_prompt
         # Proficiency is its own setting. With none stored, every level is A2.
         assert user_payload["proficiency_estimate"] == "A2"
         assert user_payload["proficiency"] == "A2"

@@ -209,6 +209,7 @@ async def mock_generate_structured(
             {"source_sentence": index, "corrected_sentences": [index]}
             for index, _sentence in enumerate(source_sentences)
         ],
+        sentence_actions=[],
         is_mock=True,
     )
 

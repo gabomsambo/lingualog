@@ -140,6 +140,21 @@ describe("EntrySideBySide layout", () => {
     renderEntry(0, {
       corrected:
         "Mi hermana está muy aburrida hoy porque está lloviendo y quiero que ella venga conmigo al cine. Estoy muy avergonzada porque olvidé su cumpleaños.",
+      sentence_mapping_status: "valid",
+      sentence_mapping: [
+        { source_sentence: 0, corrected_sentences: [0] },
+        { source_sentence: 1, corrected_sentences: [0] },
+        { source_sentence: 2, corrected_sentences: [1] },
+      ],
+      sentence_actions: [
+        {
+          source_sentence: 1,
+          action: "merged",
+          reason: "Glued into the first sentence in the correction.",
+          reason_l1: "Glued into the first sentence in the correction.",
+          reason_l2: "",
+        },
+      ],
     })
     const rows = screen.getAllByTestId("sbs-row")
     expect(rows).toHaveLength(3)
@@ -150,18 +165,39 @@ describe("EntrySideBySide layout", () => {
     expect(within(rows[mergedRow]).queryByTestId("corrected")).toBeNull()
     expect(merged[0]).toHaveTextContent(mergedRow === 0 ? "Merged into the sentence below" : "Merged into the sentence above")
     expect(screen.getAllByTestId("corrected")).toHaveLength(2)
+    expect(screen.getAllByTestId("action-card")).toHaveLength(1)
   })
 
   it("strikes out a sentence the correction removed and says so", () => {
     renderEntry(0, {
       corrected:
         "Mi hermana está muy aburrida hoy porque está lloviendo. Estoy muy avergonzada porque olvidé su cumpleaños.",
+      sentence_mapping_status: "valid",
+      sentence_mapping: [
+        { source_sentence: 0, corrected_sentences: [0] },
+        { source_sentence: 1, corrected_sentences: [] },
+        { source_sentence: 2, corrected_sentences: [1] },
+      ],
+      sentence_actions: [
+        {
+          source_sentence: 1,
+          action: "removed",
+          reason: "Genuine duplicate of the previous sentence.",
+          reason_l1: "Genuine duplicate of the previous sentence.",
+          reason_l2: "",
+        },
+      ],
     })
     const rows = screen.getAllByTestId("sbs-row")
     expect(screen.queryAllByTestId("corrected-merged")).toHaveLength(0)
     const removed = within(rows[1]).getByTestId("corrected-removed")
     expect(removed).toHaveTextContent("Removed in the correction")
-    expect(within(within(rows[1]).getByTestId("corrected")).getByText(/viene/).tagName).toBe("DEL")
+    // The removed row no longer renders a diff for its source; the explanation
+    // travels on its own card in "What to fix".
+    expect(within(rows[1]).queryByTestId("corrected")).toBeNull()
+    const actionCard = screen.getByTestId("action-card")
+    expect(actionCard).toHaveAttribute("data-action-kind", "removed")
+    expect(within(actionCard).getByTestId("action-reason")).toHaveTextContent(/duplicate/i)
   })
 
   it("uses an authoritative mapping for the el/es/que removal case", () => {
@@ -173,10 +209,41 @@ describe("EntrySideBySide layout", () => {
         { source_sentence: 0, corrected_sentences: [0] },
         { source_sentence: 1, corrected_sentences: [] },
       ],
+      sentence_actions: [
+        {
+          source_sentence: 1,
+          action: "removed",
+          reason: "La segunda frase es un fragmento sin verbo.",
+          reason_l1: "The second sentence is a fragment with no verb.",
+          reason_l2: "",
+        },
+      ],
     })
     const rows = screen.getAllByTestId("sbs-row")
     expect(within(rows[1]).getByTestId("corrected-removed")).toBeInTheDocument()
     expect(within(rows[1]).queryByTestId("corrected-merged")).toBeNull()
+    expect(screen.getByTestId("action-card")).toBeInTheDocument()
+  })
+
+  it("falls back visibly and shows no fate label when an action reason is missing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    renderEntry(0, {
+      content: "El día es largo. Que es así.",
+      corrected: "El día es largo.",
+      sentence_mapping_status: "invalid_no_explanation",
+      sentence_mapping: [
+        { source_sentence: 0, corrected_sentences: [0] },
+        { source_sentence: 1, corrected_sentences: [] },
+      ],
+      sentence_actions: [],
+    })
+    // No "removed" / "merged" label - the row stays neutral.
+    expect(screen.queryAllByTestId("corrected-removed")).toHaveLength(0)
+    expect(screen.queryAllByTestId("corrected-merged")).toHaveLength(0)
+    expect(screen.getAllByTestId("corrected-unaligned")).toHaveLength(1)
+    expect(screen.getByTestId("alignment-fallback-warning")).toHaveTextContent(/removed or softened/i)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("without a reason"))
+    warn.mockRestore()
   })
 
   it("warns visibly and does not guess merged or removed for an invalid mapping", () => {
@@ -188,7 +255,7 @@ describe("EntrySideBySide layout", () => {
       sentence_mapping: null,
     })
     expect(screen.getByTestId("alignment-fallback-warning")).toBeInTheDocument()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("invalid sentence mapping"))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("model mapping was structurally invalid"))
     const rows = screen.getAllByTestId("sbs-row")
     expect(within(rows[1]).getByTestId("corrected-unaligned")).toBeInTheDocument()
     expect(within(rows[1]).queryByTestId("corrected-merged")).toBeNull()

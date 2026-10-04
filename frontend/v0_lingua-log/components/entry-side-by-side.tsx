@@ -100,6 +100,73 @@ function PillButton({ onClick, children, busy }: { onClick: () => void; children
   )
 }
 
+interface ComputeFateArgs {
+  corrected: string
+  index: number
+  showFate: boolean
+  authoritative: boolean
+  sourceSentences: string[]
+  correctedRows: string[]
+  fates: Array<"merged_above" | "merged_below" | "removed" | null>
+  hasAction: boolean
+}
+
+/**
+ * Decide what label to render for an empty corrected row.
+ *
+ * - When the model mapping is authoritative AND an action explanation is
+ *   present, the fate label from the mapping is authoritative.
+ * - When the mapping is authoritative but the model forgot the explanation,
+ *   fall back to a neutral "no explanation" state so the page never shows
+ *   "Removed in the correction" beside an empty What to fix list.
+ * - Otherwise (legacy entries, rejected mappings, etc.) the row is left
+ *   unlabelled and the explanation card carries the only message.
+ */
+function computeFate({
+  corrected,
+  index,
+  showFate,
+  authoritative,
+  sourceSentences,
+  correctedRows,
+  fates,
+  hasAction,
+}: ComputeFateArgs): "merged_above" | "merged_below" | "removed" | null {
+  if (corrected.trim()) return null
+  if (authoritative && showFate) {
+    const fate = fates[index] ?? null
+    if (fate === "removed" && !hasAction) return null
+    return fate
+  }
+  // No authoritative fate label here. Show nothing rather than guess.
+  return null
+}
+
+function renderEmptyFate(
+  fate: "merged_above" | "merged_below" | "removed" | null,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ReactNode {
+  if (!fate) {
+    return (
+      <span className="text-sm italic text-muted-foreground" data-testid="corrected-unaligned">
+        {t("feedback.unalignedRow")}
+      </span>
+    )
+  }
+  if (fate === "removed") {
+    return (
+      <span className="text-sm italic text-muted-foreground" data-testid="corrected-removed">
+        {t("feedback.removedInCorrection")}
+      </span>
+    )
+  }
+  return (
+    <span className="text-sm italic text-muted-foreground" data-testid="corrected-merged">
+      {fate === "merged_above" ? t("feedback.mergedIntoAbove") : t("feedback.mergedIntoBelow")}
+    </span>
+  )
+}
+
 function LinkButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" onClick={onClick} className="text-xs font-bold text-fun-purple hover:underline">
@@ -134,23 +201,51 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const rescueOnly = policy?.meaning === "rescue_only"
 
   const sentences = useMemo(() => splitSentences(entry.content), [entry.content])
+  const mappingStatus = entry.sentenceMappingStatus
   const alignment = useMemo(() => {
     if (!entry.corrected) return { rows: [], fates: [], authoritative: false }
     const targets = splitSentences(entry.corrected)
-    return (
-      alignSentencesFromMapping(sentences, targets, entry.sentenceMapping) || {
-        rows: alignSentences(sentences, targets),
-        fates: [],
-        authoritative: false,
-      }
-    )
-  }, [sentences, entry.corrected, entry.sentenceMapping])
+    if (mappingStatus === "valid") {
+      const mapped = alignSentencesFromMapping(sentences, targets, entry.sentenceMapping)
+      if (mapped) return mapped
+    }
+    return {
+      rows: alignSentences(sentences, targets),
+      fates: [],
+      authoritative: false,
+    }
+  }, [sentences, entry.corrected, entry.sentenceMapping, mappingStatus])
   const correctedRows = alignment.rows
-  const mappingRejected = entry.sentenceMappingStatus === "invalid" || (!!entry.sentenceMapping && !alignment.authoritative)
+  const mappingRejected =
+    mappingStatus === "invalid" ||
+    mappingStatus === "invalid_no_explanation" ||
+    (!!entry.sentenceMapping && !alignment.authoritative)
+  // A mapping is only authoritative when the server accepted it AND every
+  // removed/merged source sentence carries an explanation. The server already
+  // drops the mapping when that is not the case, but the check stays for
+  // legacy rows and any front-end-only inconsistency.
+  const mappingIsAuthoritative =
+    alignment.authoritative && mappingStatus === "valid" && !mappingRejected
 
   useEffect(() => {
-    if (mappingRejected) console.warn(`Entry ${entry.id}: invalid sentence mapping; empty rows are left unlabelled`)
-  }, [entry.id, mappingRejected])
+    if (!mappingRejected) return
+    const reason = mappingStatus === "invalid_no_explanation"
+      ? "model mapping explained a removal or merge without a reason"
+      : mappingStatus === "invalid"
+        ? "model mapping was structurally invalid"
+        : "model mapping did not match the sentences"
+    console.warn(`Entry ${entry.id}: ${reason}; using legacy alignment heuristic`)
+  }, [entry.id, mappingRejected, mappingStatus])
+
+  const actionsByRow = useMemo(() => {
+    const map = new Map<number, NonNullable<typeof entry.sentenceActions>[number]>()
+    entry.sentenceActions?.forEach((action) => {
+      if (action.source_sentence >= 0 && action.source_sentence < sentences.length) {
+        map.set(action.source_sentence, action)
+      }
+    })
+    return map
+  }, [entry.sentenceActions, sentences.length])
   const marks = useMemo(() => locateSuggestions(sentences, entry.suggestions), [sentences, entry.suggestions])
   const rowOfSuggestion = useMemo(() => {
     const rows = new Map<number, number>()
@@ -384,7 +479,9 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
           {!fromSnapshot && <p className="text-xs text-muted-foreground">{t("feedback.currentPolicyNote")}</p>}
           {mappingRejected && (
             <p className="text-xs text-fun-orange" role="status" data-testid="alignment-fallback-warning">
-              {t("feedback.alignmentFallbackWarning")}
+              {mappingStatus === "invalid_no_explanation"
+                ? t("feedback.alignmentContractWarning")
+                : t("feedback.alignmentFallbackWarning")}
             </p>
           )}
         </CardHeader>
@@ -420,13 +517,17 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
 
             {sentences.map((sentence, index) => {
               const corrected = correctedRows[index] || ""
-              const fate = corrected.trim()
-                ? null
-                : alignment.authoritative
-                  ? alignment.fates[index]
-                  : mappingRejected
-                    ? "unaligned"
-                    : emptyRowFate(sentences, correctedRows, index)
+              const action = actionsByRow.get(index)
+              const fate = computeFate({
+                corrected,
+                index,
+                showFate: mappingIsAuthoritative && !mappingRejected,
+                authoritative: alignment.authoritative,
+                sourceSentences: sentences,
+                correctedRows,
+                fates: alignment.fates,
+                hasAction: !!action,
+              })
               return (
                 <div key={index} className="group contents" data-testid="sbs-row">
                   <div
@@ -450,14 +551,8 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                       <MobileLabel>{t("feedback.howToWriteIt")}</MobileLabel>
                       {!entry.corrected || failed ? (
                         index === 0 ? <span className="text-sm text-muted-foreground">{t("feedback.noCorrectionYet")}</span> : null
-                      ) : fate === "unaligned" ? (
-                        <span className="text-sm italic text-muted-foreground" data-testid="corrected-unaligned">
-                          {t("feedback.notAligned")}
-                        </span>
-                      ) : !corrected.trim() && fate !== "removed" ? (
-                        <span className="text-sm italic text-muted-foreground" data-testid="corrected-merged">
-                          {fate === "merged_above" ? t("feedback.mergedIntoAbove") : t("feedback.mergedIntoBelow")}
-                        </span>
+                      ) : !corrected.trim() ? (
+                        renderEmptyFate(fate, t)
                       ) : (
                         <>
                         <p lang={l2} dir={l2Dir} className="font-serif text-base leading-relaxed" data-testid="corrected">
@@ -474,7 +569,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                             </Fragment>
                           ))}
                         </p>
-                        {fate === "removed" && (
+                        {fate === "removed" && action && (
                           <span className="text-sm italic text-muted-foreground" data-testid="corrected-removed">
                             {t("feedback.removedInCorrection")}
                           </span>
@@ -591,7 +686,36 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
             <CardTitle className="text-xl">{t("feedback.whatToFix")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {entry.suggestions.length === 0 && <p className="text-sm text-muted-foreground">{t("feedback.nothingToFix")}</p>}
+            {entry.suggestions.length === 0 && (entry.sentenceActions?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground">{t("feedback.nothingToFix")}</p>
+            )}
+            {entry.sentenceActions?.map((action, index) => {
+              const sourceSentence = sentences[action.source_sentence] || ""
+              return (
+                <div
+                  key={`action-${action.source_sentence}-${index}`}
+                  id={`action-${entry.id}-${action.source_sentence}`}
+                  data-testid="action-card"
+                  data-action-kind={action.action}
+                  className="min-w-0 rounded-2xl border border-fun-purple/40 bg-fun-purple/5 p-3"
+                >
+                  <div className="text-[11px] font-extrabold uppercase text-fun-purple">
+                    {action.action === "removed"
+                      ? t("feedback.sentenceRemovedLabel")
+                      : t("feedback.sentenceMergedLabel")}
+                  </div>
+                  {sourceSentence && (
+                    <p lang={l2} dir={l2Dir} className="my-1.5 font-serif text-base">
+                      <del className="bg-red-500/10 text-red-600">{sourceSentence}</del>
+                    </p>
+                  )}
+                  <p className="text-sm" data-testid="action-reason">
+                    <span className="font-bold">{t("feedback.whyRemovedOrMerged")}: </span>
+                    {action.reason}
+                  </p>
+                </div>
+              )
+            })}
             {entry.suggestions.map((suggestion, index) => {
               const { primary, secondary } = noteTexts(suggestion, policy.explanation)
               const rescue = noteRescues[index]
