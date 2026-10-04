@@ -226,7 +226,7 @@ def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> t
             reason = "corrected sentence indexes are not monotonic across source sentences"
 
     if reason:
-        logger.warning("Rejecting Gemini sentence mapping; using legacy heuristic: %s", reason)
+        logger.warning("Rejecting Gemini sentence mapping; rows will be shown unaligned: %s", reason)
         return [], "invalid"
     return mapping, "valid"
 

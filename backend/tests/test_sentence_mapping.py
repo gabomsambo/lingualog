@@ -77,7 +77,7 @@ def test_inconsistent_mapping_is_rejected_and_logged(caplog):
         response = _build_feedback_response(result, "Primera. Segunda.")
     assert response.sentence_mapping is None
     assert response.sentence_mapping_status == "invalid"
-    assert "using legacy heuristic" in caplog.text
+    assert "rows will be shown unaligned" in caplog.text
 
 
 @pytest.mark.parametrize("bad_index", [-1, 2])
@@ -90,4 +90,4 @@ def test_bad_corrected_indexes_fall_back_instead_of_failing_feedback(bad_index, 
         response = _build_feedback_response(result, "Primera.")
     assert response.sentence_mapping is None
     assert response.sentence_mapping_status == "invalid"
-    assert "using legacy heuristic" in caplog.text
+    assert "rows will be shown unaligned" in caplog.text
