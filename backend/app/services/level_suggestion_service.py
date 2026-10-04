@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from database import create_supabase_client, fetch_language_profile, save_user_settings
-from learning_policy import resolve_policy
+from learning_policy import is_same_language, resolve_policy
 from level_suggestion import (
     EVIDENCE_STATUS,
     STEP_DOWN_WINDOW,
@@ -194,6 +194,9 @@ def _language_levels(client: Any, user_id: str, settings: Optional[dict]) -> lis
             level = int(profile.get("immersion_level", 1))
         except (TypeError, ValueError):
             continue
+        if is_same_language((settings or {}).get("native_lang"), l2):
+            # Studying your own language is always full immersion, whatever the row says.
+            level = _resolved(user_id, l2, settings).immersion_level
         since = _aware(profile["level_changed_at"]) if profile.get("level_changed_at") else None
         levels[l2] = LanguageLevel(user_id, l2, level, since)
     for l2 in studied:
@@ -223,25 +226,12 @@ def _last_entry_at_other_level(client: Any, user_id: str, l2: str, level: int) -
 
 
 def _studied_languages(settings: Optional[dict], profiles: list[dict]) -> set[str]:
-    """Languages the Settings page lists under "Languages you study", minus native."""
-    codes: set[str] = set()
-    native: set[str] = set()
-    if settings:
-        for key in ("native_lang", "native_language"):
-            value = str(settings.get(key) or "").strip()
-            if value:
-                native.add(value)
-        default = str(settings.get("default_target_lang") or "").strip()
-        if default:
-            codes.add(default)
-        listed = settings.get("target_languages") or []
-        if isinstance(listed, list):
-            codes.update(str(code).strip() for code in listed if code)
-    for profile in profiles:
-        l2 = str(profile.get("l2") or "").strip()
-        if l2:
-            codes.add(l2)
-    return {code for code in codes - native if L2_PATTERN.match(code)}
+    """Languages listed under "Languages I'm learning": active profiles plus the default."""
+    codes = {str(profile.get("l2") or "").strip() for profile in profiles if profile.get("active") is not False}
+    default = str((settings or {}).get("default_target_lang") or "").strip()
+    if default:
+        codes.add(default)
+    return {code for code in codes if L2_PATTERN.match(code)}
 
 
 def _table(client: Any, name: str, user_id: str, columns: str = "*") -> list[dict]:
