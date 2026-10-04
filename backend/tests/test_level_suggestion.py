@@ -27,13 +27,23 @@ USER = "user-a"
 OTHER = "user-b"
 
 
-def _entry(index: int, *, user: str = USER, l2: str = "es", score: float | None = 80) -> EntrySignal:
+def _entry(
+    index: int,
+    *,
+    user: str = USER,
+    l2: str = "es",
+    score: float | None = 80,
+    level: int = 2,
+    status: str = "ok",
+) -> EntrySignal:
     return EntrySignal(
         entry_id=f"e{index}",
         user_id=user,
         l2=l2,
         created_at=NOW - timedelta(minutes=index),
         score=score,
+        immersion_level=level,
+        analysis_status=status,
     )
 
 
@@ -80,7 +90,7 @@ def test_step_down_at_exact_sixty_percent():
 
 
 def test_step_down_below_sixty_percent_is_quiet():
-    entries = [_entry(i) for i in range(STEP_DOWN_WINDOW)]
+    entries = [_entry(i, level=1) for i in range(STEP_DOWN_WINDOW)]
     taps = [_tap(f"e{i}", "rescue_note") for i in range(2)]
     assert _suggest(entries, taps, level=1) == []
 
@@ -98,14 +108,14 @@ def test_step_down_needs_five_entries():
 
 
 def test_step_down_does_not_apply_at_level_zero():
-    entries = [_entry(i) for i in range(STEP_DOWN_WINDOW)]
+    entries = [_entry(i, level=0) for i in range(STEP_DOWN_WINDOW)]
     taps = [_tap(row.entry_id) for row in entries]
     assert _suggest(entries, taps, level=0) == []
 
 
 def test_step_up_at_exact_ten_percent(monkeypatch):
     monkeypatch.setattr("level_suggestion.STEP_UP_WINDOW", 10)
-    entries = [_entry(i, score=STEP_UP_MIN_SCORE) for i in range(10)]
+    entries = [_entry(i, level=1, score=STEP_UP_MIN_SCORE) for i in range(10)]
     taps = [_tap("e0", "reveal_rewrite_gloss")]
     found = _suggest(entries, taps, level=1)
     assert len(found) == 1
@@ -115,7 +125,7 @@ def test_step_up_at_exact_ten_percent(monkeypatch):
 
 def test_step_up_just_over_ten_percent(monkeypatch):
     monkeypatch.setattr("level_suggestion.STEP_UP_WINDOW", 10)
-    entries = [_entry(i, score=90) for i in range(10)]
+    entries = [_entry(i, level=1, score=90) for i in range(10)]
     taps = [_tap("e0"), _tap("e1", "rescue_note")]
     assert _suggest(entries, taps, level=1) == []
 
@@ -134,17 +144,17 @@ def test_step_up_score_just_below_threshold_is_quiet():
 
 
 def test_step_up_one_of_eight_is_over_ten_percent():
-    entries = [_entry(i, score=90) for i in range(STEP_UP_WINDOW)]
+    entries = [_entry(i, level=1, score=90) for i in range(STEP_UP_WINDOW)]
     assert _suggest(entries, [_tap("e0", "reveal_example")], level=1) == []
 
 
 def test_step_up_needs_eight_entries():
-    entries = [_entry(i, score=90) for i in range(STEP_UP_WINDOW - 1)]
+    entries = [_entry(i, level=1, score=90) for i in range(STEP_UP_WINDOW - 1)]
     assert _suggest(entries, [], level=1) == []
 
 
 def test_step_up_does_not_apply_at_level_three():
-    entries = [_entry(i, score=90) for i in range(STEP_UP_WINDOW)]
+    entries = [_entry(i, level=3, score=90) for i in range(STEP_UP_WINDOW)]
     assert _suggest(entries, [], level=3) == []
 
 
@@ -179,6 +189,41 @@ def test_owner_isolation_ignores_another_learners_history():
     assert theirs[0].l2 == "es"
 
 
+def test_accepting_does_not_cascade_on_history_from_the_old_level():
+    entries = [_entry(i, level=2) for i in range(STEP_DOWN_WINDOW)]
+    taps = [_tap(f"e{i}") for i in range(3)]
+    assert _suggest(entries, taps, level=2)[0].to_level == 1
+    assert _suggest(entries, taps, level=1) == []
+
+    calm = [_entry(i, level=0, score=90) for i in range(STEP_UP_WINDOW)]
+    assert _suggest(calm, [], level=0)[0].to_level == 1
+    assert _suggest(calm, [], level=1) == []
+
+
+def test_window_counts_only_entries_at_the_current_level():
+    older = [_entry(i, level=1) for i in range(10, 10 + STEP_DOWN_WINDOW)]
+    newer = [_entry(i, level=2) for i in range(STEP_DOWN_WINDOW - 1)]
+    taps = [_tap(row.entry_id) for row in older + newer]
+    assert _suggest(older + newer, taps, level=2) == []
+    assert _suggest(older + newer + [_entry(5, level=2)], taps, level=2)[0].direction == "down"
+
+
+@pytest.mark.parametrize("status", ["failed", "mock", "legacy"])
+def test_entries_without_a_real_score_are_not_evidence(status):
+    unscored = [_entry(i, level=1, score=None if status == "failed" else 90, status=status) for i in range(7)]
+    scored = [_entry(10, level=1, score=90)]
+    assert _suggest(unscored + scored, [], level=1) == []
+
+    down = [_entry(i, status=status) for i in range(STEP_DOWN_WINDOW - 1)] + [_entry(9)]
+    assert _suggest(down, [_tap(row.entry_id) for row in down], level=2) == []
+
+
+def test_entry_without_score_does_not_fill_a_window():
+    entries = [_entry(i, level=1, score=90) for i in range(STEP_UP_WINDOW - 1)]
+    entries.append(_entry(20, level=1, score=None))
+    assert _suggest(entries, [], level=1) == []
+
+
 class _Response:
     def __init__(self, data):
         self.data = data
@@ -205,7 +250,11 @@ class FakeSupabase:
         self._filters.append((key, value))
         return self
 
-    def or_(self, _expr):
+    @property
+    def not_(self):
+        return self
+
+    def is_(self, *_args, **_kwargs):
         return self
 
     def order(self, *_args, **_kwargs):
@@ -245,6 +294,8 @@ def _history_tables():
                 "language": "es",
                 "score": 40,
                 "created_at": (NOW - timedelta(minutes=index)).isoformat(),
+                "analysis_status": "ok",
+                "policy_snapshot": {"v": 1, "immersion_level": 2},
             }
         )
     for index in range(3):
@@ -259,6 +310,8 @@ def _history_tables():
                 "language": "es",
                 "score": 40,
                 "created_at": created,
+                "analysis_status": "ok",
+                "policy_snapshot": {"v": 1, "immersion_level": 2},
             }
         )
         events.append({"user_id": OTHER, "entry_id": f"b{index}", "kind": "rescue_note"})
@@ -288,6 +341,19 @@ def test_service_scopes_queries_and_results_to_the_caller():
         if name in {"upsert", "delete"}:
             continue
         assert ("user_id", USER) in filters or ("user_id", OTHER) in filters
+
+
+def test_service_reads_taps_only_for_the_window_entries():
+    from app.services.level_suggestion_service import current_suggestions
+
+    tables = _history_tables()
+    for row in tables["journal_entries"]:
+        if row["user_id"] == USER and row["id"] in {"a3", "a4"}:
+            row["policy_snapshot"] = {"v": 1, "immersion_level": 1}
+    fake = FakeSupabase(tables)
+    assert current_suggestions(USER, supabase=fake) == []
+    tap_filters = [dict(filters) for name, filters in fake.calls if name == "support_events"]
+    assert tap_filters == [{"user_id": USER, "entry_id": ("a0", "a1", "a2")}]
 
 
 def test_accept_updates_only_the_callers_profile(monkeypatch):

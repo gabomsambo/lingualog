@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from database import create_supabase_client, fetch_language_profile, save_user_settings
 from level_suggestion import (
+    EVIDENCE_STATUS,
     STEP_DOWN_WINDOW,
     STEP_UP_WINDOW,
     EntrySignal,
@@ -58,7 +59,17 @@ def _owned(rows: list[dict], user_id: str) -> list[dict]:
 
 
 def _entry_l2(row: dict) -> str:
-    return str(row.get("target_language") or row.get("language") or "").strip()
+    return str(row.get("target_language") or "").strip()
+
+
+def _entry_level(row: dict) -> Optional[int]:
+    snapshot = row.get("policy_snapshot")
+    if not isinstance(snapshot, dict):
+        return None
+    try:
+        return int(snapshot.get("immersion_level"))
+    except (TypeError, ValueError):
+        return None
 
 
 def current_suggestions(user_id: str, supabase: Any = None, now: Optional[datetime] = None) -> list[dict]:
@@ -78,10 +89,10 @@ def current_suggestions(user_id: str, supabase: Any = None, now: Optional[dateti
         except (TypeError, ValueError):
             continue
         levels.append(LanguageLevel(user_id, l2, level))
-        for row in _owned(_entries_for_language(client, user_id, l2), user_id):
+        for row in _owned(_entries_for_language(client, user_id, l2, level), user_id):
             if not row.get("id") or not row.get("created_at"):
                 continue
-            if _entry_l2(row) != l2:
+            if _entry_l2(row) != l2 or _entry_level(row) != level:
                 continue
             entries.append(
                 EntrySignal(
@@ -90,12 +101,11 @@ def current_suggestions(user_id: str, supabase: Any = None, now: Optional[dateti
                     l2=l2,
                     created_at=_aware(row["created_at"]),
                     score=_score(row.get("score")),
+                    immersion_level=_entry_level(row),
+                    analysis_status=row.get("analysis_status"),
                 )
             )
-    event_rows = _owned(
-        _table(client, "support_events", user_id, columns="user_id,entry_id,kind", limit=1000),
-        user_id,
-    )
+    event_rows = _owned(_support_events(client, user_id, [row.entry_id for row in entries]), user_id)
     taps = [
         SupportTap(
             user_id,
@@ -170,22 +180,35 @@ def _public(row: LevelSuggestion) -> dict:
     }
 
 
-def _table(client: Any, name: str, user_id: str, columns: str = "*", limit: Optional[int] = None) -> list[dict]:
-    query = client.table(name).select(columns).eq("user_id", user_id)
-    if limit is not None:
-        query = query.limit(limit)
-    response = query.execute()
+def _table(client: Any, name: str, user_id: str, columns: str = "*") -> list[dict]:
+    response = client.table(name).select(columns).eq("user_id", user_id).execute()
     return list(response.data or [])
 
 
-def _entries_for_language(client: Any, user_id: str, l2: str) -> list[dict]:
+def _entries_for_language(client: Any, user_id: str, l2: str, level: int) -> list[dict]:
     response = (
         client.table("journal_entries")
-        .select("id,user_id,target_language,language,score,created_at")
+        .select("id,user_id,target_language,score,created_at,analysis_status,policy_snapshot")
         .eq("user_id", user_id)
-        .or_(f"target_language.eq.{l2},language.eq.{l2}")
+        .eq("target_language", l2)
+        .eq("analysis_status", EVIDENCE_STATUS)
+        .eq("policy_snapshot->>immersion_level", str(level))
+        .not_.is_("score", "null")
         .order("created_at", desc=True)
         .limit(ENTRY_LIMIT)
+        .execute()
+    )
+    return list(response.data or [])
+
+
+def _support_events(client: Any, user_id: str, entry_ids: list[str]) -> list[dict]:
+    if not entry_ids:
+        return []
+    response = (
+        client.table("support_events")
+        .select("user_id,entry_id,kind")
+        .eq("user_id", user_id)
+        .in_("entry_id", entry_ids)
         .execute()
     )
     return list(response.data or [])

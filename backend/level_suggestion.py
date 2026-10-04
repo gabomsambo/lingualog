@@ -7,6 +7,10 @@ Step up: at level L <= 2, any support tap was used on at most
 ``STEP_UP_MAX_RATIO`` of the last ``STEP_UP_WINDOW`` entries, and the average
 score is at least ``STEP_UP_MIN_SCORE``.
 
+Only entries written at the learner's current level, with a real score
+(``analysis_status`` ``ok``), count toward either window. Right after an accept
+there is no history at the new level, so nothing cascades.
+
 Dismiss hides the suggestion for ``SNOOZE_DAYS``. These names are the knobs to
 tune later; nothing else should hard-code the numbers.
 """
@@ -35,6 +39,8 @@ STEP_UP_MIN_SCORE = 75
 
 SNOOZE_DAYS = 7
 
+EVIDENCE_STATUS = "ok"
+
 
 @dataclass(frozen=True)
 class EntrySignal:
@@ -43,6 +49,8 @@ class EntrySignal:
     l2: str
     created_at: datetime
     score: Optional[float]
+    immersion_level: Optional[int] = None
+    analysis_status: Optional[str] = EVIDENCE_STATUS
 
 
 @dataclass(frozen=True)
@@ -143,6 +151,7 @@ def suggest_for_language(
 ) -> Optional[LevelSuggestion]:
     if snooze_active(snoozed_until, now):
         return None
+    entries = [row for row in entries if _is_evidence(row, level)]
     # Read the windows here so tests can retune the named config.
     down_window = STEP_DOWN_WINDOW
     up_window = STEP_UP_WINDOW
@@ -154,12 +163,19 @@ def suggest_for_language(
     if level <= STEP_UP_MAX_LEVEL and len(entries) >= up_window:
         window = _newest(entries, up_window)
         used = _entries_with_kinds(window, taps, SUPPORT_KINDS)
-        scores = [row.score for row in window if row.score is not None]
-        if scores and share_at_most(used, up_window, STEP_UP_MAX_RATIO):
-            average = sum(scores) / len(scores)
+        if share_at_most(used, up_window, STEP_UP_MAX_RATIO):
+            average = sum(row.score for row in window if row.score is not None) / len(window)
             if average >= STEP_UP_MIN_SCORE:
                 return LevelSuggestion(l2, "up", level, level + 1)
     return None
+
+
+def _is_evidence(row: EntrySignal, level: int) -> bool:
+    return (
+        row.immersion_level == level
+        and row.analysis_status == EVIDENCE_STATUS
+        and row.score is not None
+    )
 
 
 def _newest(entries: Sequence[EntrySignal], window: int) -> list[EntrySignal]:
