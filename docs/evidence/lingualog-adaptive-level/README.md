@@ -7,6 +7,10 @@ level. Demo learner, L1 English. Spanish was at immersion 1 with five such entri
 reveal on the three newest (exactly 60%). Japanese was at immersion 2 with eight such entries
 scored 80 and no support taps.
 
+> **Note:** This run predates `user_language_profiles.level_changed_at`. Windows now also skip
+> entries written before the language's last level change; with no change recorded (the stamp
+> is null) the seed above behaves the same.
+
 | Shot | What it shows |
 |---|---|
 | `before-dashboard.png` | Dashboard before enough qualifying entries: no card |
