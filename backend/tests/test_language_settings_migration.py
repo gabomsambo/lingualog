@@ -37,11 +37,11 @@ def _user(cursor, native, default, legacy, profiles=()):
         " WHERE user_id = %s",
         (native, default, list(legacy), user_id),
     )
-    for l2, active in profiles:
+    for l2 in profiles:
         cursor.execute(
-            "INSERT INTO public.user_language_profiles (user_id, l2, immersion_level, proficiency, active)"
-            " VALUES (%s, %s, 2, 'B1', %s)",
-            (user_id, l2, active),
+            "INSERT INTO public.user_language_profiles (user_id, l2, immersion_level, proficiency)"
+            " VALUES (%s, %s, 2, 'B1')",
+            (user_id, l2),
         )
     return user_id
 
@@ -65,7 +65,7 @@ def test_untouched_default_does_not_make_a_spanish_speaker_study_spanish(cursor)
 
 
 def test_native_language_already_studied_is_kept(cursor):
-    user_id = _user(cursor, native="es", default="en", legacy=["es"], profiles=[("es", True)])
+    user_id = _user(cursor, native="es", default="en", legacy=["es"], profiles=["es"])
     _migrate(cursor)
     assert _studied(cursor, user_id) == [("en", True), ("es", True)]
 
