@@ -87,23 +87,29 @@ function LanguageMismatchPrompt({
   const [busy, setBusy] = useState<"switch" | "keep" | null>(null)
   const [failed, setFailed] = useState(false)
   const [kept, setKept] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
     if (!detected) return
     let cancelled = false
     getUserSettings()
-      .then((settings) => !cancelled && setStudied(studiedLanguages(settings)))
-      .catch(() => !cancelled && setStudied([]))
+      .then((settings) => {
+        if (cancelled) return
+        setStudied(studiedLanguages(settings))
+        setLoadFailed(false)
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
     return () => {
       cancelled = true
     }
-  }, [detected])
+  }, [detected, loadAttempt])
 
-  if (!detected || kept || studied === null) return null
+  if (!detected || kept || (studied === null && !loadFailed)) return null
   const detectedName = languageName(detected, uiLang)
   const chosenName = languageName(entry.language, uiLang)
-  const canSwitch = studied.some((code) => sameLanguage(code, detected))
-  const switchTo = studied.find((code) => sameLanguage(code, detected)) || detected
+  const canSwitch = !!studied?.some((code) => sameLanguage(code, detected))
+  const switchTo = studied?.find((code) => sameLanguage(code, detected)) || detected
 
   const switchLanguage = async () => {
     setBusy("switch")
@@ -142,14 +148,26 @@ function LanguageMismatchPrompt({
       <div className="min-w-0 flex-1">
         <p className="font-bold">{t("feedback.mismatchTitle", { detected: detectedName, chosen: chosenName })}</p>
         <p className="text-sm text-muted-foreground">
-          {canSwitch
-            ? t("feedback.mismatchStudied", { detected: detectedName, chosen: chosenName })
-            : t("feedback.mismatchNotStudied", { detected: detectedName, chosen: chosenName })}
+          {studied === null
+            ? t("feedback.mismatchLoadFailed")
+            : canSwitch
+              ? t("feedback.mismatchStudied", { detected: detectedName, chosen: chosenName })
+              : t("feedback.mismatchNotStudied", { detected: detectedName, chosen: chosenName })}
         </p>
         {failed && <p className="mt-1 text-sm text-destructive">{t("feedback.mismatchFailed")}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
-        {canSwitch ? (
+        {studied === null ? (
+          <button
+            type="button"
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            disabled={busy !== null}
+            className={cn(button, "bg-gradient-green-blue text-white")}
+            data-testid="mismatch-retry-load"
+          >
+            {t("feedback.retry")}
+          </button>
+        ) : canSwitch ? (
           <button
             type="button"
             onClick={() => void switchLanguage()}

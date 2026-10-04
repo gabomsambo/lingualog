@@ -464,6 +464,19 @@ describe("did you mean another language?", () => {
     }
   })
 
+  it("shows a retry, not the not-studied branch, when the learner's languages fail to load", async () => {
+    api.getUserSettings.mockRejectedValueOnce(new Error("500"))
+    renderEntry(2, { detected_language: "fr" })
+    const prompt = await screen.findByTestId("language-mismatch")
+    expect(prompt).toHaveTextContent("Your languages could not be loaded.")
+    expect(within(prompt).queryByTestId("mismatch-add")).toBeNull()
+    expect(within(prompt).queryByTestId("mismatch-switch")).toBeNull()
+
+    fireEvent.click(within(prompt).getByTestId("mismatch-retry-load"))
+    expect(await within(prompt).findByRole("button", { name: "Switch to French" })).toBeInTheDocument()
+    expect(within(prompt).queryByTestId("mismatch-add")).toBeNull()
+  })
+
   it("keeps the chosen language and stops asking", async () => {
     renderEntry(2, { detected_language: "fr" })
     const prompt = await screen.findByTestId("language-mismatch")

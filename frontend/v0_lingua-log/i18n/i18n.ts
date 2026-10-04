@@ -471,6 +471,7 @@ const resources = {
       mismatchAdd: 'Learn {detected}',
       mismatchKeep: 'Keep {chosen}',
       mismatchFailed: 'Couldn\'t switch right now. Try again.',
+      mismatchLoadFailed: 'Your languages could not be loaded. Try again, or keep it as written.',
     }
   },
   es: {
@@ -983,6 +984,7 @@ const resources = {
       mismatchAdd: 'Aprender {detected}',
       mismatchKeep: 'Mantener {chosen}',
       mismatchFailed: 'No se pudo cambiar ahora. Inténtalo de nuevo.',
+      mismatchLoadFailed: 'No se pudieron cargar tus idiomas. Inténtalo de nuevo, o mantenlo como está.',
     }
   }
 }
