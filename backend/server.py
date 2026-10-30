@@ -9,7 +9,7 @@ import os
 import re
 import sys
 import uuid
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 # Add current directory to path to make imports work
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -853,28 +853,38 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
 
         item_data = {**item.model_dump(), "status": "new"}
         policy = resolve_policy(user_id, item.language)
+        card_fields: Dict[str, Any] = {}
         try:
             card = await generate_word_card(item.term, item.example_sentence or "", policy)
-            card_data = card.model_dump(by_alias=True)
-            item_data.update(
-                {
-                    "term": card.lemma,
-                    "lemma": card.lemma,
-                    "sense": card.sense_in_context,
-                    "part_of_speech": item.part_of_speech or card.part_of_speech,
-                    "definition": item.definition or card.sense_in_context,
-                    "card": card_data,
-                    "card_status": "ok",
-                    "card_policy": card_policy_snapshot(policy),
-                }
-            )
+            card_fields = {
+                "term": card.lemma,
+                "lemma": card.lemma,
+                "sense": card.sense_in_context,
+                "part_of_speech": item.part_of_speech or card.part_of_speech,
+                "definition": item.definition or card.sense_in_context,
+                "card": card.model_dump(by_alias=True),
+                "card_status": "ok",
+                "card_policy": card_policy_snapshot(policy),
+            }
+            if card.lemma != item.term:
+                lemma_row = fetch_vocabulary_item_by_term(user_id, card.lemma, item.language)
+                if lemma_row:
+                    existing = lemma_row
+                    if lemma_row.get("card_status") == "ok" and lemma_row.get("card"):
+                        return lemma_row
         except GeminiError as exc:
             logger.error("Vocabulary card failed (%s): %s", exc.code, exc.message)
-            item_data.update({"lemma": item.term, "card_status": "failed"})
+            card_fields = {"card_status": "failed"}
 
         if existing:
-            saved_item = update_vocabulary_item(existing["id"], user_id, item_data)
+            if existing.get("part_of_speech"):
+                card_fields.pop("part_of_speech", None)
+            if existing.get("definition"):
+                card_fields.pop("definition", None)
+            saved_item = update_vocabulary_item(existing["id"], user_id, card_fields)
         else:
+            item_data.update(card_fields)
+            item_data.setdefault("lemma", item.term)
             saved_item = save_vocabulary_item(item_data=item_data, user_id=user_id)
         if not saved_item:
             raise RuntimeError("Vocabulary item was not saved")
@@ -967,7 +977,12 @@ async def patch_vocabulary_item_route(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
     changes = patch.model_dump(exclude_unset=True)
-    if "tags" in changes and changes["tags"] is not None:
+    if changes.get("tags", []) is None or changes.get("status", "new") is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="tags and status cannot be null",
+        )
+    if "tags" in changes:
         changes["tags"] = list(dict.fromkeys(tag.strip() for tag in changes["tags"] if tag.strip()))
     updated = update_vocabulary_item(item_id, user_id, changes)
     if not updated:
