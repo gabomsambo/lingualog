@@ -14,6 +14,7 @@ import { Confetti } from "@/components/confetti"
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
 import { useLocale } from "@/i18n/LocaleProvider"
+import { GlobalLookupBox } from "@/components/lookup-sheet"
 
 // Badge variants for languages
 const languageBadgeVariants: Record<string, "pink" | "blue" | "purple" | "green" | "yellow" | "default" | "outline"> = {
@@ -166,6 +167,10 @@ export default function DashboardPage() {
             </Button>
           </motion.div>
         </motion.div>
+      </section>
+      <section className="mb-8 rounded-3xl border border-fun-blue/20 bg-fun-blue/5 p-5">
+        <h2 className="mb-3 text-lg font-bold">Look up anything</h2>
+        <GlobalLookupBox language="es" />
       </section>
 
       <LevelSuggestionCard />

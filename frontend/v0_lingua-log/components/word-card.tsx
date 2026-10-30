@@ -71,6 +71,7 @@ export function WordCard({ item, open, onOpenChange, onUpdated }: WordCardProps)
   const [note, setNote] = useState(item?.note || "")
   const [tags, setTags] = useState((item?.tags || []).join(", "))
   const [glossRevealed, setGlossRevealed] = useState(false)
+  const [revealedExamples, setRevealedExamples] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
@@ -79,6 +80,7 @@ export function WordCard({ item, open, onOpenChange, onUpdated }: WordCardProps)
     setNote(item?.note || "")
     setTags((item?.tags || []).join(", "))
     setGlossRevealed(false)
+    setRevealedExamples(new Set())
   }, [item])
 
   const card = current?.card
@@ -127,6 +129,15 @@ export function WordCard({ item, open, onOpenChange, onUpdated }: WordCardProps)
       entry_id: current.entry_id,
       immersion_level: current.card_policy?.level,
       l2: current.language,
+    }).catch(() => undefined)
+  }
+
+  const revealExample = (index: number) => {
+    setRevealedExamples((current) => new Set(current).add(index))
+    if (!current) return
+    void postSupportEvent({
+      kind: "reveal_example", entry_id: current.entry_id,
+      immersion_level: current.card_policy?.level, l2: current.language,
     }).catch(() => undefined)
   }
 
@@ -200,6 +211,15 @@ export function WordCard({ item, open, onOpenChange, onUpdated }: WordCardProps)
                     {card.examples.map((example, index) => (
                       <li key={`${example}-${index}`} className="rounded-xl bg-muted/60 p-3">
                         {example}
+                        {card.example_translations?.[index] && (
+                          vocabDef === "l1" || revealedExamples.has(index) ? (
+                            <p className="mt-1 text-sm text-muted-foreground">{card.example_translations[index]}</p>
+                          ) : vocabDef !== "l2" ? (
+                            <Button variant="link" size="sm" onClick={() => revealExample(index)}>
+                              Show translation
+                            </Button>
+                          ) : null
+                        )}
                       </li>
                     ))}
                   </ol>

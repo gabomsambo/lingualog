@@ -18,6 +18,10 @@ const api = vi.hoisted(() => ({
   addVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
+vi.mock("@/components/lookup-sheet", () => ({
+  LookupSheet: ({ context, open }: { context?: { text?: string }; open: boolean }) =>
+    open ? <div data-testid="tap-lookup">{context?.text}</div> : null,
+}))
 
 vi.mock("@/i18n/LocaleProvider", () => ({
   useLocale: () => ({
@@ -518,6 +522,18 @@ describe("suggested words", () => {
       status: "new",
     }))
     expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled()
+  })
+})
+
+describe("tap lookup", () => {
+  it("opens a lookup from the written result column", () => {
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({ offsetNode: document.createTextNode("hermana"), offset: 2 }),
+    })
+    renderEntry(1)
+    fireEvent.click(screen.getAllByTestId("written")[0])
+    expect(screen.getByTestId("tap-lookup")).toHaveTextContent("hermana")
   })
 })
 

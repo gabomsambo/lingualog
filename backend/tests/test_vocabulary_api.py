@@ -175,3 +175,75 @@ def test_patch_rejects_explicit_null(monkeypatch, client, body):
 
     assert response.status_code == 422
     update.assert_not_called()
+
+
+def test_lookup_records_encounter(monkeypatch, client):
+    card = MagicMock(lemma="banco", sense_in_context="bench")
+    card.model_dump.return_value = {"lemma": "banco", "sense_in_context": "bench"}
+    monkeypatch.setattr(server, "resolve_policy", lambda *_: object())
+    monkeypatch.setattr(server, "card_policy_snapshot", lambda _p: {"v": 1})
+    monkeypatch.setattr(server, "fetch_lookup_cache", lambda *_: None)
+    monkeypatch.setattr(server, "generate_word_card", AsyncMock(return_value=card))
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_term", lambda *_: None)
+    save = MagicMock(return_value={"id": "enc-1"})
+    monkeypatch.setattr(server, "save_word_encounter", save)
+    monkeypatch.setattr(server, "count_word_encounters", lambda *_: 1)
+
+    response = client.post(
+        "/lookup", headers={"X-User-ID": USER_ID},
+        json={"text": "banco", "sentence": "Me senté en un banco.", "language": "es", "source": "manual"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["encounter_id"] == "enc-1"
+    assert save.call_args.args[0]["sentence"] == "Me senté en un banco."
+
+
+def test_lookup_cache_hit_avoids_model_call(monkeypatch, client):
+    provider = AsyncMock()
+    monkeypatch.setattr(server, "resolve_policy", lambda *_: object())
+    monkeypatch.setattr(server, "card_policy_snapshot", lambda _p: {"v": 1})
+    monkeypatch.setattr(server, "fetch_lookup_cache", lambda *_: {
+        "lemma": "banco", "sense": "bench", "card": {"lemma": "banco"}, "card_status": "ok",
+    })
+    monkeypatch.setattr(server, "generate_word_card", provider)
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_term", lambda *_: None)
+    monkeypatch.setattr(server, "save_word_encounter", lambda *_: {"id": "enc-2"})
+    monkeypatch.setattr(server, "count_word_encounters", lambda *_: 3)
+
+    response = client.post(
+        "/lookup", headers={"X-User-ID": USER_ID},
+        json={"text": "banco", "language": "es", "source": "manual"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["seen_count"] == 3
+    provider.assert_not_awaited()
+
+
+def test_study_triage_enforces_daily_cap(monkeypatch, client):
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_id_and_user", lambda *_: row())
+    monkeypatch.setattr(server, "get_daily_new_word_usage", lambda *_: (10, 10))
+    update = MagicMock()
+    monkeypatch.setattr(server, "update_vocabulary_item", update)
+
+    response = client.patch(
+        "/vocabulary/word-1", headers={"X-User-ID": USER_ID}, json={"status": "learning"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "daily_new_words_cap"
+    update.assert_not_called()
+
+
+def test_cached_save_rejects_another_users_encounter(monkeypatch, client):
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_term", lambda *_: None)
+    monkeypatch.setattr(server, "resolve_policy", lambda *_: object())
+    monkeypatch.setattr(server, "fetch_word_encounter", lambda *_: None)
+
+    response = client.post(
+        "/vocabulary", headers={"X-User-ID": USER_ID},
+        json={"term": "banco", "language": "es", "encounter_id": "someone-elses"},
+    )
+
+    assert response.status_code == 404

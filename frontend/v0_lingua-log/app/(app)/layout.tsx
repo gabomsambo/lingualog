@@ -8,6 +8,7 @@ import type React from "react"
 import { MainNav } from "@/components/main-nav"
 import { UserNav } from "@/components/user-nav"
 import { useLocale } from "@/i18n/LocaleProvider"
+import { GlobalLookupBox } from "@/components/lookup-sheet"
 
 export default function AppGroupLayout({
   children,
@@ -71,7 +72,9 @@ export default function AppGroupLayout({
             </h1>
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-            <div className="w-full flex-1 md:w-auto md:flex-none">{/* Search or other elements could go here */}</div>
+            <div className="hidden max-w-xl flex-1 lg:block">
+              <GlobalLookupBox language="es" />
+            </div>
             <MainNav />
             <div className="flex items-center space-x-2">
               <UserNav />

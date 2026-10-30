@@ -12,6 +12,10 @@ const api = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => api)
 
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+vi.mock("@/components/lookup-sheet", () => ({
+  LookupSheet: ({ context, open }: { context?: { text?: string }; open: boolean }) =>
+    open ? <div data-testid="selected-lookup">{context?.text}</div> : null,
+}))
 
 vi.mock("@/i18n/LocaleProvider", () => ({
   useLocale: () => ({
@@ -59,5 +63,18 @@ describe("JournalEditor when settings fail to load", () => {
     expect(screen.getAllByRole("radio").map((radio) => radio.getAttribute("aria-checked"))).toEqual(["true"])
     expect(screen.getByRole("radio")).toHaveTextContent(/French|Français/)
     expect(screen.getByRole("button", { name: /submit/i })).toBeEnabled()
+  })
+})
+
+describe("JournalEditor lookup", () => {
+  it("opens lookup for selected draft text", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 11 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 17 })
+    fireEvent.mouseUp(editor)
+    expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
   })
 })

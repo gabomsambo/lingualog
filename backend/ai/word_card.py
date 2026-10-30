@@ -54,6 +54,9 @@ class WordCard(BaseModel):
     examples: List[str] = Field(
         description="Exactly two new target-language examples at the learner's proficiency"
     )
+    example_translations: List[str] = Field(
+        description="Native-language translations, parallel to examples. Empty when the policy forbids L1."
+    )
     collocations: List[str] = Field(description="Three common collocations or patterns")
     word_family: List[str] = Field(description="Up to three related words with the same root")
     common_mistake: str = Field(
@@ -75,20 +78,23 @@ def _language_rule(policy: LearningPolicy) -> str:
     rules = {
         "l1": (
             f"Write sense_in_context, other_senses meanings, common_mistake, and memory_hook "
-            f"in simple {l1}. gloss_l1 must be a short {l1} gloss."
+            f"in simple {l1}. gloss_l1 must be a short {l1} gloss. example_translations must "
+            f"translate each example into {l1}."
         ),
         "l1_plus_l2": (
             f"Write the card explanations in simple {l1}, while naturally retaining the {l2} "
-            f"term where useful. gloss_l1 must be a short {l1} gloss."
+            f"term where useful. gloss_l1 must be a short {l1} gloss. example_translations must "
+            f"translate each example into {l1}."
         ),
         "l2_plus_l1": (
             f"Write sense_in_context and other_senses meanings first in clear learner's-dictionary "
             f"{l2}. Write common_mistake and memory_hook in accessible {l2}. gloss_l1 must be a "
-            f"short {l1} gloss for an optional reveal."
+            f"short {l1} gloss for an optional reveal. example_translations must translate each "
+            f"example into {l1} for an optional reveal."
         ),
         "l2": (
             f"Write everything in clear learner's-dictionary {l2}, with no {l1}. gloss_l1 must "
-            "be an empty string."
+            "be an empty string. example_translations must be an empty array."
         ),
     }
     return rules[policy.vocab_def]

@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 # Add current directory to path to make imports work
@@ -27,6 +28,8 @@ from models import (
     UserVocabularyItemCreate,
     UserVocabularyItemPatch,
     UserVocabularyItemResponse,
+    LookupRequest,
+    LookupResponse,
     Rubric,
     Suggestion,
     Word,
@@ -49,6 +52,12 @@ from database import (
     fetch_vocabulary_item_by_term,
     fetch_vocabulary_item_by_id_and_user,
     update_vocabulary_item,
+    count_word_encounters,
+    fetch_lookup_cache,
+    fetch_word_encounter,
+    get_daily_new_word_usage,
+    link_word_encounters,
+    save_word_encounter,
     init_db_schema,
     fetch_language_profile,
     list_language_profiles,
@@ -838,6 +847,63 @@ async def delete_entry_route(entry_id: str, request: Request):
 
 # --- Vocabulary Endpoints ---
 
+@app.post("/lookup", response_model=LookupResponse)
+async def lookup_word_route(payload: LookupRequest, request: Request):
+    """Build or reuse a context-aware card and always record the encounter."""
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
+    text = payload.text.strip()
+    sentence = (payload.sentence or text).strip()
+    policy = resolve_policy(user_id, payload.language)
+    snapshot = card_policy_snapshot(policy)
+    cached = fetch_lookup_cache(user_id, payload.language, text, sentence)
+    card_data: Optional[Dict[str, Any]] = None
+    card_status = "failed"
+    lemma, sense = text, ""
+    if cached:
+        card_data = cached.get("card")
+        lemma = cached.get("lemma") or text
+        sense = cached.get("sense") or ""
+        card_status = "ok"
+    else:
+        try:
+            card = await generate_word_card(text, sentence, policy)
+            card_data = card.model_dump(by_alias=True)
+            lemma, sense, card_status = card.lemma, card.sense_in_context, "ok"
+        except GeminiError as exc:
+            logger.error("Lookup card failed (%s): %s", exc.code, exc.message)
+
+    saved = fetch_vocabulary_item_by_term(user_id, lemma, payload.language)
+    encounter = save_word_encounter(
+        {
+            "word_id": saved.get("id") if saved else None,
+            "language": payload.language,
+            "lemma": lemma,
+            "sense": sense or None,
+            "surface": text,
+            "sentence": sentence,
+            "kind": payload.kind,
+            "source_type": payload.source,
+            "source_id": payload.source_id,
+            "card": card_data,
+            "card_status": card_status,
+        },
+        user_id,
+    )
+    return {
+        "encounter_id": encounter["id"],
+        "text": text,
+        "language": payload.language,
+        "lemma": lemma,
+        "sense": sense,
+        "card": card_data,
+        "card_status": card_status,
+        "card_policy": snapshot,
+        "seen_count": count_word_encounters(user_id, payload.language, lemma),
+        "saved_item": saved,
+    }
+
 @app.post("/vocabulary", response_model=UserVocabularyItemResponse, status_code=status.HTTP_201_CREATED)
 async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Request):
     """Save a word and build its policy-aware card with one structured call."""
@@ -851,30 +917,47 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
         if existing and existing.get("card_status") == "ok" and existing.get("card"):
             return existing
 
-        item_data = {**item.model_dump(), "status": "new"}
+        item_data = {**item.model_dump(exclude={"encounter_id"}), "status": "new"}
         policy = resolve_policy(user_id, item.language)
         card_fields: Dict[str, Any] = {}
-        try:
-            card = await generate_word_card(item.term, item.example_sentence or "", policy)
+        encounter = fetch_word_encounter(item.encounter_id, user_id) if item.encounter_id else None
+        if item.encounter_id and not encounter:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lookup encounter not found")
+        if encounter and encounter.get("card_status") == "ok" and encounter.get("card"):
+            cached_card = encounter["card"]
             card_fields = {
-                "term": card.lemma,
-                "lemma": card.lemma,
-                "sense": card.sense_in_context,
-                "part_of_speech": item.part_of_speech or card.part_of_speech,
-                "definition": item.definition or card.sense_in_context,
-                "card": card.model_dump(by_alias=True),
+                "term": encounter["lemma"],
+                "lemma": encounter["lemma"],
+                "sense": encounter.get("sense"),
+                "part_of_speech": cached_card.get("part_of_speech"),
+                "definition": encounter.get("sense"),
+                "card": cached_card,
                 "card_status": "ok",
                 "card_policy": card_policy_snapshot(policy),
             }
-            if card.lemma != item.term:
-                lemma_row = fetch_vocabulary_item_by_term(user_id, card.lemma, item.language)
-                if lemma_row:
-                    existing = lemma_row
-                    if lemma_row.get("card_status") == "ok" and lemma_row.get("card"):
-                        return lemma_row
-        except GeminiError as exc:
-            logger.error("Vocabulary card failed (%s): %s", exc.code, exc.message)
-            card_fields = {"card_status": "failed"}
+            item_data["example_sentence"] = encounter.get("sentence") or item.example_sentence
+        else:
+            try:
+                card = await generate_word_card(item.term, item.example_sentence or "", policy)
+                card_fields = {
+                    "term": card.lemma,
+                    "lemma": card.lemma,
+                    "sense": card.sense_in_context,
+                    "part_of_speech": item.part_of_speech or card.part_of_speech,
+                    "definition": item.definition or card.sense_in_context,
+                    "card": card.model_dump(by_alias=True),
+                    "card_status": "ok",
+                    "card_policy": card_policy_snapshot(policy),
+                }
+                if card.lemma != item.term:
+                    lemma_row = fetch_vocabulary_item_by_term(user_id, card.lemma, item.language)
+                    if lemma_row:
+                        existing = lemma_row
+                        if lemma_row.get("card_status") == "ok" and lemma_row.get("card"):
+                            return lemma_row
+            except GeminiError as exc:
+                logger.error("Vocabulary card failed (%s): %s", exc.code, exc.message)
+                card_fields = {"card_status": "failed"}
 
         if existing:
             if existing.get("part_of_speech"):
@@ -888,7 +971,13 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
             saved_item = save_vocabulary_item(item_data=item_data, user_id=user_id)
         if not saved_item:
             raise RuntimeError("Vocabulary item was not saved")
+        if encounter:
+            link_word_encounters(
+                user_id, item.language, saved_item.get("lemma") or item.term, saved_item["id"]
+            )
         return saved_item
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error adding vocabulary item for user {user_id}: {str(e)}")
         if "unique constraint" in str(e):
@@ -984,6 +1073,20 @@ async def patch_vocabulary_item_route(
         )
     if "tags" in changes:
         changes["tags"] = list(dict.fromkeys(tag.strip() for tag in changes["tags"] if tag.strip()))
+    if changes.get("status") == "learning":
+        current = fetch_vocabulary_item_by_id_and_user(item_id, user_id)
+        if not current:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocabulary item not found")
+    else:
+        current = None
+    if current and current.get("status") != "learning":
+        used, cap = get_daily_new_word_usage(user_id, current["language"])
+        if used >= cap:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "daily_new_words_cap", "used": used, "cap": cap},
+            )
+        changes["study_started_at"] = datetime.now(timezone.utc).isoformat()
     updated = update_vocabulary_item(item_id, user_id, changes)
     if not updated:
         raise HTTPException(

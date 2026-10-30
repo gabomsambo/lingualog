@@ -23,6 +23,7 @@ CARD = {
     "cefr": "A1",
     "frequency_band": "top1k",
     "examples": ["Me senté en el banco.", "El banco es de madera."],
+    "example_translations": ["I sat on the bench.", "The bench is made of wood."],
     "collocations": ["banco del parque", "banco de madera", "sentarse en un banco"],
     "word_family": ["banquito"],
     "common_mistake": "Use the context to distinguish bench from bank.",
@@ -79,4 +80,4 @@ async def test_card_prompt_and_output_follow_policy(
 
 def test_word_card_schema_requires_ui_arrays():
     required = WordCard.model_json_schema()["required"]
-    assert {"other_senses", "examples", "collocations", "word_family"} <= set(required)
+    assert {"other_senses", "examples", "example_translations", "collocations", "word_family"} <= set(required)

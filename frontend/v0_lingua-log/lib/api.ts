@@ -358,6 +358,7 @@ export interface UserVocabularyItemCreate {
   example_sentence?: string;
   status?: VocabularyStatus;
   entry_id?: string;
+  encounter_id?: string;
 }
 
 export type VocabularyStatus = "new" | "learning" | "known" | "mastered" | "ignored";
@@ -380,10 +381,42 @@ export interface VocabularyCardData {
   cefr: string;
   frequency_band: string;
   examples: string[];
+  example_translations: string[];
   collocations: string[];
   word_family: string[];
   common_mistake: string;
   memory_hook: string;
+}
+
+export interface LookupResult {
+  encounter_id: string;
+  text: string;
+  language: string;
+  lemma: string;
+  sense: string;
+  card?: VocabularyCardData | null;
+  card_status: "ok" | "failed";
+  card_policy: VocabularyCardPolicy;
+  seen_count: number;
+  saved_item?: UserVocabularyItemResponse | null;
+}
+
+export async function lookupWord(payload: {
+  text: string;
+  sentence?: string;
+  language: string;
+  source: "entry" | "manual";
+  source_id?: string;
+  kind?: "lookup" | "entry_text" | "entry_fix" | "entry_rewrite";
+}): Promise<LookupResult> {
+  const res = await fetch(`${API_BASE}/lookup`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as LookupResult;
 }
 
 export interface VocabularyCardPolicy {

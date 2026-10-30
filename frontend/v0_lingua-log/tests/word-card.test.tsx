@@ -51,6 +51,7 @@ function item(level: number): UserVocabularyItemResponse {
       cefr: "A1",
       frequency_band: "top1k",
       examples: ["Nos sentamos en el banco.", "El banco era de madera."],
+      example_translations: ["We sat on the bench.", "The bench was made of wood."],
       collocations: ["banco del parque"],
       word_family: ["banquito"],
       common_mistake: "Check the context.",
