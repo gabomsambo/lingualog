@@ -137,7 +137,7 @@ def test_delete_entry_exception(mock_delete_entry, client):
 
 # --- Vocabulary Endpoint Tests ---
 
-@patch("backend.server.enrich_vocabulary_in_background")
+@patch("backend.server.generate_word_card")
 @patch("backend.server.save_vocabulary_item")
 def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
     user_id = "00000000-0000-0000-0000-000000000001"
@@ -148,7 +148,7 @@ def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
         "part_of_speech": "interjection",
         "reading": "こんにちは",
         "example_sentence": "Konnichiwa, sensei!",
-        "status": "saved",
+        "status": "new",
         "entry_id": "some-entry-id"
     }
     saved_item_response = {
@@ -238,4 +238,4 @@ def test_delete_vocabulary_item_no_user_id(mock_delete_vocab, client):
     item_id_to_delete = "some-vocab-id"
     response = client.delete(f"/vocabulary/{item_id_to_delete}")
     assert response.status_code == 401
-    mock_delete_vocab.assert_not_called() 
+    mock_delete_vocab.assert_not_called()

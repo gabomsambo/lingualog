@@ -2,15 +2,18 @@
 
 import { CSSProperties, Fragment, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, FlaskConical, HelpCircle, Languages, Loader2, RotateCcw } from "lucide-react"
+import { AlertCircle, Check, FlaskConical, HelpCircle, Languages, Loader2, Plus, RotateCcw } from "lucide-react"
 
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
 import { getLanguageDisplayName } from "@/i18n/languages"
 import {
   analyzeEntry,
+  addVocabularyItem,
   getCurrentPolicy,
   getUserSettings,
   keepEntryLanguage,
@@ -926,11 +929,40 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
 
 function EntryOverview({ entry, l2, l2Dir }: { entry: SideBySideEntry; l2: string; l2Dir: "rtl" | "ltr" }) {
   const { t } = useLocale()
+  const { toast } = useToast()
+  const [savingTerms, setSavingTerms] = useState<Set<string>>(new Set())
+  const [savedTerms, setSavedTerms] = useState<Set<string>>(new Set())
   const rubric: [string, number | undefined][] = [
     ["feedback.rubricGrammar", entry.rubric?.grammar],
     ["feedback.rubricVocabulary", entry.rubric?.vocabulary],
     ["feedback.rubricComplexity", entry.rubric?.complexity],
   ]
+
+  const saveSuggestedWord = async (word: SideBySideEntry["newWords"][number]) => {
+    setSavingTerms((current) => new Set(current).add(word.term))
+    try {
+      await addVocabularyItem({
+        term: word.term,
+        language: entry.language,
+        part_of_speech: word.pos,
+        definition: word.definition,
+        reading: word.reading || undefined,
+        example_sentence: word.example,
+        entry_id: entry.id,
+        status: "new",
+      })
+      setSavedTerms((current) => new Set(current).add(word.term))
+      toast({ title: t("feedback.wordSaved", { word: word.term }) })
+    } catch {
+      toast({ title: t("feedback.wordSaveFailed"), variant: "destructive" })
+    } finally {
+      setSavingTerms((current) => {
+        const next = new Set(current)
+        next.delete(word.term)
+        return next
+      })
+    }
+  }
   return (
     <div className="grid gap-6 md:grid-cols-2" data-testid="entry-overview">
       <Card className="overflow-hidden rounded-3xl border-fun-green/20 shadow-fun">
@@ -975,7 +1007,7 @@ function EntryOverview({ entry, l2, l2Dir }: { entry: SideBySideEntry; l2: strin
       {entry.newWords.length > 0 && (
         <Card className="overflow-hidden rounded-3xl border-fun-yellow/40 shadow-fun md:col-span-2">
           <CardHeader className="bg-gradient-to-r from-fun-yellow/10 to-fun-orange/10 pb-4">
-            <CardTitle className="text-xl">{t("feedback.newWordsTitle")}</CardTitle>
+            <CardTitle className="text-xl">{t("feedback.wordsYouCouldUse")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
             {entry.newWords.map((word, index) => (
@@ -990,6 +1022,19 @@ function EntryOverview({ entry, l2, l2Dir }: { entry: SideBySideEntry; l2: strin
                     {word.example}
                   </p>
                 )}
+                <Button
+                  className="mt-3 w-full"
+                  variant="outline"
+                  size="sm"
+                  disabled={savingTerms.has(word.term) || savedTerms.has(word.term)}
+                  onClick={() => saveSuggestedWord(word)}
+                >
+                  {savedTerms.has(word.term) ? (
+                    <><Check className="mr-2 h-4 w-4" />{t("feedback.savedWord")}</>
+                  ) : (
+                    <><Plus className="mr-2 h-4 w-4" />{savingTerms.has(word.term) ? t("feedback.savingWord") : t("feedback.saveWord")}</>
+                  )}
+                </Button>
               </div>
             ))}
           </CardContent>

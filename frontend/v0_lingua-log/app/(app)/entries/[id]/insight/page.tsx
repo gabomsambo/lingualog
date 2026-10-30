@@ -12,7 +12,6 @@ import { EntryViewer } from "@/components/entry-viewer"
 import { TranslationPanel } from "@/components/translation-panel"
 import { GrammarFeedback } from "@/components/grammar-feedback"
 import { FluencyScore } from "@/components/fluency-score"
-import { VocabularyPanel } from "@/components/vocabulary-panel"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { getUserSettings } from "@/lib/api"
 
@@ -215,25 +214,6 @@ export default function EntryInsightPage() {
     })
   }
 
-  const handleSaveVocabulary = (id: string) => {
-    if (!entry) return
-
-    setEntry({
-      ...entry,
-      vocabulary: entry.vocabulary.map((item) => (item.id === id ? { ...item, saved: !item.saved } : item)),
-    })
-
-    const word = entry.vocabulary.find((item) => item.id === id)
-
-    toast({
-      title: word?.saved ? "Word removed from bank" : "Word added to your bank! 📚",
-      description: word?.saved
-        ? `"${word.word}" has been removed from your vocabulary bank`
-        : `"${word.word}" has been added to your vocabulary bank`,
-      variant: "fun",
-    })
-  }
-
   if (loading) {
     return (
       <div className="container max-w-5xl mx-auto py-8 px-4">
@@ -356,13 +336,6 @@ export default function EntryInsightPage() {
           </motion.div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          <VocabularyPanel vocabulary={entry.vocabulary} language={entry.language} onSaveWord={handleSaveVocabulary} />
-        </motion.div>
       </div>
     </div>
   )

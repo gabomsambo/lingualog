@@ -57,6 +57,8 @@ async def generate_structured(
     user_prompt: str,
     schema: Type[T],
     timeout: float = 30.0,
+    model: Optional[str] = None,
+    use_thinking: bool = True,
 ) -> T:
     """
     Generate structured output from Gemini.
@@ -86,8 +88,9 @@ async def generate_structured(
         system_instruction=system_prompt,
         response_mime_type="application/json",
         response_schema=schema,
-        thinking_config=_thinking_config(),
+        thinking_config=_thinking_config() if use_thinking else None,
     )
+    selected_model = model or GEMINI_MODEL_FEEDBACK
 
     last_error: Optional[GeminiError] = None
     for attempt in range(2):
@@ -95,7 +98,7 @@ async def generate_structured(
         try:
             response = await asyncio.wait_for(
                 client.aio.models.generate_content(
-                    model=GEMINI_MODEL_FEEDBACK,
+                    model=selected_model,
                     contents=contents,
                     config=config,
                 ),

@@ -12,10 +12,9 @@ import { EntryViewer } from "@/components/entry-viewer"
 import { TranslationPanel } from "@/components/translation-panel"
 import { GrammarFeedback } from "@/components/grammar-feedback"
 import { FluencyScore } from "@/components/fluency-score"
-import { VocabularyPanel } from "@/components/vocabulary-panel"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getEntryById, getUserSettings, getVocabularyItems, UserVocabularyItemResponse } from "@/lib/api"
+import { getEntryById, getUserSettings } from "@/lib/api"
 import type { Entry, GrammarSuggestion, NewWord, Rubric } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { resolveLanguage } from "@/i18n/languages"
@@ -47,9 +46,6 @@ export default function EntryInsightPage() {
   const [showTranslation, setShowTranslation] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [userVocabulary, setUserVocabulary] = useState<UserVocabularyItemResponse[]>([])
-  const [processedWords, setProcessedWords] = useState<NewWord[]>([])
-  const [vocabLoading, setVocabLoading] = useState(true)
   const [nativeLanguage, setNativeLanguage] = useState("en")
   const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
   const [sideBySide, setSideBySide] = useState<SideBySideEntry | null>(null)
@@ -62,12 +58,10 @@ export default function EntryInsightPage() {
       return
     }
     setLoading(true)
-    setVocabLoading(true)
 
     try {
-      const [fetchedEntryData, fetchedUserVocabulary, settings] = await Promise.all([
+      const [fetchedEntryData, settings] = await Promise.all([
         getEntryById(params.id as string),
-        getVocabularyItems(),
         getUserSettings().catch(() => null),
       ])
 
@@ -75,8 +69,6 @@ export default function EntryInsightPage() {
         setNativeLanguage(settings.native_lang || "en")
         setImmersionLevel(settings.immersion_level)
       }
-
-      setUserVocabulary(fetchedUserVocabulary || [])
 
       if (fetchedEntryData) {
         // Cast to any to access ai_feedback, as the fetchedEntryData is typed as frontend Entry
@@ -116,18 +108,6 @@ export default function EntryInsightPage() {
           })),
         };
         
-        const currentWords = (processedEntry.new_words || []).map(word => {
-          const savedVersion = (fetchedUserVocabulary || []).find(
-            item => item.term === word.term && item.language === processedEntry.language
-          )
-          return {
-            ...word,
-            id: word.id || word.term,
-            db_id: savedVersion ? savedVersion.id : undefined,
-            saved: !!savedVersion,
-          }
-        })
-        setProcessedWords(currentWords)
         setEntry(processedEntry)
         setIsFavorite(processedEntry.is_favorite || false)
         const policy = apiResponse.translation_policy_snapshot as string | undefined
@@ -143,17 +123,12 @@ export default function EntryInsightPage() {
       toast({ title: t('common.error'), description: t('common.failedToLoadEntry'), variant: "destructive" })
     } finally {
       setLoading(false)
-      setVocabLoading(false)
     }
   }, [params.id, toast, router])
 
   useEffect(() => {
     loadFullEntryData()
   }, [loadFullEntryData])
-
-  const handleVocabularyUpdate = () => {
-    loadFullEntryData()
-  }
 
   const handleCopyText = () => {
     if (entry?.content) {
@@ -185,23 +160,6 @@ export default function EntryInsightPage() {
         ...prev,
         grammar_suggestions: prev.grammar_suggestions.map(item =>
           item.id === id ? { ...item, dismissed: true } : item
-        ),
-      };
-    });
-  };
-
-  const handleSaveVocabulary = (id: string) => {
-    setEntry(prev => {
-      if (!prev || !prev.new_words) return prev;
-      const wordToUpdate = prev.new_words.find(word => word.id === id);
-      const currentSavedStatus = wordToUpdate ? wordToUpdate.saved : false;
-      const newSavedStatus = !currentSavedStatus;
-
-      toast({ title: newSavedStatus ? "Word saved!" : "Word unsaved." });
-      return {
-        ...prev,
-        new_words: prev.new_words.map(item =>
-          item.id === id ? { ...item, saved: newSavedStatus } : item
         ),
       };
     });
@@ -253,20 +211,6 @@ export default function EntryInsightPage() {
       type: "suggestion" as "suggestion" | "positive" | "error",
       dismissed: suggestion.dismissed || false,
     }));
-
-  const vocabularyItems = entry.new_words || [];
-
-  const vocabularyItemsForPanel = vocabularyItems.map(nw => ({
-    id: nw.id || String(Math.random()),
-    word: nw.term,
-    reading: nw.reading || undefined,
-    romaji: undefined,
-    partOfSpeech: nw.pos,
-    definition: nw.definition,
-    example: nw.example || "",
-    level: nw.proficiency || "unknown",
-    saved: nw.saved || false,
-  }));
 
   return (
     <motion.div
@@ -364,17 +308,6 @@ export default function EntryInsightPage() {
         <GrammarFeedback
           feedback={grammarFeedbackItemsForComponent}
           onDismiss={handleDismissGrammarFeedback}
-        />
-      </div>
-
-      {/* ROW 5: Vocabulary Panel (Full Width) */}
-      <div className="mb-8">
-        <VocabularyPanel
-          words={processedWords}
-          language={entry.language || t('common.unknown')}
-          entryId={entry.id}
-          onVocabularyUpdate={handleVocabularyUpdate}
-          isLoading={vocabLoading}
         />
       </div>
 

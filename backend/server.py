@@ -15,7 +15,7 @@ from typing import List, Optional
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from fastapi import FastAPI, HTTPException, status, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
@@ -25,6 +25,7 @@ from models import (
     FeedbackResponse,
     LoginRequest,
     UserVocabularyItemCreate,
+    UserVocabularyItemPatch,
     UserVocabularyItemResponse,
     Rubric,
     Suggestion,
@@ -46,6 +47,8 @@ from database import (
     fetch_user_vocabulary,
     delete_vocabulary_item,
     fetch_vocabulary_item_by_term,
+    fetch_vocabulary_item_by_id_and_user,
+    update_vocabulary_item,
     init_db_schema,
     fetch_language_profile,
     list_language_profiles,
@@ -61,9 +64,8 @@ from ai.gemini import (
     GEMINI_MODEL_FEEDBACK,
     AI_PROVIDER,
 )
+from ai.word_card import card_policy_snapshot, generate_word_card
 
-# Import the new router
-from app.routers import vocabulary_ai # Adjusted import path
 from app.routers import entry_translation, level_suggestions, support_events
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
@@ -414,61 +416,6 @@ async def _analyze_with_provider(text: str, effective: LearningPolicy) -> Journa
     return JournalFeedback.model_validate({**result.model_dump(), "is_mock": False})
 
 
-# --- Background Tasks ---
-
-async def enrich_vocabulary_in_background(item_id: str, user_id: uuid.UUID, language: str):
-    """
-    Background task to automatically enrich vocabulary when words are added.
-    This runs asynchronously after the user gets their success response.
-    """
-    logger.info(f"🤖 BACKGROUND TASK STARTED: Enriching vocabulary item {item_id} ({language}) for user {user_id}")
-    
-    try:
-        # Import here to avoid circular imports
-        import sys
-        import os
-        
-        # Add the app directory to Python path
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        app_dir = os.path.join(current_dir, 'app')
-        if app_dir not in sys.path:
-            sys.path.insert(0, app_dir)
-        
-        logger.info(f"🔧 Importing enrichment service...")
-        from app.services.ai_enrichment_service import get_or_create_enriched_details_service
-        from app.dependencies import get_db_session, get_feedback_engine
-        
-        logger.info(f"🔧 Getting feedback engine...")
-        
-        feedback_engine = get_feedback_engine()
-        
-        logger.info(f"🚀 Calling enrichment service for item {item_id}...")
-        
-        # Create a dummy database session (not used by database functions but required by service signature)
-        mock_db = None
-        
-        # Trigger enrichment (this will create word_ai_cache entry)
-        enriched_data = await get_or_create_enriched_details_service(
-            item_id=uuid.UUID(item_id),
-            user_id=user_id,
-            language=language,
-            db=mock_db,  # Not used by the underlying database functions
-            feedback_engine=feedback_engine
-        )
-        
-        logger.info(f"✅ Background enrichment completed for vocabulary item {item_id}")
-        logger.info(f"📊 Generated {len(enriched_data.ai_example_sentences or [])} example sentences, "
-                   f"{len(enriched_data.ai_synonyms or [])} synonyms, "
-                   f"{len(enriched_data.ai_antonyms or [])} antonyms")
-        
-    except ImportError as e:
-        logger.error(f"❌ Import error in background enrichment for {item_id}: {str(e)}")
-        logger.error(f"📝 Check if all required modules are available")
-    except Exception as e:
-        logger.error(f"❌ Background enrichment failed for vocabulary item {item_id}: {str(e)}")
-        logger.error(f"📝 Full error details:", exc_info=True)
-        logger.error(f"📝 This is not critical - user can still click 'Learn It' to trigger enrichment manually")
-
 app = FastAPI(
     title="LinguaLog API",
     description="API for language learning journal with AI feedback",
@@ -485,8 +432,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include the new AI vocabulary router
-app.include_router(vocabulary_ai.router)
 app.include_router(entry_translation.router)
 app.include_router(support_events.router)
 app.include_router(level_suggestions.router)
@@ -894,41 +839,48 @@ async def delete_entry_route(entry_id: str, request: Request):
 # --- Vocabulary Endpoints ---
 
 @app.post("/vocabulary", response_model=UserVocabularyItemResponse, status_code=status.HTTP_201_CREATED)
-async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Request, background_tasks: BackgroundTasks):
-    """
-    Add a new word to the user's vocabulary.
-    The user_id is extracted from the request headers.
-    Automatically triggers AI enrichment in the background.
-    """
+async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Request):
+    """Save a word and build its policy-aware card with one structured call."""
     user_id = request.headers.get("X-User-ID")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided"
         )
-    
     try:
-        # Convert Pydantic model to dict for database function
-        item_data = item.model_dump()
-        saved_item = save_vocabulary_item(item_data=item_data, user_id=user_id)
-        
-        # 🚀 AUTOMATIC ENRICHMENT: Trigger background AI enrichment for the saved word
-        logger.info(f"📋 VOCABULARY SAVED: {item.term} ({item.language}) with ID {saved_item['id']}")
-        logger.info(f"🚀 TRIGGERING BACKGROUND ENRICHMENT for vocabulary item {saved_item['id']}")
-        
-        background_tasks.add_task(
-            enrich_vocabulary_in_background,
-            saved_item["id"],  # vocabulary item ID
-            uuid.UUID(user_id),  # user ID
-            item.language  # language
-        )
-        
-        logger.info(f"✅ Background enrichment task added for vocabulary item {saved_item['id']} ({item.term} in {item.language})")
-        logger.info(f"📝 User should see immediate success, enrichment will happen in background")
-        
-        return saved_item # User gets immediate response while enrichment happens in background
+        existing = fetch_vocabulary_item_by_term(user_id, item.term, item.language)
+        if existing and existing.get("card_status") == "ok" and existing.get("card"):
+            return existing
+
+        item_data = {**item.model_dump(), "status": "new"}
+        policy = resolve_policy(user_id, item.language)
+        try:
+            card = await generate_word_card(item.term, item.example_sentence or "", policy)
+            card_data = card.model_dump(by_alias=True)
+            item_data.update(
+                {
+                    "term": card.lemma,
+                    "lemma": card.lemma,
+                    "sense": card.sense_in_context,
+                    "part_of_speech": item.part_of_speech or card.part_of_speech,
+                    "definition": item.definition or card.sense_in_context,
+                    "card": card_data,
+                    "card_status": "ok",
+                    "card_policy": card_policy_snapshot(policy),
+                }
+            )
+        except GeminiError as exc:
+            logger.error("Vocabulary card failed (%s): %s", exc.code, exc.message)
+            item_data.update({"lemma": item.term, "card_status": "failed"})
+
+        if existing:
+            saved_item = update_vocabulary_item(existing["id"], user_id, item_data)
+        else:
+            saved_item = save_vocabulary_item(item_data=item_data, user_id=user_id)
+        if not saved_item:
+            raise RuntimeError("Vocabulary item was not saved")
+        return saved_item
     except Exception as e:
         logger.error(f"Error adding vocabulary item for user {user_id}: {str(e)}")
-        # Check for specific error types if needed, e.g., duplicate handling if not an upsert
         if "unique constraint" in str(e):
              raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -938,6 +890,51 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not save vocabulary item: {str(e)}"
         )
+
+
+@app.post("/vocabulary/{item_id}/card", response_model=UserVocabularyItemResponse)
+async def retry_vocabulary_card_route(item_id: str, request: Request):
+    """Retry a failed card without replacing a card that is already good."""
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
+    item = fetch_vocabulary_item_by_id_and_user(item_id, user_id)
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocabulary item not found")
+    if item.get("card_status") == "ok" and item.get("card"):
+        return item
+
+    policy = resolve_policy(user_id, item["language"])
+    try:
+        card = await generate_word_card(
+            item["term"],
+            item.get("example_sentence") or "",
+            policy,
+        )
+    except GeminiError as exc:
+        update_vocabulary_item(item_id, user_id, {"card_status": "failed"})
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+
+    updated = update_vocabulary_item(
+        item_id,
+        user_id,
+        {
+            "term": card.lemma,
+            "lemma": card.lemma,
+            "sense": card.sense_in_context,
+            "part_of_speech": item.get("part_of_speech") or card.part_of_speech,
+            "definition": item.get("definition") or card.sense_in_context,
+            "card": card.model_dump(by_alias=True),
+            "card_status": "ok",
+            "card_policy": card_policy_snapshot(policy),
+        },
+    )
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocabulary item not found")
+    return updated
 
 @app.get("/vocabulary", status_code=status.HTTP_200_OK)
 async def get_user_vocabulary_route(request: Request, language: Optional[str] = None):
@@ -949,16 +946,36 @@ async def get_user_vocabulary_route(request: Request, language: Optional[str] = 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided"
         )
-    
     try:
-        vocab_items = fetch_user_vocabulary(user_id=user_id, language=language)
-        return vocab_items # FastAPI will serialize List[Dict] to List[UserVocabularyItemResponse]
+        return fetch_user_vocabulary(user_id=user_id, language=language)
     except Exception as e:
         logger.error(f"Error fetching vocabulary for user {user_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not fetch vocabulary: {str(e)}"
+            detail=f"Could not fetch vocabulary: {str(e)}",
+        ) from e
+
+
+@app.patch("/vocabulary/{item_id}", response_model=UserVocabularyItemResponse)
+async def patch_vocabulary_item_route(
+    item_id: str,
+    patch: UserVocabularyItemPatch,
+    request: Request,
+):
+    """Update a learner's note, tags, or notebook state with an ownership filter."""
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
+    changes = patch.model_dump(exclude_unset=True)
+    if "tags" in changes and changes["tags"] is not None:
+        changes["tags"] = list(dict.fromkeys(tag.strip() for tag in changes["tags"] if tag.strip()))
+    updated = update_vocabulary_item(item_id, user_id, changes)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Vocabulary item with id {item_id} not found or not owned by user.",
         )
+    return updated
 
 @app.delete("/vocabulary/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_vocabulary_item_route(item_id: str, request: Request):

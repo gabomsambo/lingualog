@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 JOURNAL_ENTRIES_TABLE = "journal_entries"
 ANALYSIS_STATUSES = frozenset({"ok", "failed", "mock"})
 USER_VOCABULARY_TABLE = "user_vocabulary"
-WORD_AI_CACHE_TABLE = "word_ai_cache" # New table name constant
 
 # Table name for users (assuming it's 'users')
 USERS_TABLE = "users"
@@ -113,15 +112,22 @@ def init_db_schema(client: Client) -> None:
                     user_id UUID NOT NULL, -- Add foreign key: REFERENCES auth.users(id) ON DELETE CASCADE
                     entry_id UUID REFERENCES public.{JOURNAL_ENTRIES_TABLE}(id) ON DELETE SET NULL,
                     term TEXT NOT NULL,
+                    lemma TEXT NOT NULL,
                     language VARCHAR(50) NOT NULL,
                     part_of_speech VARCHAR(50),
                     definition TEXT,
                     reading TEXT, -- e.g., Furigana for Japanese
                     example_sentence TEXT,
-                    status VARCHAR(50) DEFAULT 'saved', -- e.g., 'saved', 'learning', 'mastered'
+                    status VARCHAR(50) DEFAULT 'new',
+                    sense TEXT,
+                    card JSONB,
+                    card_status TEXT NOT NULL DEFAULT 'pending',
+                    card_policy JSONB,
+                    note TEXT,
+                    tags TEXT[] NOT NULL DEFAULT '{{}}',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    CONSTRAINT unique_user_term_language UNIQUE (user_id, term, language)
+                    CONSTRAINT unique_user_lemma_language UNIQUE (user_id, lemma, language)
                 );
                 COMMENT ON COLUMN public.{USER_VOCABULARY_TABLE}.entry_id IS 'Original entry where the word was encountered, if any.';
                 COMMENT ON COLUMN public.{USER_VOCABULARY_TABLE}.reading IS 'Pronunciation aid, e.g., Furigana for Japanese, Pinyin for Chinese.';
@@ -483,14 +489,14 @@ def save_vocabulary_item(item_data: Dict[str, Any], user_id: str) -> Dict[str, A
     try:
         supabase = create_supabase_client()
         
-        # Add user_id to the item_data
-        item_data["user_id"] = user_id
+        item_data = {**item_data, "user_id": user_id}
+        item_data["lemma"] = item_data.get("lemma") or item_data["term"]
         
-        # Upsert based on the unique constraint (user_id, term, language)
+        # Upsert based on the canonical lemma for this user and language.
         # Supabase `upsert` uses the primary key or unique constraints for conflict resolution.
         response = (
             supabase.table(USER_VOCABULARY_TABLE)
-            .upsert(item_data, on_conflict="user_id,term,language") 
+            .upsert(item_data, on_conflict="user_id,lemma,language")
             .execute()
         )
         
@@ -591,21 +597,32 @@ def fetch_vocabulary_item_by_term(user_id: str, term: str, language: str) -> Opt
     """
     try:
         supabase = create_supabase_client()
-        response = (
+        term_response = (
             supabase.table(USER_VOCABULARY_TABLE)
             .select("*")
             .eq("user_id", user_id)
             .eq("term", term)
             .eq("language", language)
-            .maybe_single() # Returns one row or None, errors if multiple (should not happen with unique constraint)
+            .maybe_single()
             .execute()
         )
-        return response.data
+        if term_response.data:
+            return term_response.data
+        lemma_response = (
+            supabase.table(USER_VOCABULARY_TABLE)
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("lemma", term)
+            .eq("language", language)
+            .maybe_single()
+            .execute()
+        )
+        return lemma_response.data
     except Exception as e:
         logger.error(f"Error fetching vocabulary item {term} for user {user_id} in language {language}: {str(e)}")
         return None
 
-async def fetch_vocabulary_item_by_id_and_user(item_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+def fetch_vocabulary_item_by_id_and_user(item_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetches a single vocabulary item by its ID, ensuring it belongs to the specified user.
 
@@ -620,10 +637,10 @@ async def fetch_vocabulary_item_by_id_and_user(item_id: uuid.UUID, user_id: uuid
     try:
         response = (
             supabase.table(USER_VOCABULARY_TABLE)
-            .select("id, user_id, term, language, part_of_speech, definition, reading, example_sentence, status, created_at, updated_at, entry_id") # Select all relevant fields
-            .eq("id", str(item_id)) # Ensure item_id is string for Supabase query if it expects string UUIDs
-            .eq("user_id", str(user_id)) # Ensure user_id is string for Supabase query
-            .single()
+            .select("*")
+            .eq("id", str(item_id))
+            .eq("user_id", str(user_id))
+            .maybe_single()
             .execute()
         )
         if response.data:
@@ -636,75 +653,19 @@ async def fetch_vocabulary_item_by_id_and_user(item_id: uuid.UUID, user_id: uuid
         logger.error(f"Error fetching vocabulary item {item_id} for user {user_id}: {str(e)}")
         return None
 
-async def fetch_word_ai_cache_entry(word_vocabulary_id: uuid.UUID, language: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetches an AI cache entry from word_ai_cache.
-
-    Args:
-        word_vocabulary_id: The UUID of the vocabulary item (foreign key).
-        language: The language of the cached entry.
-
-    Returns:
-        A dictionary representing the cache entry if found, else None.
-    """
-    try:
-        supabase = create_supabase_client()
-        response = (
-            supabase.table(WORD_AI_CACHE_TABLE)
-            .select("*") # Select all fields needed for EnrichedWordDetailsResponse
-            .eq("word_vocabulary_id", str(word_vocabulary_id))
-            .eq("language", language)
-            .limit(1)
-            .execute()
-        )
-        if response.data:
-            entry = response.data[0]
-            return entry
-        return None
-    except Exception as e:
-        logger.error(
-            f"Error fetching AI cache for vocab_id {word_vocabulary_id}, lang {language}: {e}"
-        )
-        return None
-
-async def save_word_ai_cache_entry(cache_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Saves an AI cache entry to the word_ai_cache table.
-    Expects cache_data to conform to WordAiCacheCreate model dump.
-
-    Args:
-        cache_data: A dictionary representing the data to insert.
-                    Must include 'word_vocabulary_id' and 'language'.
-
-    Returns:
-        The saved cache entry dictionary if successful, else None.
-    """
-    if not all(k in cache_data for k in ["word_vocabulary_id", "language"]):
-        logger.error("Attempted to save cache entry without word_vocabulary_id or language.")
-        return None
-        
-    try:
-        supabase = create_supabase_client()
-        
-        if isinstance(cache_data.get("word_vocabulary_id"), uuid.UUID):
-            cache_data["word_vocabulary_id"] = str(cache_data["word_vocabulary_id"])
-
-        response = (
-            supabase.table(WORD_AI_CACHE_TABLE)
-            .upsert(cache_data, on_conflict="word_vocabulary_id, language") 
-            .execute()
-        )
-        if response.data:
-            logger.info(f"Successfully upserted AI cache for vocab_id: {cache_data['word_vocabulary_id']}, lang: {cache_data['language']}")
-            return response.data[0]
-        else:
-            logger.error(f"Failed to save or update AI cache for vocab_id: {cache_data['word_vocabulary_id']}. Response: {response.error}")
-            return None
-    except Exception as e:
-        logger.error(
-            f"Error saving AI cache for vocab_id {cache_data.get('word_vocabulary_id')}: {e}"
-        )
-        return None
+def update_vocabulary_item(item_id: str, user_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Update one vocabulary row only when it belongs to ``user_id``."""
+    if not changes:
+        return fetch_vocabulary_item_by_id_and_user(item_id, user_id)
+    supabase = create_supabase_client()
+    response = (
+        supabase.table(USER_VOCABULARY_TABLE)
+        .update(changes)
+        .eq("id", str(item_id))
+        .eq("user_id", str(user_id))
+        .execute()
+    )
+    return response.data[0] if response.data else None
 
 async def get_user_by_email(db_client: Client, email: str) -> Optional['app.models.User']:
     """

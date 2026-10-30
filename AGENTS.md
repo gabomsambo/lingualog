@@ -47,16 +47,17 @@ cd frontend/v0_lingua-log && npm test
 Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.env.example` (copy to `.env.local`).
 `make dev` fills in the local Supabase URL/keys. Optional Mistral deps: `backend/requirements-optional-mistral.txt`.
 
-Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
+Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_MODEL_WORD_CARD`, `GEMINI_THINKING_LEVEL`,
+`AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
 
 ## Key Integration Points
 
 - **Frontend ↔ Backend**: REST API with auth via `X-User-ID` header
 - **Backend ↔ Supabase**: Direct client for auth + CRUD operations
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
-- **Backend ↔ Atomic Agents**: Vocabulary enrichment, quiz generation (to be migrated to Gemini in later PRs)
+- **Backend ↔ Gemini Flash-Lite**: Policy-aware vocabulary cards
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`, `support_events`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`
 
 ## Core Agent Workflows
 
@@ -74,12 +75,12 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 
 Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 
-### Vocabulary Enrichment Flow
-1. User adds word or system extracts from journal
-2. `/ai/vocabulary/{id}/enrich` endpoint called
-3. `VocabularyEnrichmentAgent` generates definitions, examples, synonyms, cultural notes
-4. Results stored directly in `user_vocabulary` columns (no separate cache)
-5. Frontend displays enriched data in LearnWordModal
+### Vocabulary Card Flow
+1. User saves a suggested word with its source sentence
+2. `backend/ai/word_card.py` makes one structured Flash-Lite call using `resolve_policy()`
+3. The card, card status, and policy snapshot are stored on `user_vocabulary`
+4. A failed call stores no card content; `POST /vocabulary/{id}/card` retries it
+5. `components/word-card.tsx` renders the policy-gated card sheet
 
 ### Language Policy Resolution
 1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
