@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Confetti } from "@/components/confetti"
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
+import { ReviewDueCard } from "@/components/review-due-card"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { GlobalLookupBox } from "@/components/lookup-sheet"
@@ -172,6 +173,8 @@ export default function DashboardPage() {
         <h2 className="mb-3 text-lg font-bold">Look up anything</h2>
         <GlobalLookupBox language="es" />
       </section>
+
+      <ReviewDueCard />
 
       <LevelSuggestionCard />
 

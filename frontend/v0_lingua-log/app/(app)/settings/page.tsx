@@ -42,7 +42,19 @@ import { LANGUAGES, getUILanguages, getTargetLanguages } from "@/i18n/languages"
 import { sameLanguage } from "@/lib/side-by-side"
 import { studiedLanguages as savedStudiedLanguages } from "@/lib/studied-languages"
 
-type LanguageProfileState = { immersion_level: number; proficiency: string; active: boolean }
+type LanguageProfileState = {
+  immersion_level: number
+  proficiency: string
+  active: boolean
+  /** Review settings; unset until the learner has a saved profile for the language. */
+  daily_new_words?: number
+  desired_retention?: number
+}
+
+// Review runs on these when a language has no saved value; the server holds the same defaults.
+const DEFAULT_NEW_WORDS = 10
+const DEFAULT_RETENTION = 0.9
+const RETENTION_RANGE = { min: 0.8, max: 0.95 }
 
 // "Learn French" from an entry's did-you-mean prompt lands here as ?add=fr.
 function requestedLanguage(): string | null {
@@ -200,7 +212,13 @@ export default function SettingsPage() {
               Object.fromEntries(
                 (settingsData.language_profiles ?? []).map((row) => [
                   row.l2,
-                  { immersion_level: row.immersion_level, proficiency: row.proficiency, active: row.active !== false },
+                  {
+                    immersion_level: row.immersion_level,
+                    proficiency: row.proficiency,
+                    active: row.active !== false,
+                    daily_new_words: row.daily_new_words ?? undefined,
+                    desired_retention: row.desired_retention ?? undefined,
+                  },
                 ])
               ),
               settingsData.default_target_lang || "es",
@@ -343,6 +361,8 @@ export default function SettingsPage() {
             immersion_level: profileFor(code).immersion_level,
             proficiency: profileFor(code).proficiency,
             active: code === settings.defaultTargetLanguage || profileFor(code).active,
+            daily_new_words: profileFor(code).daily_new_words,
+            desired_retention: profileFor(code).desired_retention,
           })
         ),
       }
@@ -701,6 +721,36 @@ export default function SettingsPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor={`new-words-${code}`}>{t('settings.newWordsPerDay')}</Label>
+                            <p className="text-sm text-muted-foreground mb-2">{t('settings.newWordsPerDayDesc')}</p>
+                            <Input
+                              id={`new-words-${code}`}
+                              type="number"
+                              min={1}
+                              max={100}
+                              className="w-28"
+                              value={profile.daily_new_words ?? DEFAULT_NEW_WORDS}
+                              onChange={(event) => {
+                                const value = Math.round(Number(event.target.value))
+                                if (value >= 1 && value <= 100) updateLanguageProfile(code, { daily_new_words: value })
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label>
+                              {t('settings.desiredRetention')}: {Math.round((profile.desired_retention ?? DEFAULT_RETENTION) * 100)}%
+                            </Label>
+                            <p className="text-sm text-muted-foreground mb-2">{t('settings.desiredRetentionDesc')}</p>
+                            <Slider
+                              aria-label={t('settings.desiredRetention')}
+                              value={[Math.round((profile.desired_retention ?? DEFAULT_RETENTION) * 100)]}
+                              onValueChange={(value) => updateLanguageProfile(code, { desired_retention: value[0] / 100 })}
+                              min={RETENTION_RANGE.min * 100}
+                              max={RETENTION_RANGE.max * 100}
+                              step={1}
+                            />
                           </div>
                         </div>
                       )

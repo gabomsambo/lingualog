@@ -77,5 +77,9 @@
   "removeLanguageHint": "Removing a language keeps its entries. Add it again any time to pick up where you left off.",
   "defaultBadge": "Default",
   "fullImmersion": "Full immersion",
-  "fullImmersionDesc": "You learn {language} with explanations in {language}, so there is nothing to translate: everything stays in {language}."
+  "fullImmersionDesc": "You learn {language} with explanations in {language}, so there is nothing to translate: everything stays in {language}.",
+  "newWordsPerDay": "New words per day",
+  "newWordsPerDayDesc": "How many new words enter review each day for this language. Words over the limit wait until tomorrow.",
+  "desiredRetention": "Memory goal",
+  "desiredRetentionDesc": "How often you want to remember a word when it comes up for review. Higher means more reviews."
 }

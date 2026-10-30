@@ -429,6 +429,16 @@ export interface VocabularyCardPolicy {
   model: string;
 }
 
+/** Review progress of a word in study, attached to GET /vocabulary. */
+export interface VocabularyReviewState {
+  due: string;
+  stability?: number | null;
+  reps: number;
+  lapses: number;
+  /** Due and likely forgotten (recall probability below 80%). */
+  at_risk: boolean;
+}
+
 export interface UserVocabularyItemResponse extends UserVocabularyItemCreate {
   id: string;
   user_id: string;
@@ -441,6 +451,7 @@ export interface UserVocabularyItemResponse extends UserVocabularyItemCreate {
   tags: string[];
   created_at: string;
   updated_at: string;
+  review?: VocabularyReviewState | null;
 }
 
 export async function addVocabularyItem(item: UserVocabularyItemCreate): Promise<UserVocabularyItemResponse> {
@@ -539,6 +550,109 @@ export async function retryVocabularyCard(itemId: string): Promise<UserVocabular
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as UserVocabularyItemResponse;
+}
+
+// --- Review API ---
+
+export type ReviewRating = "again" | "got_it";
+export type ReviewMode = "normal" | "catchup";
+export type ReviewFormat = "recognition" | "meaning_to_word" | "typed_recall" | "cloze";
+
+export interface ReviewCard {
+  card_id: string;
+  word_id: string;
+  card_type: "recognition" | "production";
+  format: ReviewFormat;
+  language: string;
+  lemma: string;
+  /** Times this card has been reviewed; echoed back so a repeated answer is refused. */
+  reps: number;
+  is_new: boolean;
+  /** The learner's sentence around the word. For cloze formats `target` is the blanked answer. */
+  front: { before: string; target: string; after: string };
+  meaning: string;
+  /** Native-language gloss shown with the answer. */
+  gloss: string;
+  /** Native-language gloss kept behind a tap (balanced immersion). */
+  tap_gloss: string;
+  /** Hint shown beside the question. */
+  hint: string;
+  answer: string;
+  typed: boolean;
+  /** Normalised answers a typed recall may match. */
+  accepted: string[];
+  status: VocabularyStatus;
+  at_risk: boolean;
+}
+
+export interface ReviewCounts {
+  due: number;
+  new_available: number;
+  new_remaining: number;
+  /** Reviews waiting plus the new words still allowed today. */
+  total: number;
+  backlog: number;
+  at_risk: number;
+  suggest_catchup: boolean;
+}
+
+export interface ReviewSession {
+  language: string;
+  mode: ReviewMode;
+  cards: ReviewCard[];
+  counts: ReviewCounts;
+  settings: { daily_new_words: number; desired_retention: number; catchup_daily_budget: number };
+  catchup: { daily_budget: number; done_today: number } | null;
+}
+
+export interface ReviewSummary {
+  languages: Array<{ language: string } & ReviewCounts>;
+  total: number;
+  at_risk: number;
+}
+
+export interface ReviewResult {
+  card_id: string;
+  rating: ReviewRating;
+  due: string;
+  reps: number;
+  /** The card comes due again within the session, so show it once more. */
+  requeue: boolean;
+  status: VocabularyStatus;
+  production_card_added: boolean;
+}
+
+export async function getReviewSession(language: string, mode: ReviewMode = "normal"): Promise<ReviewSession> {
+  const params = new URLSearchParams({ language, mode });
+  const res = await fetch(`${API_BASE}/review/session?${params}`, {
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as ReviewSession;
+}
+
+export async function getReviewSummary(): Promise<ReviewSummary> {
+  const res = await fetch(`${API_BASE}/review/summary`, {
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as ReviewSummary;
+}
+
+export async function submitReview(
+  cardId: string,
+  answer: { rating: ReviewRating; reps?: number; duration_ms?: number },
+): Promise<ReviewResult> {
+  const res = await fetch(`${API_BASE}/review/${cardId}`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+    body: JSON.stringify(answer),
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as ReviewResult;
 }
 
 // User Profile and Stats API
@@ -698,6 +812,10 @@ export interface LanguageProfileData {
   proficiency: string;
   /** False once removed in Settings; the profile and entries are kept for re-adding. */
   active?: boolean;
+  /** How many new words a day enter review for this language (1-100). */
+  daily_new_words?: number | null;
+  /** The recall probability review aims for (0.80-0.95). */
+  desired_retention?: number | null;
 }
 
 export interface UserSettingsUpdate {
