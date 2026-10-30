@@ -237,7 +237,8 @@ export type SupportEventKind =
   | "reveal_meaning"
   | "rescue_note"
   | "reveal_rewrite_gloss"
-  | "reveal_example";
+  | "reveal_example"
+  | "reveal_gloss";
 
 export interface LevelSuggestion {
   l2: string;
@@ -355,34 +356,58 @@ export interface UserVocabularyItemCreate {
   definition?: string;
   reading?: string;
   example_sentence?: string;
-  status?: string;
-  entry_id?: string; 
-  
-  // AI Enrichment fields
-  ai_example_sentences?: string[];
-  ai_definitions?: any[];
-  ai_synonyms?: string[];
-  ai_antonyms?: string[];
-  ai_related_phrases?: string[];
-  ai_conjugation_info?: any;
-  ai_cultural_note?: string;
-  ai_pronunciation_guide?: string;
-  ai_alternative_forms?: string[];
-  ai_common_mistakes?: Array<{ mistake: string; correction: string; explanation?: string }>;
-  ai_eli5_explanation?: string;
-  emotion_tone?: string;
-  mnemonic?: string;
-  emoji?: string;
-  source_model?: string;
-  notes_user?: string;
-  tags?: string[];
+  status?: VocabularyStatus;
+  entry_id?: string;
+}
+
+export type VocabularyStatus = "new" | "learning" | "known" | "mastered" | "ignored";
+
+export interface VocabularyOtherSense {
+  meaning: string;
+  example: string;
+}
+
+export interface VocabularyCardData {
+  lemma: string;
+  surface: string;
+  is_phrase: boolean;
+  part_of_speech: string;
+  gender: string;
+  sense_in_context: string;
+  gloss_l1: string;
+  other_senses: VocabularyOtherSense[];
+  register: string;
+  cefr: string;
+  frequency_band: string;
+  examples: string[];
+  collocations: string[];
+  word_family: string[];
+  common_mistake: string;
+  memory_hook: string;
+}
+
+export interface VocabularyCardPolicy {
+  v: number;
+  level: number;
+  l1: string;
+  l2?: string;
+  proficiency?: string;
+  vocab_def: "l1" | "l1_plus_l2" | "l2_plus_l1" | "l2";
+  model: string;
 }
 
 export interface UserVocabularyItemResponse extends UserVocabularyItemCreate {
-  id: string; // UUID from DB
-  user_id: string; // UUID from DB
-  created_at: string; // ISO date string
-  updated_at: string; // ISO date string
+  id: string;
+  user_id: string;
+  lemma?: string;
+  sense?: string;
+  card?: VocabularyCardData | null;
+  card_status: "pending" | "ok" | "failed";
+  card_policy?: VocabularyCardPolicy | null;
+  note?: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export async function addVocabularyItem(item: UserVocabularyItemCreate): Promise<UserVocabularyItemResponse> {
@@ -459,170 +484,28 @@ export async function deleteVocabularyItem(itemId: string): Promise<void> {
   // No content expected on successful delete (204)
 }
 
-// --- Vocabulary AI On-Demand Generation --- 
-
-// Request and Response types mirroring backend Pydantic models
-
-export interface MoreExamplesRequest {
-  word: string;
-  language: string;
-  existing_examples?: string[];
-  target_audience_level?: string;
-}
-
-export interface MoreExamplesResponse {
-  new_example_sentences: string[];
-}
-
-export interface ELI5Request {
-  term: string;
-  language: string;
-  context?: string;
-}
-
-export interface ELI5Response {
-  explanation: string;
-}
-
-export interface MiniQuizQuestion {
-  question_text: string;
-  options: string[];
-  correct_answer_index: number;
-  explanation?: string;
-}
-
-export interface MiniQuizRequest {
-  word: string;
-  language: string;
-  num_questions?: number;
-  difficulty?: string;
-}
-
-export interface MiniQuizResponse {
-  quiz_title: string;
-  questions: MiniQuizQuestion[];
-}
-
-// Interface for the /ai/vocabulary/{itemId}/enrich endpoint response
-export interface EnrichedVocabDetails {
-  id: string; // UUID for the AI cache entry
-  word_vocabulary_id: string; // UUID for the vocabulary item this relates to
-  language: string;
-  ai_example_sentences?: string[];
-  ai_definitions?: Array<{ part_of_speech: string; definition: string }>;
-  ai_synonyms?: string[];
-  ai_antonyms?: string[];
-  ai_related_phrases?: string[];
-  ai_conjugation_info?: Record<string, any>; // Conjugation information for verbs/adjectives
-  ai_cultural_note?: string;
-  ai_pronunciation_guide?: string;
-  ai_alternative_forms?: string[];
-  ai_common_mistakes?: Array<{ mistake: string; correction: string; explanation?: string }>;
-  // New fields for comprehensive vocabulary enrichment
-  emotion_tone?: string; // Emotional tone or feeling associated with the word
-  mnemonic?: string; // Memory aid, metaphor, or mnemonic device
-  emoji?: string; // Emoji representing the word's meaning or emotion
-  source_model?: string;
-  // Match this structure with VocabWordData where possible, or map it in the component
-  // For example, VocabWordData uses 'eli5Explanation', this might come from one of these fields or be separate.
-}
-
-export async function getEnrichedVocabularyDetails(itemId: string, language: string): Promise<EnrichedVocabDetails> {
-  const authHeaders = await getAuthHeaders();
-  const user = await getUser();
-  const customHeaders: Record<string, string> = {
-    ...(authHeaders as Record<string, string>),
-  };
-  if (user && user.id) {
-    customHeaders["X-User-ID"] = user.id;
-  }
-
-  const res = await fetch(`${API_BASE}/ai/vocabulary/${itemId}/enrich?language=${language}`, {
-    method: "GET",
-    headers: customHeaders,
+export async function updateVocabularyItem(
+  itemId: string,
+  changes: { note?: string; tags?: string[]; status?: VocabularyStatus },
+): Promise<UserVocabularyItemResponse> {
+  const res = await fetch(`${API_BASE}/vocabulary/${itemId}`, {
+    method: "PATCH",
+    headers: await userHeaders(true),
     credentials: "include",
+    body: JSON.stringify(changes),
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch enriched details. Status: ${res.status}` }));
-    throw new Error(errorData.detail || `Failed to fetch enriched details. Status: ${res.status}`);
-  }
-  return (await res.json()) as EnrichedVocabDetails;
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as UserVocabularyItemResponse;
 }
 
-export async function generateMoreExamples(request: MoreExamplesRequest): Promise<MoreExamplesResponse> {
-  const authHeaders = await getAuthHeaders();
-  const user = await getUser();
-  const customHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(authHeaders as Record<string, string>),
-  };
-  if (user && user.id) {
-    customHeaders["X-User-ID"] = user.id;
-  }
-
-  const res = await fetch(`${API_BASE}/ai/vocabulary/on-demand/more-examples`, {
+export async function retryVocabularyCard(itemId: string): Promise<UserVocabularyItemResponse> {
+  const res = await fetch(`${API_BASE}/vocabulary/${itemId}/card`, {
     method: "POST",
-    headers: customHeaders,
-    body: JSON.stringify(request),
+    headers: await userHeaders(),
     credentials: "include",
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: `Failed to generate more examples. Status: ${res.status}` }));
-    throw new Error(errorData.detail || `Failed to generate more examples. Status: ${res.status}`);
-  }
-  return (await res.json()) as MoreExamplesResponse;
-}
-
-export async function generateEli5(request: ELI5Request): Promise<ELI5Response> {
-  const authHeaders = await getAuthHeaders();
-  const user = await getUser();
-  const customHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(authHeaders as Record<string, string>),
-  };
-  if (user && user.id) {
-    customHeaders["X-User-ID"] = user.id;
-  }
-
-  const res = await fetch(`${API_BASE}/ai/vocabulary/on-demand/eli5`, {
-    method: "POST",
-    headers: customHeaders,
-    body: JSON.stringify(request),
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: `Failed to generate ELI5. Status: ${res.status}` }));
-    throw new Error(errorData.detail || `Failed to generate ELI5. Status: ${res.status}`);
-  }
-  return (await res.json()) as ELI5Response;
-}
-
-export async function generateMiniQuiz(request: MiniQuizRequest): Promise<MiniQuizResponse> {
-  const authHeaders = await getAuthHeaders();
-  const user = await getUser();
-  const customHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(authHeaders as Record<string, string>),
-  };
-  if (user && user.id) {
-    customHeaders["X-User-ID"] = user.id;
-  }
-
-  const res = await fetch(`${API_BASE}/ai/vocabulary/on-demand/mini-quiz`, {
-    method: "POST",
-    headers: customHeaders,
-    body: JSON.stringify(request),
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: `Failed to generate mini quiz. Status: ${res.status}` }));
-    throw new Error(errorData.detail || `Failed to generate mini quiz. Status: ${res.status}`);
-  }
-  return (await res.json()) as MiniQuizResponse;
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as UserVocabularyItemResponse;
 }
 
 // User Profile and Stats API
@@ -867,4 +750,4 @@ export async function updateUserSettings(updateData: UserSettingsUpdate): Promis
   }
   
   return (await res.json()) as UserSettingsData;
-} 
+}

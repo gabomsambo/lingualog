@@ -4,10 +4,9 @@ Pydantic models for data validation and serialization.
 This module defines the data models used for API requests and responses
 in the LinguaLog application.
 """
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
-import uuid
 
 
 class AnalyzeEntryRequest(BaseModel):
@@ -133,7 +132,9 @@ class UserVocabularyItemBase(BaseModel):
     definition: Optional[str] = Field(None, description="Definition of the term.")
     reading: Optional[str] = Field(None, description="Pronunciation aid (e.g., Furigana, Pinyin).")
     example_sentence: Optional[str] = Field(None, description="Example sentence using the term.")
-    status: Optional[str] = Field("saved", description="Learning status of the item (e.g., saved, learning, mastered).")
+    status: Literal["new", "learning", "known", "mastered", "ignored"] = Field(
+        "new", description="Notebook state for this word."
+    )
     entry_id: Optional[str] = Field(None, description="ID of the journal entry where the word was sourced, if any.")
 
 
@@ -143,53 +144,27 @@ class UserVocabularyItemCreate(UserVocabularyItemBase):
     pass
 
 
+class UserVocabularyItemPatch(BaseModel):
+    """User-editable vocabulary fields."""
+
+    note: Optional[str] = Field(None, max_length=5000)
+    tags: Optional[List[str]] = Field(None, max_length=50)
+    status: Optional[Literal["new", "learning", "known", "mastered", "ignored"]] = None
+
+
 class UserVocabularyItemResponse(UserVocabularyItemBase):
     """Schema for responding with a user vocabulary item."""
     id: str
     user_id: str
     created_at: datetime
     updated_at: datetime
+    lemma: Optional[str] = None
+    sense: Optional[str] = None
+    card: Optional[Dict[str, Any]] = None
+    card_status: Literal["pending", "ok", "failed"] = "pending"
+    card_policy: Optional[Dict[str, Any]] = None
+    note: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
 
     class Config:
         orm_mode = True
-
-
-# Models for AI-enriched Vocabulary Data
-
-class SynonymsAntonyms(BaseModel):
-    """Structure for storing synonyms and antonyms."""
-    synonyms: Optional[List[str]] = Field(None, description="List of synonyms.")
-    antonyms: Optional[List[str]] = Field(None, description="List of antonyms.")
-
-class WordAiCacheBase(BaseModel):
-    """Base model for AI-generated word enrichment data."""
-    language: str = Field(..., description="Language of the enriched word (e.g., 'en', 'es', 'ja').")
-    ai_example_sentences: Optional[List[str]] = Field(None, description="AI-generated example sentences.")
-    synonyms_antonyms: Optional[SynonymsAntonyms] = Field(None, description="AI-generated synonyms and antonyms.")
-    related_phrases: Optional[List[str]] = Field(None, description="AI-generated related phrases or collocations.")
-    cultural_note: Optional[str] = Field(None, description="AI-generated cultural note or usage insight.")
-    emotion_tone: Optional[str] = Field(None, description="AI-detected typical emotion or tone of the word.")
-    mnemonic: Optional[str] = Field(None, description="AI-generated mnemonic or metaphor for learning.")
-
-class WordAiCacheCreate(WordAiCacheBase):
-    """Model for creating an entry in the word_ai_cache table.
-    word_vocabulary_id will be the ID of the item in UserVocabularyItem.
-    """
-    word_vocabulary_id: uuid.UUID = Field(..., description="Foreign key to the user_vocabulary table.")
-
-class WordAiCacheDB(WordAiCacheCreate):
-    """Model representing a record in the word_ai_cache table, including DB-specific fields."""
-    id: uuid.UUID = Field(..., description="Primary key of the cache entry.")
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        orm_mode = True
-
-class EnrichedWordDetailsResponse(WordAiCacheBase):
-    """Response model for AI-enriched word details, including its own cache ID."""
-    id: uuid.UUID = Field(..., description="Unique identifier for the AI cache entry.")
-    word_vocabulary_id: uuid.UUID = Field(..., description="Identifier of the original vocabulary item this cache entry pertains to.")
-    # Add created_at and updated_at if you want to expose them in this specific response
-    # created_at: datetime = Field(..., description="Timestamp of cache creation.")
-    # updated_at: datetime = Field(..., description="Timestamp of last cache update.")

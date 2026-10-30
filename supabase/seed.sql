@@ -160,10 +160,6 @@ begin
     active = true,
     updated_at = now();
 
-  delete from public.word_ai_cache
-  where word_vocabulary_id in (
-    select id from public.user_vocabulary where user_id = demo_user_id
-  );
   delete from public.user_vocabulary where user_id = demo_user_id;
   delete from public.journal_entries where user_id = demo_user_id;
 end
@@ -440,6 +436,7 @@ insert into public.user_vocabulary (
   user_id,
   entry_id,
   term,
+  lemma,
   language,
   part_of_speech,
   definition,
@@ -465,6 +462,7 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000001',
     'meta',
+    'meta',
     'es',
     'noun',
     'goal or target',
@@ -489,12 +487,13 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000002',
     'verduras',
+    'verduras',
     'es',
     'noun',
     'vegetables',
     null,
     'Compre verduras para preparar sopa.',
-    'saved',
+    'new',
     '["Las verduras frescas mejoran el sabor de la sopa."]'::jsonb,
     '[{"part_of_speech":"noun","definition":"vegetales comestibles"}]'::jsonb,
     '["vegetales","hortalizas"]'::jsonb,
@@ -512,6 +511,7 @@ values
     '30000000-0000-4000-8000-000000000003',
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000003',
+    'medianoche',
     'medianoche',
     'es',
     'noun',
@@ -537,12 +537,13 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000004',
     'expression',
+    'expression',
     'fr',
     'noun',
     'expression or phrase',
     null,
     'Cette expression est facile a memoriser.',
-    'saved',
+    'new',
     '["Cette expression revient souvent dans les articles.","Jai utilise cette expression au club de conversation."]'::jsonb,
     '[{"part_of_speech":"noun","definition":"maniere de formuler une idee"}]'::jsonb,
     '["formule","locution"]'::jsonb,
@@ -560,6 +561,7 @@ values
     '30000000-0000-4000-8000-000000000005',
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000005',
+    'repasar',
     'repasar',
     'es',
     'verb',
@@ -585,6 +587,7 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000006',
     'reussir',
+    'reussir',
     'fr',
     'verb',
     'to succeed',
@@ -609,12 +612,13 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000007',
     'parrafo',
+    'parrafo',
     'es',
     'noun',
     'paragraph',
     null,
     'Escribi un parrafo sobre mi rutina.',
-    'saved',
+    'new',
     null,
     null,
     null,
@@ -633,12 +637,13 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000008',
     'roman',
+    'roman',
     'fr',
     'noun',
     'novel',
     null,
     'Je lis un roman avant de dormir.',
-    'saved',
+    'new',
     null,
     null,
     null,
@@ -657,12 +662,13 @@ values
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000009',
     'vacaciones',
+    'vacaciones',
     'es',
     'noun',
     'vacations or holidays',
     null,
     'Estamos planeando vacaciones en la costa.',
-    'saved',
+    'new',
     null,
     null,
     null,
@@ -680,6 +686,7 @@ values
     '30000000-0000-4000-8000-000000000010',
     '11111111-1111-4111-8111-111111111111',
     '20000000-0000-4000-8000-000000000010',
+    'manana',
     'manana',
     'es',
     'adverb',
@@ -700,3 +707,29 @@ values
     null,
     now()
   );
+
+update public.user_vocabulary
+set
+  sense = definition,
+  card = jsonb_build_object(
+    'lemma', lemma,
+    'surface', term,
+    'is_phrase', position(' ' in btrim(term)) > 0,
+    'part_of_speech', coalesce(part_of_speech, ''),
+    'gender', '',
+    'sense_in_context', coalesce(definition, term),
+    'gloss_l1', coalesce(definition, ''),
+    'other_senses', '[]'::jsonb,
+    'register', 'neutral',
+    'cefr', '',
+    'frequency_band', '',
+    'examples', coalesce(ai_example_sentences, jsonb_build_array(example_sentence)),
+    'collocations', coalesce(ai_related_phrases, '[]'::jsonb),
+    'word_family', '[]'::jsonb,
+    'common_mistake', '',
+    'memory_hook', coalesce(mnemonic, '')
+  ),
+  card_status = 'ok',
+  card_policy = '{"v":1,"level":0,"l1":"en","vocab_def":"l1","model":"legacy"}'::jsonb
+where user_id = '11111111-1111-4111-8111-111111111111'
+  and card is null;

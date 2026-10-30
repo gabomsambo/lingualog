@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   dismissLevelSuggestion: vi.fn(),
   getUserSettings: vi.fn(),
   keepEntryLanguage: vi.fn(),
+  addVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -123,6 +124,7 @@ beforeEach(() => {
   api.acceptLevelSuggestion.mockResolvedValue({})
   api.dismissLevelSuggestion.mockResolvedValue({})
   api.keepEntryLanguage.mockResolvedValue(undefined)
+  api.addVocabularyItem.mockResolvedValue({ id: "word-1" })
   api.getUserSettings.mockResolvedValue({
     default_target_lang: "es",
     language_profiles: [
@@ -498,6 +500,24 @@ describe("did you mean another language?", () => {
       unmount()
     }
     expect(api.getUserSettings).not.toHaveBeenCalled()
+  })
+})
+
+describe("suggested words", () => {
+  it("saves a suggested word to the notebook from the result", async () => {
+    renderEntry(1)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith({
+      term: "lloviendo",
+      language: "es",
+      part_of_speech: "verb",
+      definition: "raining",
+      reading: undefined,
+      example_sentence: "Está lloviendo.",
+      entry_id: "entry-1",
+      status: "new",
+    }))
+    expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled()
   })
 })
 

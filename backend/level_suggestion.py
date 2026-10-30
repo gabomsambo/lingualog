@@ -23,10 +23,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 
 # Meaning or rescue: the learner opened a translation or asked for an L1 note.
-STEP_DOWN_KINDS = frozenset({"reveal_meaning", "rescue_note"})
+STEP_DOWN_KINDS = frozenset({"reveal_meaning", "rescue_note", "reveal_gloss"})
 # Support: any recorded reveal or rescue.
 SUPPORT_KINDS = frozenset(
-    {"reveal_meaning", "rescue_note", "reveal_rewrite_gloss", "reveal_example"}
+    {"reveal_meaning", "rescue_note", "reveal_rewrite_gloss", "reveal_example", "reveal_gloss"}
 )
 
 STEP_DOWN_MIN_LEVEL = 1

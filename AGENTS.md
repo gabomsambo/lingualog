@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This project is an AI-powered language learning journal with comprehensive feedback, vocabulary enrichment, and multilingual support.
+This project is an AI-powered language learning journal with comprehensive feedback, vocabulary cards, and multilingual support.
 
 ## Architecture Overview
 
@@ -47,16 +47,17 @@ cd frontend/v0_lingua-log && npm test
 Templates: root `.env.example` (backend/compose) and `frontend/v0_lingua-log/.env.example` (copy to `.env.local`).
 `make dev` fills in the local Supabase URL/keys. Optional Mistral deps: `backend/requirements-optional-mistral.txt`.
 
-Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
+Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_MODEL_WORD_CARD`, `GEMINI_THINKING_LEVEL`,
+`AI_PROVIDER=mock` for offline runs) are listed in `.env.example`.
 
 ## Key Integration Points
 
 - **Frontend ↔ Backend**: REST API with auth via `X-User-ID` header
 - **Backend ↔ Supabase**: Direct client for auth + CRUD operations
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
-- **Backend ↔ Atomic Agents**: Vocabulary enrichment, quiz generation (to be migrated to Gemini in later PRs)
+- **Backend ↔ Gemini Flash-Lite**: Policy-aware vocabulary cards
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `word_ai_cache`, `support_events`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`
 
 ## Core Agent Workflows
 
@@ -74,12 +75,12 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_THINKING_LEVEL`, `AI_PROVIDER=
 
 Keep arrays the UI needs required in `ai/schemas.py`'s Gemini schema: live calls left optional arrays empty.
 
-### Vocabulary Enrichment Flow
-1. User adds word or system extracts from journal
-2. `/ai/vocabulary/{id}/enrich` endpoint called
-3. `VocabularyEnrichmentAgent` generates definitions, examples, synonyms, cultural notes
-4. Results stored directly in `user_vocabulary` columns (no separate cache)
-5. Frontend displays enriched data in LearnWordModal
+### Vocabulary Card Flow
+1. User saves a suggested word with its source sentence
+2. `backend/ai/word_card.py` makes one structured Flash-Lite call using `resolve_policy()`
+3. The card, card status, and policy snapshot are stored on `user_vocabulary`
+4. A failed call stores no card content; `POST /vocabulary/{id}/card` retries it
+5. `components/word-card.tsx` renders the policy-gated card sheet
 
 ### Language Policy Resolution
 1. `backend/learning_policy.py` `resolve_policy()` is the only level-to-behaviour map. Precedence is documented there and in `README.md` (Learning policy).
@@ -111,7 +112,7 @@ Key reference files:
 
 - **CORS errors**: Check `NEXT_PUBLIC_API_URL` matches backend URL and `CORS_ALLOW_ORIGINS` includes the frontend origin
 - **Auth failures**: Verify Supabase keys and `X-User-ID` header
-- **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
+- **Vocabulary card missing**: A failed Gemini call leaves `card_status = 'failed'` with no card; retry via `POST /vocabulary/{id}/card`
 - **Port conflicts**: 3011 (backend), 3010 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
 - **i18n missing keys**: Strings live in two places: inline resources in `frontend/v0_lingua-log/i18n/i18n.ts`
@@ -132,9 +133,10 @@ Key reference files:
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
-- Stores user's vocabulary items with AI enrichment columns
-- Unique constraint: `(user_id, term, language)`
-- AI fields: `ai_definitions`, `ai_example_sentences`, `ai_synonyms`, `ai_antonyms`, `ai_cultural_note`, `ai_pronunciation_guide`, `emotion_tone`, `mnemonic`, `emoji`
+- Canonical `lemma` + `sense`, the word `card`, `card_status` (`pending`/`ok`/`failed`), `policy_snapshot`, `note`, `tags`
+- `status`: `new`, `learning`, `known`, `mastered`, `ignored`
+- Unique constraint: `(user_id, lemma, language)`
+- Schema: `supabase/migrations/20261004080000_vocabulary_cards.sql` (legacy `ai_*` columns remain as backfilled history)
 
 ### `user_settings`
 - Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode` (+ `explanation_mode_explicit`), `strictness`, `formality`, `immersion_level`
@@ -152,7 +154,8 @@ Key reference files:
 - `POST /vocabulary` - Add vocabulary item
 - `GET /vocabulary` - Fetch user vocabulary
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
-- `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
+- `POST /vocabulary/{id}/card` - Retry word card generation (ownership-checked)
+- `PATCH /vocabulary/{id}` - Update note, tags, or notebook status
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/policy?l2=` - The learner's current LearningPolicy for one language

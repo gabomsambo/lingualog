@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from backend.server import app
+from ai.gemini import GeminiError
 
 
 @pytest.fixture
@@ -137,7 +138,7 @@ def test_delete_entry_exception(mock_delete_entry, client):
 
 # --- Vocabulary Endpoint Tests ---
 
-@patch("backend.server.enrich_vocabulary_in_background")
+@patch("backend.server.generate_word_card")
 @patch("backend.server.save_vocabulary_item")
 def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
     user_id = "00000000-0000-0000-0000-000000000001"
@@ -148,7 +149,7 @@ def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
         "part_of_speech": "interjection",
         "reading": "こんにちは",
         "example_sentence": "Konnichiwa, sensei!",
-        "status": "saved",
+        "status": "new",
         "entry_id": "some-entry-id"
     }
     saved_item_response = {
@@ -159,13 +160,20 @@ def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
         "updated_at": "2023-10-27T10:00:00Z"
     }
     mock_save_vocab.return_value = saved_item_response
+    mock_enrich.side_effect = GeminiError("ai_unavailable", "provider failed")
 
-    response = client.post("/vocabulary", json=item_data, headers={"X-User-ID": user_id})
+    with patch("backend.server.fetch_vocabulary_item_by_term", return_value=None), patch(
+        "backend.server.resolve_policy", return_value=object()
+    ):
+        response = client.post("/vocabulary", json=item_data, headers={"X-User-ID": user_id})
 
     assert response.status_code == 201
     assert response.json()["id"] == "vocab-item-id-123"
     assert response.json()["term"] == "Konnichiwa"
-    mock_save_vocab.assert_called_once_with(item_data=item_data, user_id=user_id)
+    saved = mock_save_vocab.call_args.kwargs["item_data"]
+    assert saved["status"] == "new"
+    assert saved["card_status"] == "failed"
+    assert saved["lemma"] == "Konnichiwa"
 
 @patch("backend.server.save_vocabulary_item")
 def test_add_vocabulary_item_conflict(mock_save_vocab, client):
@@ -238,4 +246,4 @@ def test_delete_vocabulary_item_no_user_id(mock_delete_vocab, client):
     item_id_to_delete = "some-vocab-id"
     response = client.delete(f"/vocabulary/{item_id_to_delete}")
     assert response.status_code == 401
-    mock_delete_vocab.assert_not_called() 
+    mock_delete_vocab.assert_not_called()

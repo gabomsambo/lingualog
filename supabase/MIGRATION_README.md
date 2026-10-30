@@ -20,6 +20,6 @@ LinguaLog now uses Supabase CLI migrations from `supabase/migrations/`.
 ## Notes
 
 - The old `supabase/sql/` folder is legacy history and is not used by CLI resets.
-- Baseline migration includes tables required by the app: `users`, `user_settings`,
-  `journal_entries`, `user_vocabulary`, and `word_ai_cache`.
+- The migrations produce the app tables, including `users`, `user_settings`,
+  `journal_entries`, and `user_vocabulary`; the obsolete `word_ai_cache` is dropped.
 - RLS is owner-only (`auth.uid()` ownership checks).

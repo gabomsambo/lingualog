@@ -16,7 +16,13 @@ SUPPORT_EVENTS_TABLE = "support_events"
 
 
 class SupportEventCreate(BaseModel):
-    kind: Literal["reveal_meaning", "rescue_note", "reveal_rewrite_gloss", "reveal_example"]
+    kind: Literal[
+        "reveal_meaning",
+        "rescue_note",
+        "reveal_rewrite_gloss",
+        "reveal_example",
+        "reveal_gloss",
+    ]
     entry_id: Optional[str] = Field(None, description="Journal entry id when applicable")
     immersion_level: Optional[int] = Field(None, ge=0, le=3)
     l2: Optional[str] = Field(None, description="Target language code for the entry")
