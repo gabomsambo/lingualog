@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.word_encounters (
   source_id uuid,
   page integer,
   card jsonb,
+  card_policy jsonb,
   card_status text NOT NULL DEFAULT 'ok',
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT word_encounters_kind_check
@@ -37,6 +38,8 @@ CREATE TABLE IF NOT EXISTS public.word_encounters (
   CONSTRAINT word_encounters_card_status_check
     CHECK (card_status IN ('ok', 'failed'))
 );
+
+ALTER TABLE public.word_encounters ADD COLUMN IF NOT EXISTS card_policy jsonb;
 
 COMMENT ON TABLE public.word_encounters IS
   'Every place the learner met a word. word_id links to the notebook once saved; card caches a lookup so saving costs no model call.';

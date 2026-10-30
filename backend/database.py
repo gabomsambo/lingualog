@@ -670,7 +670,7 @@ def update_vocabulary_item(item_id: str, user_id: str, changes: Dict[str, Any]) 
 
 
 def fetch_lookup_cache(
-    user_id: str, language: str, text: str, sentence: str
+    user_id: str, language: str, text: str, sentence: str, vocab_def: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """Return a successful lookup for this surface in the same sense-bearing context."""
     supabase = create_supabase_client()
@@ -682,6 +682,8 @@ def fetch_lookup_cache(
             .eq("card_status", "ok")
             .eq(column, text)
         )
+        if vocab_def:
+            query = query.eq("card_policy->>vocab_def", vocab_def)
         if sentence:
             query = query.eq("sentence", sentence)
         response = query.order("created_at", desc=True).limit(1).execute()

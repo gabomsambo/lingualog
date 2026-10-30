@@ -5,6 +5,7 @@ This module defines the data models used for API requests and responses
 in the LinguaLog application.
 """
 from typing import Optional, List, Dict, Any, Literal
+from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
 
@@ -150,7 +151,7 @@ class LookupRequest(BaseModel):
     sentence: Optional[str] = Field(None, max_length=5000)
     language: str = Field(..., min_length=2, max_length=35)
     source: Literal["entry", "manual"]
-    source_id: Optional[str] = None
+    source_id: Optional[UUID] = None
     kind: Literal["lookup", "entry_text", "entry_fix", "entry_rewrite"] = "lookup"
 
 

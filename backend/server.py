@@ -857,7 +857,12 @@ async def lookup_word_route(payload: LookupRequest, request: Request):
     sentence = (payload.sentence or text).strip()
     policy = resolve_policy(user_id, payload.language)
     snapshot = card_policy_snapshot(policy)
-    cached = fetch_lookup_cache(user_id, payload.language, text, sentence)
+    if payload.source == "entry" and payload.source_id:
+        if not fetch_single_entry(str(payload.source_id), user_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
+    cached = fetch_lookup_cache(
+        user_id, payload.language, text, sentence, snapshot.get("vocab_def")
+    )
     card_data: Optional[Dict[str, Any]] = None
     card_status = "failed"
     lemma, sense = text, ""
@@ -885,8 +890,9 @@ async def lookup_word_route(payload: LookupRequest, request: Request):
             "sentence": sentence,
             "kind": payload.kind,
             "source_type": payload.source,
-            "source_id": payload.source_id,
+            "source_id": str(payload.source_id) if payload.source_id else None,
             "card": card_data,
+            "card_policy": snapshot if card_data else None,
             "card_status": card_status,
         },
         user_id,
@@ -923,8 +929,24 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
         encounter = fetch_word_encounter(item.encounter_id, user_id) if item.encounter_id else None
         if item.encounter_id and not encounter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lookup encounter not found")
-        if encounter and encounter.get("card_status") == "ok" and encounter.get("card"):
+        snapshot = card_policy_snapshot(policy) if encounter else {}
+        if encounter and encounter.get("language") != item.language:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Lookup encounter language mismatch"
+            )
+        if (
+            encounter
+            and encounter.get("card_status") == "ok"
+            and encounter.get("card")
+            and (encounter.get("card_policy") or {}).get("vocab_def") == snapshot.get("vocab_def")
+        ):
             cached_card = encounter["card"]
+            if encounter["lemma"] != item.term:
+                lemma_row = fetch_vocabulary_item_by_term(user_id, encounter["lemma"], item.language)
+                if lemma_row:
+                    if lemma_row.get("card_status") == "ok" and lemma_row.get("card"):
+                        return lemma_row
+                    existing = lemma_row
             card_fields = {
                 "term": encounter["lemma"],
                 "lemma": encounter["lemma"],
@@ -933,7 +955,7 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
                 "definition": encounter.get("sense"),
                 "card": cached_card,
                 "card_status": "ok",
-                "card_policy": card_policy_snapshot(policy),
+                "card_policy": snapshot,
             }
             item_data["example_sentence"] = encounter.get("sentence") or item.example_sentence
         else:
