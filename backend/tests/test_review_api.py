@@ -148,6 +148,14 @@ class FakeDb:
                 else:
                     card["suspended_at"] = None
 
+    def suspend_inactive_cards(self, user_id, language=None):
+        for card in self.cards.values():
+            word = self.words[card["word_id"]]
+            if (card["user_id"] == user_id and card["suspended_at"] is None
+                    and word["status"] in ("new", "known", "ignored")
+                    and (language is None or card["language"] == language)):
+                card["suspended_at"] = iso()
+
     def apply_card_review(self, user_id, card_id, expected_reps, card, log):
         stored = self.cards.get(card_id)
         if not stored or stored["user_id"] != user_id or stored["suspended_at"] or stored["reps"] != expected_reps:
@@ -172,7 +180,7 @@ class FakeDb:
             "load_review_settings", "load_fsrs_parameters", "load_active_cards", "load_recognition_cards", "load_card",
             "load_recognition_card", "load_words", "load_encounters", "load_entries", "count_new_words_today",
             "count_reviews_today", "load_learning_words", "load_card_word_ids", "insert_cards",
-            "set_cards_suspended", "apply_card_review", "update_vocabulary_item",
+            "set_cards_suspended", "suspend_inactive_cards", "apply_card_review", "update_vocabulary_item",
         ):
             monkeypatch.setattr(review_service, name, getattr(self, name))
         real = rs.make_scheduler
@@ -544,6 +552,28 @@ def test_a_sync_only_touches_the_callers_words(db):
     db.add_word("w2", user=OTHER, status="learning")
     assert review_service.sync_learning_cards(USER) == 0
     assert all(c["user_id"] == USER for c in db.cards.values())
+
+
+def test_a_session_suspends_cards_of_words_marked_known_or_ignored(db, client):
+    for word_id, status in (("w1", "known"), ("w2", "ignored")):
+        db.add_word(word_id, status=status)
+        db.add_card(f"c-{word_id}", word_id)
+    assert session(client).json()["cards"] == []
+    assert all(c["suspended_at"] for c in db.cards.values())
+
+
+def test_a_failed_card_sync_does_not_fail_the_status_change(db, client, monkeypatch):
+    db.add_word("w1", status="learning", created_at=iso(), updated_at=iso())
+    db.add_card("c1", "w1")
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("supabase down")
+
+    monkeypatch.setattr(review_service, "sync_word_cards", broken)
+    monkeypatch.setattr(server, "update_vocabulary_item", db.update_vocabulary_item)
+    response = client.patch("/vocabulary/w1", json={"status": "ignored"}, headers=HEADERS)
+    assert response.status_code == 200
+    assert db.words["w1"]["status"] == "ignored"
 
 
 # --- Dashboard summary and notebook state ------------------------------------------

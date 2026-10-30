@@ -242,6 +242,22 @@ def set_cards_suspended(user_id: str, word_id: str, suspended: bool) -> None:
         table.update({"suspended_at": None}).eq("user_id", user_id).eq("word_id", word_id).execute()
 
 
+def suspend_inactive_cards(user_id: str, language: Optional[str] = None) -> None:
+    """Suspend active cards of words that are new, known or ignored."""
+    query = (
+        create_supabase_client().table(CARDS_TABLE)
+        .select(f"id, word:{USER_VOCABULARY_TABLE}!inner(status)")
+        .eq("user_id", user_id).is_("suspended_at", "null")
+        .in_("word.status", sorted(_SUSPENDING_STATUSES))
+    )
+    if language:
+        query = query.eq("language", language)
+    ids = [row["id"] for row in query.execute().data or []]
+    for start in range(0, len(ids), WORD_ID_CHUNK):
+        create_supabase_client().table(CARDS_TABLE).update({"suspended_at": _now().isoformat()}) \
+            .eq("user_id", user_id).in_("id", ids[start:start + WORD_ID_CHUNK]).execute()
+
+
 def apply_card_review(user_id: str, card_id: str, expected_reps: int, card: dict, log: dict) -> Optional[dict]:
     response = create_supabase_client().rpc(
         APPLY_REVIEW_RPC,
@@ -277,7 +293,8 @@ def sync_word_cards(user_id: str, word: dict[str, Any]) -> None:
 
 
 def sync_learning_cards(user_id: str, language: Optional[str] = None) -> int:
-    """Give every word in study a recognition card. Heals words that entered study by any route."""
+    """Give every word in study a recognition card, and suspend cards of words no longer studied."""
+    suspend_inactive_cards(user_id, language)
     words = load_learning_words(user_id, language)
     have = load_card_word_ids(user_id, [word["id"] for word in words])
     missing = [

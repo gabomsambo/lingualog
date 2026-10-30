@@ -1146,7 +1146,10 @@ async def patch_vocabulary_item_route(
             detail=f"Vocabulary item with id {item_id} not found or not owned by user.",
         )
     if "status" in changes:
-        review_service.sync_word_cards(user_id, updated)
+        try:
+            review_service.sync_word_cards(user_id, updated)
+        except Exception as e:
+            logger.error(f"Card sync failed for vocabulary item {item_id}: {str(e)}")
     return updated
 
 @app.delete("/vocabulary/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
