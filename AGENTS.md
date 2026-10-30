@@ -57,7 +57,7 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_MODEL_WORD_CARD`, `GEMINI_THIN
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
 - **Backend ↔ Gemini Flash-Lite**: Policy-aware vocabulary cards
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`, `word_encounters`
 
 ## Core Agent Workflows
 
@@ -151,7 +151,8 @@ Key reference files:
 - `GET /entries/{id}` - Get single entry, including `policy_snapshot`, `corrected`, `rewrite`, and `analysis_status`
 - `DELETE /entries/{id}` - Delete entry
 - `POST /entries/{id}/translate` - Meaning translation of an entry part into L1 (cached per entry)
-- `POST /vocabulary` - Add vocabulary item
+- `POST /lookup` - Look up a word in its sentence; returns a word card and an `encounter_id` (stored in `word_encounters`, nothing saved to the notebook)
+- `POST /vocabulary` - Add vocabulary item; `encounter_id` keeps the looked-up card and source sentence
 - `GET /vocabulary` - Fetch user vocabulary
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
 - `POST /vocabulary/{id}/card` - Retry word card generation (ownership-checked)

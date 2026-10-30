@@ -5,6 +5,7 @@ import Link from "next/link"
 import { AlertCircle, Check, FlaskConical, HelpCircle, Languages, Loader2, Plus, RotateCcw } from "lucide-react"
 
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
+import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -43,6 +44,21 @@ import { cn } from "@/lib/utils"
 
 type Fetched = { status: "idle" | "loading" | "ok" | "unavailable"; sentences: string[]; text: string; label?: string | null }
 const IDLE: Fetched = { status: "idle", sentences: [], text: "" }
+
+function wordAtClick(event: React.MouseEvent<HTMLElement>): string {
+  const doc = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY)
+  const range = !position ? doc.caretRangeFromPoint?.(event.clientX, event.clientY) : null
+  const node = position?.offsetNode || range?.startContainer
+  const offset = position?.offset ?? range?.startOffset ?? 0
+  if (!node?.textContent) return ""
+  const text = node.textContent
+  const matches = [...text.matchAll(/[\p{L}\p{M}'’-]+/gu)]
+  return matches.find((match) => offset >= (match.index || 0) && offset <= (match.index || 0) + match[0].length)?.[0] || ""
+}
 
 // Used only when an entry has no stored snapshot and the current policy cannot be loaded:
 // everything visible, nothing hidden behind a tap.
@@ -316,6 +332,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const [retrying, setRetrying] = useState(false)
   const [retryFailed, setRetryFailed] = useState(false)
   const [highlighted, setHighlighted] = useState<number | null>(null)
+  const [lookupContext, setLookupContext] = useState<LookupContext | null>(null)
   const logged = useRef<Set<string>>(new Set())
 
   const failed = entry.analysisStatus === "failed"
@@ -328,6 +345,13 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const rescueOnly = policy?.meaning === "rescue_only"
   // Studying your own language: there is nothing to translate into, so no meaning or rescue fetches.
   const canTranslate = !sameLanguage(l1, l2)
+  const openLookup = (
+    event: React.MouseEvent<HTMLElement>, sentence: string, language: string,
+    kind: LookupContext["kind"],
+  ) => {
+    const text = wordAtClick(event)
+    if (text) setLookupContext({ text, sentence, language, source: "entry", sourceId: entry.id, kind })
+  }
 
   const sentences = useMemo(() => splitSentences(entry.content), [entry.content])
   const mappingStatus = entry.sentenceMappingStatus
@@ -662,14 +686,14 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                     style={rowStyle(index + 2)}
                   >
                     <MobileLabel>{t("feedback.whatYouWrote")}</MobileLabel>
-                    <p lang={l2} dir={l2Dir} className="font-serif text-base leading-relaxed" data-testid="written">
+                    <p lang={l2} dir={l2Dir} className="cursor-pointer font-serif text-base leading-relaxed" data-testid="written" onClick={(event) => openLookup(event, sentence, l2, "entry_text")}>
                       {renderWritten(sentence, marks[index])}
                     </p>
                   </div>
                   {!rescueOnly && meaning.status === "ok" && !meaningAligned ? null : !rescueOnly ? (
                     <div className={cn(cell, rowHover, "md:col-start-2 md:[grid-row:var(--sbs-row)] text-[15px] leading-relaxed")} style={rowStyle(index + 2)}>
                       <MobileLabel>{meaningHeader}</MobileLabel>
-                      <div lang={l1}>{renderMeaningCell(index)}</div>
+                      <div lang={l1} className="cursor-pointer" onClick={(event) => openLookup(event, meaning.sentences[index] || meaning.text, l1, "lookup")}>{renderMeaningCell(index)}</div>
                       {notesForRow(index).map(asWritten)}
                     </div>
                   ) : null}
@@ -682,7 +706,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                         renderEmptyFate(fate, t)
                       ) : (
                         <>
-                        <p lang={l2} dir={l2Dir} className="font-serif text-base leading-relaxed" data-testid="corrected">
+                        <p lang={l2} dir={l2Dir} className="cursor-pointer font-serif text-base leading-relaxed" data-testid="corrected" onClick={(event) => openLookup(event, corrected, l2, "entry_fix")}>
                           {diffWords(sentence, corrected).map((part, k) => (
                             <Fragment key={k}>
                               {k > 0 && " "}
@@ -712,7 +736,12 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
               >
                 <MobileLabel>{meaningHeader}</MobileLabel>
                 {entry.intendedMeaning && (
-                  <p lang={l2} dir={l2Dir}>
+                  <p
+                    lang={l2}
+                    dir={l2Dir}
+                    className="cursor-pointer"
+                    onClick={(event) => openLookup(event, entry.intendedMeaning || "", l2, "lookup")}
+                  >
                     {entry.intendedMeaning}
                   </p>
                 )}
@@ -740,7 +769,13 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
               >
                 <MobileLabel>{meaningHeader}</MobileLabel>
                 {policy.meaning === "open" || revealed.has(0) ? (
-                  <p lang={l1}>{meaning.text.split(/\n+/).join(" ")}</p>
+                  <p
+                    lang={l1}
+                    className="cursor-pointer"
+                    onClick={(event) => openLookup(event, meaning.text, l1, "lookup")}
+                  >
+                    {meaning.text.split(/\n+/).join(" ")}
+                  </p>
                 ) : (
                   <LinkButton onClick={() => revealSentence(0)}>
                     {policy.meaning === "tap" ? t("feedback.tapToReveal") : t("feedback.showMeaning")}
@@ -757,7 +792,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                 data-testid="native-block"
               >
                 <MobileLabel>{t("feedback.howToWriteIt")}</MobileLabel>
-                <p lang={l2} dir={l2Dir} className="text-[15px] leading-relaxed">
+                <p lang={l2} dir={l2Dir} className="cursor-pointer text-[15px] leading-relaxed" onClick={(event) => openLookup(event, entry.rewrite || "", l2, "entry_rewrite")}>
                   {entry.rewrite}
                 </p>
                 {entry.rewriteIdioms.length > 0 && (
@@ -803,6 +838,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
           </div>
         </CardContent>
       </Card>
+      <LookupSheet context={lookupContext} open={!!lookupContext} onOpenChange={(next) => !next && setLookupContext(null)} />
 
       {!failed && (
         <Card className="overflow-hidden rounded-3xl border-fun-purple/20 shadow-fun">

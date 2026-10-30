@@ -29,6 +29,7 @@ import { TranslationModal } from "@/components/translation-modal"
 import { EntrySideBySide } from "@/components/entry-side-by-side"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
+import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 
 import {
   ApiError,
@@ -64,6 +65,7 @@ export function JournalEditor() {
   const [isTranslationModalOpen, setIsTranslationModalOpen] = useState(false)
   const [showTranslation, setShowTranslation] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [lookupContext, setLookupContext] = useState<LookupContext | null>(null)
   
   // User settings and overrides
   const [userSettings, setUserSettings] = useState<UserSettingsData | null>(null)
@@ -99,6 +101,25 @@ export function JournalEditor() {
     setWordCount(newText.trim().split(/\s+/).filter(Boolean).length)
     // Clear any previous errors when user starts typing again
     if (error) setError(null)
+    const quickLookup = newText.match(/(?:^|\s)\?([\p{L}\p{M}'’-]+)$/u)
+    if (quickLookup) {
+      setLookupContext({
+        text: quickLookup[1], sentence: newText, language: targetLanguage, source: "manual",
+      })
+    }
+  }
+
+  const lookupSelection = (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const input = event.currentTarget
+    const selected = input.value.slice(input.selectionStart, input.selectionEnd).trim()
+    if (!selected) return
+    const before = input.value.lastIndexOf(".", input.selectionStart - 1) + 1
+    const afterIndex = input.value.indexOf(".", input.selectionEnd)
+    const after = afterIndex === -1 ? input.value.length : afterIndex + 1
+    setLookupContext({
+      text: selected, sentence: input.value.slice(before, after).trim(),
+      language: targetLanguage, source: "manual",
+    })
   }
 
   /**
@@ -294,9 +315,16 @@ export function JournalEditor() {
               className="min-h-[200px] text-base font-serif"
               value={text}
               onChange={handleTextChange}
+              onMouseUp={lookupSelection}
+              onKeyUp={lookupSelection}
               disabled={isSubmitting}
               lang={targetLanguage}
               dir={isRTL(targetLanguage) ? 'rtl' : 'ltr'}
+            />
+            <LookupSheet
+              context={lookupContext}
+              open={!!lookupContext}
+              onOpenChange={(next) => !next && setLookupContext(null)}
             />
 
             {/* Advanced Options */}
@@ -550,4 +578,4 @@ export function JournalEditor() {
       )}
     </div>
   )
-} 
+}

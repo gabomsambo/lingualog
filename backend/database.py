@@ -5,6 +5,7 @@ This module handles all interactions with Supabase for database operations
 and user authentication.
 """
 import logging
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Union
 import uuid # Added import for uuid
 
@@ -666,6 +667,79 @@ def update_vocabulary_item(item_id: str, user_id: str, changes: Dict[str, Any]) 
         .execute()
     )
     return response.data[0] if response.data else None
+
+
+def fetch_lookup_cache(
+    user_id: str, language: str, text: str, sentence: str, vocab_def: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Return a successful lookup for this surface in the same sense-bearing context."""
+    supabase = create_supabase_client()
+    for column in ("surface", "lemma"):
+        query = (
+            supabase.table("word_encounters").select("*")
+            .eq("user_id", user_id)
+            .eq("language", language)
+            .eq("card_status", "ok")
+            .eq(column, text)
+        )
+        if vocab_def:
+            query = query.eq("card_policy->>vocab_def", vocab_def)
+        if sentence:
+            query = query.eq("sentence", sentence)
+        response = query.order("created_at", desc=True).limit(1).execute()
+        if response.data:
+            return response.data[0]
+    return None
+
+
+def save_word_encounter(data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
+    response = (
+        create_supabase_client().table("word_encounters")
+        .insert({**data, "user_id": user_id}).execute()
+    )
+    if not response.data:
+        raise RuntimeError("Word encounter was not recorded")
+    return response.data[0]
+
+
+def fetch_word_encounter(encounter_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    response = (
+        create_supabase_client().table("word_encounters").select("*")
+        .eq("id", encounter_id).eq("user_id", user_id).maybe_single().execute()
+    )
+    return response.data
+
+
+def link_word_encounters(user_id: str, language: str, lemma: str, word_id: str) -> None:
+    (
+        create_supabase_client().table("word_encounters").update({"word_id": word_id})
+        .eq("user_id", user_id).eq("language", language).eq("lemma", lemma).execute()
+    )
+
+
+def count_word_encounters(user_id: str, language: str, lemma: str) -> int:
+    response = (
+        create_supabase_client().table("word_encounters").select("id", count="exact")
+        .eq("user_id", user_id).eq("language", language).eq("lemma", lemma).execute()
+    )
+    return response.count or len(response.data or [])
+
+
+def get_daily_new_word_usage(user_id: str, language: str) -> tuple[int, int]:
+    """Return today's study starts and the per-language cap."""
+    supabase = create_supabase_client()
+    profile = (
+        supabase.table("user_language_profiles").select("daily_new_words")
+        .eq("user_id", user_id).eq("l2", language).maybe_single().execute()
+    )
+    cap = int((profile.data or {}).get("daily_new_words", 10))
+    today = datetime.now(timezone.utc).date().isoformat()
+    starts = (
+        supabase.table(USER_VOCABULARY_TABLE).select("id", count="exact")
+        .eq("user_id", user_id).eq("language", language)
+        .gte("study_started_at", today).execute()
+    )
+    return starts.count or len(starts.data or []), cap
 
 async def get_user_by_email(db_client: Client, email: str) -> Optional['app.models.User']:
     """

@@ -5,6 +5,7 @@ This module defines the data models used for API requests and responses
 in the LinguaLog application.
 """
 from typing import Optional, List, Dict, Any, Literal
+from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
 
@@ -140,8 +141,18 @@ class UserVocabularyItemBase(BaseModel):
 
 class UserVocabularyItemCreate(UserVocabularyItemBase):
     """Schema for creating a new user vocabulary item."""
-    # user_id will be injected from the authenticated user server-side
-    pass
+    encounter_id: Optional[str] = Field(
+        None, description="Lookup encounter whose cached card and context should be reused."
+    )
+
+
+class LookupRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+    sentence: Optional[str] = Field(None, max_length=5000)
+    language: str = Field(..., min_length=2, max_length=35)
+    source: Literal["entry", "manual"]
+    source_id: Optional[UUID] = None
+    kind: Literal["lookup", "entry_text", "entry_fix", "entry_rewrite"] = "lookup"
 
 
 class UserVocabularyItemPatch(BaseModel):
@@ -168,3 +179,16 @@ class UserVocabularyItemResponse(UserVocabularyItemBase):
 
     class Config:
         orm_mode = True
+
+
+class LookupResponse(BaseModel):
+    encounter_id: str
+    text: str
+    language: str
+    lemma: str
+    sense: str
+    card: Optional[Dict[str, Any]] = None
+    card_status: Literal["ok", "failed"]
+    card_policy: Dict[str, Any]
+    seen_count: int
+    saved_item: Optional[UserVocabularyItemResponse] = None
