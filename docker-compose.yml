@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-3011}:8000"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL_FEEDBACK=${GEMINI_MODEL_FEEDBACK:-gemini-3.8-flash}
@@ -18,7 +18,7 @@ services:
       - PYTHONUNBUFFERED=1
       - USE_MISTRAL=${USE_MISTRAL:-false}
       - USE_TRANSFORMERS_ONLY=false
-      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3000}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:3010}
     command: uvicorn server:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -32,11 +32,11 @@ services:
     build:
       context: ./frontend
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${WEB_PORT:-3010}:3010"
     depends_on:
       - api
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3011}
     volumes:
       - ./frontend/v0_lingua-log:/app
       - /app/node_modules

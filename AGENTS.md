@@ -14,7 +14,7 @@ Setup, env templates, and the local Supabase workflow are owned by `README.md` (
 
 ```bash
 # Full local stack: Supabase CLI + API + frontend (demo login seeded)
-make dev        # App :3000, API :8000, Supabase Studio :54323
+make dev        # App :3010, API :3011, Supabase Studio :54323
 make reset-db   # Wipe local DB back to seed data
 make stop
 
@@ -112,7 +112,7 @@ Key reference files:
 - **CORS errors**: Check `NEXT_PUBLIC_API_URL` matches backend URL and `CORS_ALLOW_ORIGINS` includes the frontend origin
 - **Auth failures**: Verify Supabase keys and `X-User-ID` header
 - **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
-- **Port conflicts**: 8000 (backend), 3000 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
+- **Port conflicts**: 3011 (backend), 3010 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
 - **i18n missing keys**: Strings live in two places: inline resources in `frontend/v0_lingua-log/i18n/i18n.ts`
   and `frontend/v0_lingua-log/locales/{lang}/{namespace}.json`, lazy-loaded by `i18n/LocaleProvider.tsx`.

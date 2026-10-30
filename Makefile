@@ -29,8 +29,8 @@ dev:
 	@$(MAKE) prepare-db
 	@docker compose up --build -d
 	@echo "Supabase Studio: http://127.0.0.1:54323"
-	@echo "App: http://localhost:3000"
-	@echo "API docs: http://localhost:8000/docs"
+	@echo "App: http://localhost:3010"
+	@echo "API docs: http://localhost:3011/docs"
 
 stop:
 	@docker compose down

@@ -14,7 +14,7 @@ COPY v0_lingua-log/ .
 # Build the application
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 3010
 
 # Use production mode
 CMD ["npm", "run", "start"]
