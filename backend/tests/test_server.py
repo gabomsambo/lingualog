@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from backend.server import app
+from ai.gemini import GeminiError
 
 
 @pytest.fixture
@@ -159,13 +160,20 @@ def test_add_vocabulary_item_success(mock_save_vocab, mock_enrich, client):
         "updated_at": "2023-10-27T10:00:00Z"
     }
     mock_save_vocab.return_value = saved_item_response
+    mock_enrich.side_effect = GeminiError("ai_unavailable", "provider failed")
 
-    response = client.post("/vocabulary", json=item_data, headers={"X-User-ID": user_id})
+    with patch("backend.server.fetch_vocabulary_item_by_term", return_value=None), patch(
+        "backend.server.resolve_policy", return_value=object()
+    ):
+        response = client.post("/vocabulary", json=item_data, headers={"X-User-ID": user_id})
 
     assert response.status_code == 201
     assert response.json()["id"] == "vocab-item-id-123"
     assert response.json()["term"] == "Konnichiwa"
-    mock_save_vocab.assert_called_once_with(item_data=item_data, user_id=user_id)
+    saved = mock_save_vocab.call_args.kwargs["item_data"]
+    assert saved["status"] == "new"
+    assert saved["card_status"] == "failed"
+    assert saved["lemma"] == "Konnichiwa"
 
 @patch("backend.server.save_vocabulary_item")
 def test_add_vocabulary_item_conflict(mock_save_vocab, client):

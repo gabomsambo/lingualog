@@ -1,7 +1,7 @@
 """Vocabulary API persistence and ownership behavior."""
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -112,3 +112,66 @@ def test_patch_returns_not_found_when_owner_filter_matches_nothing(monkeypatch, 
         "00000000-0000-0000-0000-000000000099",
         {"status": "known"},
     )
+
+
+def test_inflected_save_does_not_overwrite_existing_lemma_row(monkeypatch, client):
+    good = row(id="lemma-1", term="correr", lemma="correr", card_status="ok",
+               card={"lemma": "correr"}, status="known")
+    lookups = {"corriendo": None, "correr": good}
+    save, update = MagicMock(), MagicMock()
+    card = MagicMock(lemma="correr", sense_in_context="to run", part_of_speech="verb")
+    card.model_dump.return_value = {"lemma": "correr"}
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_term", lambda _u, t, _l: lookups[t])
+    monkeypatch.setattr(server, "resolve_policy", lambda *_: object())
+    monkeypatch.setattr(server, "card_policy_snapshot", lambda _p: {"v": 1})
+    monkeypatch.setattr(server, "generate_word_card", AsyncMock(return_value=card))
+    monkeypatch.setattr(server, "save_vocabulary_item", save)
+    monkeypatch.setattr(server, "update_vocabulary_item", update)
+
+    response = client.post(
+        "/vocabulary",
+        headers={"X-User-ID": USER_ID},
+        json={"term": "corriendo", "language": "es", "example_sentence": "Estoy corriendo."},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["id"] == "lemma-1"
+    assert response.json()["status"] == "known"
+    save.assert_not_called()
+    update.assert_not_called()
+
+
+def test_resave_of_failed_row_keeps_notebook_state(monkeypatch, client):
+    failed = row(id="w9", status="learning", example_sentence="old", entry_id="e1")
+    update = MagicMock(return_value=failed)
+    card = MagicMock(lemma="banco", sense_in_context="bench", part_of_speech="noun")
+    card.model_dump.return_value = {"lemma": "banco"}
+    monkeypatch.setattr(server, "fetch_vocabulary_item_by_term", lambda *_: failed)
+    monkeypatch.setattr(server, "resolve_policy", lambda *_: object())
+    monkeypatch.setattr(server, "card_policy_snapshot", lambda _p: {"v": 1})
+    monkeypatch.setattr(server, "generate_word_card", AsyncMock(return_value=card))
+    monkeypatch.setattr(server, "update_vocabulary_item", update)
+
+    response = client.post(
+        "/vocabulary",
+        headers={"X-User-ID": USER_ID},
+        json={"term": "banco", "language": "es", "example_sentence": "new", "entry_id": "e2"},
+    )
+
+    assert response.status_code == 201
+    changes = update.call_args.args[2]
+    assert "status" not in changes
+    assert "example_sentence" not in changes
+    assert "entry_id" not in changes
+    assert changes["card_status"] == "ok"
+
+
+@pytest.mark.parametrize("body", [{"tags": None}, {"status": None}])
+def test_patch_rejects_explicit_null(monkeypatch, client, body):
+    update = MagicMock()
+    monkeypatch.setattr(server, "update_vocabulary_item", update)
+
+    response = client.patch("/vocabulary/word-1", headers={"X-User-ID": USER_ID}, json=body)
+
+    assert response.status_code == 422
+    update.assert_not_called()

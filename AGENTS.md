@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This project is an AI-powered language learning journal with comprehensive feedback, vocabulary enrichment, and multilingual support.
+This project is an AI-powered language learning journal with comprehensive feedback, vocabulary cards, and multilingual support.
 
 ## Architecture Overview
 
@@ -112,7 +112,7 @@ Key reference files:
 
 - **CORS errors**: Check `NEXT_PUBLIC_API_URL` matches backend URL and `CORS_ALLOW_ORIGINS` includes the frontend origin
 - **Auth failures**: Verify Supabase keys and `X-User-ID` header
-- **AI enrichment slow**: First-time vocabulary enrichment takes 3-5 seconds
+- **Vocabulary card missing**: A failed Gemini call leaves `card_status = 'failed'` with no card; retry via `POST /vocabulary/{id}/card`
 - **Port conflicts**: 3011 (backend), 3010 (frontend), 54321-54323 (local Supabase); override with `API_PORT`/`WEB_PORT`
 - **Mistral out of memory**: Requires 16GB RAM + 8GB VRAM (use OpenAI instead)
 - **i18n missing keys**: Strings live in two places: inline resources in `frontend/v0_lingua-log/i18n/i18n.ts`
@@ -133,9 +133,10 @@ Key reference files:
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`
 
 ### `user_vocabulary`
-- Stores user's vocabulary items with AI enrichment columns
-- Unique constraint: `(user_id, term, language)`
-- AI fields: `ai_definitions`, `ai_example_sentences`, `ai_synonyms`, `ai_antonyms`, `ai_cultural_note`, `ai_pronunciation_guide`, `emotion_tone`, `mnemonic`, `emoji`
+- Canonical `lemma` + `sense`, the word `card`, `card_status` (`pending`/`ok`/`failed`), `policy_snapshot`, `note`, `tags`
+- `status`: `new`, `learning`, `known`, `mastered`, `ignored`
+- Unique constraint: `(user_id, lemma, language)`
+- Schema: `supabase/migrations/20261004080000_vocabulary_cards.sql` (legacy `ai_*` columns remain as backfilled history)
 
 ### `user_settings`
 - Stores multilingual preferences: `target_language`, `ui_language`, `explanation_mode` (+ `explanation_mode_explicit`), `strictness`, `formality`, `immersion_level`
@@ -153,7 +154,8 @@ Key reference files:
 - `POST /vocabulary` - Add vocabulary item
 - `GET /vocabulary` - Fetch user vocabulary
 - `DELETE /vocabulary/{id}` - Delete vocabulary item
-- `POST /ai/vocabulary/{id}/enrich` - AI enrich vocabulary item
+- `POST /vocabulary/{id}/card` - Retry word card generation (ownership-checked)
+- `PATCH /vocabulary/{id}` - Update note, tags, or notebook status
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/policy?l2=` - The learner's current LearningPolicy for one language
