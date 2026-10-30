@@ -81,7 +81,7 @@ logger.propagate = True # Ensure messages go to the root logger
 logger.debug("Root logger configured, LinguaLog API logger set to DEBUG.")
 
 def _parse_cors_origins() -> List[str]:
-    origins = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
+    origins = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3010")
     return [origin.strip() for origin in origins.split(",") if origin.strip()]
 
 
@@ -1337,4 +1337,4 @@ async def update_user_settings(settings_update: UserSettingsUpdate, request: Req
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=3011, reload=True)

@@ -140,10 +140,10 @@ AI_PROVIDER=gemini
 LARA_TRANSLATE_ID=
 LARA_TRANSLATE_SECRET=
 USE_MISTRAL=false
-API_PORT=8000
-WEB_PORT=3000
-NEXT_PUBLIC_API_URL=http://localhost:8000
-CORS_ALLOW_ORIGINS=http://localhost:3000
+API_PORT=3011
+WEB_PORT=3010
+NEXT_PUBLIC_API_URL=http://localhost:3011
+CORS_ALLOW_ORIGINS=http://localhost:3010
 ```
 
 Set `AI_PROVIDER=mock` for offline development/tests; mock feedback is flagged with `is_mock=true` and saved with `analysis_status='mock'`, never as real AI output.
@@ -153,7 +153,7 @@ Frontend `frontend/v0_lingua-log/.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<local-anon-key>
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:3011
 ```
 
 ### One-command local start (recommended)
@@ -170,8 +170,8 @@ This command will:
 - build/start backend + frontend containers
 
 Endpoints after startup:
-- App: `http://localhost:3000`
-- API docs: `http://localhost:8000/docs`
+- App: `http://localhost:3010`
+- API docs: `http://localhost:3011/docs`
 - Supabase Studio (table browser): `http://127.0.0.1:54323`
 
 To wipe the local database back to the seed data, run `make reset-db`.
@@ -187,7 +187,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn server:app --reload --port 8000
+uvicorn server:app --reload --port 3011
 ```
 
 ### Manual frontend setup

@@ -17,7 +17,7 @@ COPY v0_lingua-log/postcss.config.mjs ./
 COPY v0_lingua-log/tsconfig.json ./
 COPY v0_lingua-log/components.json ./
 
-EXPOSE 3000
+EXPOSE 3010
 
 # Use development mode for hot reloading when volume is mounted
 CMD ["npm", "run", "dev"] 

@@ -6,7 +6,7 @@ import json
 
 def test_api():
     """Test the LinguaLog API."""
-    url = "http://localhost:8000/log-entry"
+    url = "http://localhost:3011/log-entry"
     
     # Example journal entry
     payload = {

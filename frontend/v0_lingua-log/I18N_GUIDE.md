@@ -65,8 +65,8 @@ Pseudo:   "[Wélçómé tó óúr áppliçátión••••••••]"
 #### 1. URL Parameter Method:
 Add `?pseudo=1` to any URL:
 ```
-http://localhost:3000?pseudo=1
-http://localhost:3000/dashboard?pseudo=1
+http://localhost:3010?pseudo=1
+http://localhost:3010/dashboard?pseudo=1
 ```
 
 #### 2. Dev Language Switcher:
