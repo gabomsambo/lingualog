@@ -247,7 +247,7 @@ def filter_items(
     elif selector.get("list") == "never_used":
         used = _used_word_ids(encounters)
         selected = [word for word in selected if word.get("id") not in used]
-    return [dict(word) for word in selected]
+    return scrub_example_sentences(selected)
 
 
 def fetch_items(
@@ -255,7 +255,7 @@ def fetch_items(
 ) -> List[dict]:
     words = load_words(user_id, language)
     if not selector:
-        return words
+        return scrub_example_sentences(words)
     return filter_items(words, load_encounters(user_id, language), load_cards(user_id, language), selector)
 
 
@@ -331,13 +331,33 @@ def get_lists(
 # --- Export rows -------------------------------------------------------------
 
 
+def _bare_sentence(text: Optional[str], word: Mapping[str, Any]) -> bool:
+    """A sentence that is just the word itself: the top-search save left no context."""
+    value = (text or "").strip()
+    if not value:
+        return True
+    card = word.get("card") or {}
+    forms = (word.get("term"), word.get("lemma"), card.get("surface"))
+    return value.casefold() in {str(form).strip().casefold() for form in forms if form and str(form).strip()}
+
+
+def scrub_example_sentences(items: Sequence[Mapping[str, Any]]) -> List[dict]:
+    """Rows whose saved sentence is just the word itself keep no quote to show."""
+    rows = []
+    for word in items:
+        row = dict(word)
+        if _bare_sentence(row.get("example_sentence"), word):
+            row["example_sentence"] = ""
+        rows.append(row)
+    return rows
+
+
 def _first_sentence(word: Mapping[str, Any], encounters: Sequence[Mapping[str, Any]]) -> str:
-    sentence = (word.get("example_sentence") or "").strip()
-    if sentence:
-        return sentence
+    if not _bare_sentence(word.get("example_sentence"), word):
+        return (word.get("example_sentence") or "").strip()
     for encounter in sorted(encounters, key=lambda row: str(row.get("created_at") or "")):
         text = (encounter.get("sentence") or "").strip()
-        if text and text != (encounter.get("surface") or "").strip():
+        if text and text != (encounter.get("surface") or "").strip() and not _bare_sentence(text, word):
             return text
     return ""
 

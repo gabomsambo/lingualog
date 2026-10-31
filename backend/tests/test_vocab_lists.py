@@ -126,6 +126,21 @@ def test_due_list_counts_answered_and_new_cards_that_are_due():
     assert [row["id"] for row in selected] == ["w1", "w3"]
 
 
+def test_a_saved_sentence_that_is_just_the_word_shows_no_quote():
+    bare = word("w1", lemma="madrugar", term="madrugar", example_sentence="madrugar")
+    assert vocab_service.scrub_example_sentences([bare])[0]["example_sentence"] == ""
+    kept = word("w2", lemma="mesa", term="mesa", example_sentence="La mesa está lista.")
+    assert vocab_service.scrub_example_sentences([kept])[0]["example_sentence"] == "La mesa está lista."
+
+
+def test_the_first_sentence_skips_a_word_quoted_to_itself():
+    bare = word("w1", lemma="madrugar", term="madrugar", example_sentence="madrugar")
+    encounters = [{"sentence": "Tuve que madrugar mucho.", "surface": "madrugar",
+                   "kind": "lookup", "created_at": iso(days=-1)}]
+    assert vocab_service._first_sentence(bare, encounters) == "Tuve que madrugar mucho."
+    assert vocab_service._first_sentence(bare, []) == ""
+
+
 def test_filters_combine_tags_source_status_and_entry():
     items = [
         word("w1", tags=["travel"], entry_id="e1", status="learning"),

@@ -1240,7 +1240,9 @@ async def get_user_vocabulary_route(
         if selector:
             items = vocab_service.fetch_items(user_id, language, selector)
         else:
-            items = fetch_user_vocabulary(user_id=user_id, language=language)
+            items = vocab_service.scrub_example_sentences(
+                fetch_user_vocabulary(user_id=user_id, language=language)
+            )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as e:

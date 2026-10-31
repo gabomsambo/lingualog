@@ -52,5 +52,34 @@ describe("LookupSheet triage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Study" }))
     await waitFor(() => expect(api.updateVocabularyItem).toHaveBeenCalledWith("word-1", { status: "learning" }))
     expect(toastSpy).toHaveBeenCalledWith({ title: "Added to your notebook - it will come up in Review" })
+    expect(screen.queryByTestId("lookup-sentence-field")).not.toBeInTheDocument()
+  })
+
+  it("asks for the sentence you saw it in when the lookup has none", async () => {
+    render(<LookupSheet
+      context={{ text: "madrugar", sentence: "madrugar", language: "es", source: "manual" }}
+      open onOpenChange={vi.fn()}
+    />)
+    expect(await screen.findByTestId("lookup-sentence-field")).toBeInTheDocument()
+    expect(screen.queryByText("madrugar", { selector: "p" })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByTestId("lookup-sentence-field"), { target: { value: "Tuve que madrugar." } })
+    fireEvent.click(screen.getByRole("button", { name: "Save to notebook" }))
+
+    await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
+      example_sentence: "Tuve que madrugar.",
+    })))
+  })
+
+  it("saves no example sentence when none was typed, never the bare word", async () => {
+    render(<LookupSheet
+      context={{ text: "madrugar", sentence: "madrugar", language: "es", source: "manual" }}
+      open onOpenChange={vi.fn()}
+    />)
+    fireEvent.click(await screen.findByRole("button", { name: "Save to notebook" }))
+
+    await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
+      example_sentence: undefined,
+    })))
   })
 })
