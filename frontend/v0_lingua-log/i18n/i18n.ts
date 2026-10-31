@@ -35,6 +35,8 @@ const resources = {
       readEntry: 'Read Entry',
       createYourFirstEntry: 'Create Your First Entry',
       noJournalEntriesYet: 'You haven\'t created any journal entries yet.',
+      welcomeBack: 'Welcome back!',
+      readyToContinue: 'Ready to continue your language journey?',
       
       // Entries page
       yourJournalEntries: 'Your Journal Entries',
@@ -847,6 +849,8 @@ const resources = {
       readEntry: 'Leer entrada',
       createYourFirstEntry: 'Crea tu primera entrada',
       noJournalEntriesYet: 'Aún no has creado ninguna entrada de diario.',
+      welcomeBack: '¡Bienvenido de vuelta! ✨',
+      readyToContinue: '¿Listo para continuar tu viaje de idiomas?',
       
       // Entries page
       yourJournalEntries: 'Tus entradas del diario',

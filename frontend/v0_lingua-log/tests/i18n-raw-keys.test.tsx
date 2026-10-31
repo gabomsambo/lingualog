@@ -1,5 +1,5 @@
 /**
- * The stats page and the user menu must never show raw i18n keys (V1 defects 3 and 4).
+ * The stats page and user-facing toast/menu must never show raw i18n keys (V1 defects 3 and 4).
  * Every key those two files use resolves in every locale instead of rendering its name,
  * and the keys they share live in locales/<lang>/common.json for every locale as well.
  */
@@ -27,7 +27,7 @@ import StatsPage from "@/app/(app)/stats/page"
 
 const FILES = ["app/(app)/stats/page.tsx", "components/user-nav.tsx"]
 const LOCALES = ["en", "es", "ar"]
-const COMMON_KEYS = ["yourLearningStats", "writingStreak", "signOut", "words"]
+const COMMON_KEYS = ["yourLearningStats", "writingStreak", "signOut", "words", "welcomeBack", "readyToContinue"]
 
 function usedKeys(file: string): string[] {
   const text = readFileSync(path.join(__dirname, "..", file), "utf8")
@@ -61,6 +61,18 @@ describe("no raw key renders on the stats page and the user menu", () => {
         expect(bundle, key).toHaveProperty(key)
       }
     }
+  })
+
+  it("translates the dashboard welcome toast instead of rendering key names", async () => {
+    for (const lng of ["en", "es", "ar"]) {
+      await i18n.changeLanguage(lng)
+      for (const key of ["welcomeBack", "readyToContinue"]) {
+        const rendered = i18n.t(key, { ns: "common" })
+        expect(rendered, `${key} in ${lng}`).toBeTruthy()
+        expect(rendered, `${key} in ${lng}`).not.toBe(key)
+      }
+    }
+    await i18n.changeLanguage("en")
   })
 
   it("renders the stats page with real translations, never key names", async () => {
