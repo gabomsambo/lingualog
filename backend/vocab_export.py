@@ -64,6 +64,13 @@ _TAG_NOISE = re.compile(r"\s+")
 _CHECKSUM_STRIP = re.compile(r"<[^>]+>")
 
 
+def _csv_safe(value: Any) -> str:
+    text = "" if value is None else str(value)
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
+
 def rows_to_csv(rows: Iterable[Mapping[str, Any]]) -> str:
     """RFC 4180 CSV of the exported words, one row per word."""
     buffer = io.StringIO()
@@ -71,17 +78,17 @@ def rows_to_csv(rows: Iterable[Mapping[str, Any]]) -> str:
     writer.writerow(CSV_COLUMNS)
     for row in rows:
         writer.writerow([
-            row.get("word", ""),
-            row.get("language", ""),
-            row.get("meaning", ""),
-            row.get("gloss", ""),
-            row.get("sentence", ""),
-            row.get("source", ""),
-            row.get("source_reference", ""),
-            row.get("status", ""),
-            "; ".join(row.get("tags") or []),
-            row.get("note", ""),
-            row.get("created_at", ""),
+            _csv_safe(row.get("word")),
+            _csv_safe(row.get("language")),
+            _csv_safe(row.get("meaning")),
+            _csv_safe(row.get("gloss")),
+            _csv_safe(row.get("sentence")),
+            _csv_safe(row.get("source")),
+            _csv_safe(row.get("source_reference")),
+            _csv_safe(row.get("status")),
+            _csv_safe("; ".join(row.get("tags") or [])),
+            _csv_safe(row.get("note")),
+            _csv_safe(row.get("created_at")),
         ])
     return buffer.getvalue()
 
@@ -207,11 +214,11 @@ def _build_collection(rows: Sequence[Mapping[str, Any]]) -> bytes:
             for index, row in enumerate(rows):
                 language = str(row.get("language") or "")
                 fields = [
-                    str(row.get("word") or ""),
+                    html.escape(str(row.get("word") or "")),
                     highlight_sentence(str(row.get("sentence") or ""), row.get("surfaces") or [], language),
-                    str(row.get("meaning") or ""),
-                    str(row.get("gloss") or ""),
-                    str(row.get("source_reference") or ""),
+                    html.escape(str(row.get("meaning") or "")),
+                    html.escape(str(row.get("gloss") or "")),
+                    html.escape(str(row.get("source_reference") or "")),
                 ]
                 note_id = now_ms + index * 2
                 plain_first = _CHECKSUM_STRIP.sub("", fields[0]).strip()
