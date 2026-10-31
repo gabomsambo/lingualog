@@ -4,7 +4,7 @@ import logging
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from ai.gemini import GeminiError
@@ -210,15 +210,6 @@ async def get_glossary(book_id: UUID, request: Request):
 async def get_progress(book_id: UUID, request: Request):
     try:
         return book_service.progress(_user_id(request), str(book_id))
-    except book_service.BookNotFound as exc:
-        raise _not_found(exc) from exc
-
-
-@router.get("/books/{book_id}/writing-words")
-async def get_writing_words(book_id: UUID, request: Request, days: int = Query(7, ge=1, le=60)):
-    """This week's words from the book, to pre-fill "write about what you read"."""
-    try:
-        return book_service.writing_words(_user_id(request), str(book_id), days)
     except book_service.BookNotFound as exc:
         raise _not_found(exc) from exc
 

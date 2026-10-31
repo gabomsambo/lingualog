@@ -42,6 +42,11 @@ interface WordBankPanelProps {
 
 type LoadState = "loading" | "ready" | "failed"
 
+/** The book named in the link, when the editor was opened from a book. */
+function bookParam(): string | undefined {
+  return new URLSearchParams(window.location.search).get("book") ?? undefined
+}
+
 export function WordBankPanel({
   language,
   text,
@@ -59,6 +64,8 @@ export function WordBankPanel({
   const [peeked, setPeeked] = useState<Set<string>>(new Set())
   const [meaningShown, setMeaningShown] = useState<Set<string>>(new Set())
   const [shuffling, setShuffling] = useState(false)
+  // Set when the editor was opened from a book ("write about what you read"): its words come first.
+  const [bookTitle, setBookTitle] = useState<string | null>(null)
   const ticket = useRef(0)
 
   const load = useCallback(async () => {
@@ -66,8 +73,9 @@ export function WordBankPanel({
     setWords([])
     setState("loading")
     try {
-      const bank = await getWordBank(language, { count: BANK_SIZE })
+      const bank = await getWordBank(language, { count: BANK_SIZE, book: bookParam() })
       if (mine !== ticket.current) return
+      setBookTitle(bank.book?.title ?? null)
       setWords(bank.words)
       setPinned(new Set())
       setPeeked(new Set())
@@ -103,10 +111,10 @@ export function WordBankPanel({
     setShuffling(true)
     try {
       const count = BANK_SIZE - kept.length
-      let bank = await getWordBank(language, { count, exclude: words.map((word) => word.word_id) })
+      let bank = await getWordBank(language, { count, exclude: words.map((word) => word.word_id), book: bookParam() })
       // Nothing new left to offer: start the rest again rather than leave the bank short.
       if (bank.words.length === 0) {
-        bank = await getWordBank(language, { count, exclude: kept.map((word) => word.word_id) })
+        bank = await getWordBank(language, { count, exclude: kept.map((word) => word.word_id), book: bookParam() })
       }
       setWords(mergeShuffle(words, pinned, bank.words))
       setPeeked(new Set())
@@ -171,6 +179,11 @@ export function WordBankPanel({
         </div>
 
         <CollapsibleContent className="space-y-3 pt-3">
+          {bookTitle && state === "ready" && (
+            <p className="text-sm font-medium text-fun-purple" data-testid="word-bank-book">
+              {t("journal.wordBankFromBook", { title: bookTitle })}
+            </p>
+          )}
           {state === "loading" && (
             <p className="text-sm text-muted-foreground" role="status">
               {t("journal.wordBankLoading")}

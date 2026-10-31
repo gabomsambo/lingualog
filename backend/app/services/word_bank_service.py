@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
-from app.services import review_service
+from app.services import book_service, review_service
 from database import (
     USER_VOCABULARY_TABLE,
     create_supabase_client,
@@ -111,10 +111,20 @@ def get_bank(
     count: int = DEFAULT_BANK_SIZE,
     exclude: Iterable[str] = (),
     now: Optional[datetime] = None,
+    book_id: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Five or six of the learner's words to write with today, each with why it was chosen."""
+    """Five or six of the learner's words to write with today, each with why it was chosen.
+
+    With ``book_id`` (writing about what was read), this week's words from that book come first.
+    """
     review_service.validate_language(language)
     now = now or _now()
+    book = prefer = None
+    if book_id:
+        book = book_service.get_book(user_id, book_id)
+        if not is_same_language(book["language"], language):
+            raise ValueError("The book is in another language")
+        prefer = book_service.recent_book_word_ids(user_id, book_id)
     words = load_notebook_words(user_id, language)
     ids = [word["id"] for word in words]
     cards = {card["word_id"]: card for card in load_recognition_cards_any(user_id, ids)}
@@ -139,7 +149,7 @@ def get_bank(
 
     scheduler = review_service.scheduler_for(user_id, language)
     quiz = resolve_policy(user_id, language).quiz
-    chosen = pick_bank(items, now, scheduler, count, exclude)
+    chosen = pick_bank(items, now, scheduler, count, exclude, prefer or ())
     payload = []
     for item, reason in chosen:
         hint, hint_mode = bank_hint(item.word, quiz)
@@ -154,7 +164,11 @@ def get_bank(
             "hint_mode": hint_mode,
             "use_days": item.use_days,
         })
-    return {"language": language, "words": payload}
+    return {
+        "language": language,
+        "words": payload,
+        "book": {"id": book["id"], "title": book["title"]} if book else None,
+    }
 
 
 # --- Target words of one entry ---------------------------------------------------

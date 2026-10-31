@@ -200,6 +200,8 @@ const resources = {
       wordBankReason_due: 'Due for review',
       wordBankReason_never_used: 'Not used in writing yet',
       wordBankReason_to_master: 'One more day of use to master it',
+      wordBankReason_from_book: 'From your book this week',
+      wordBankFromBook: 'Write about {title}. Words you kept from it come first.',
     },
     settings: {
       settings: 'Settings',
@@ -629,8 +631,6 @@ const resources = {
       notYet: 'Not yet',
       noMeaningYet: 'Meaning not built yet.',
       print: 'Print',
-      writeAboutTitle: 'Write about {title}',
-      writeAboutHint: 'Try to use some of this week\'s words from the book.',
     },
     feedback: {
       grammarScore: 'Grammar Score',
@@ -932,6 +932,8 @@ const resources = {
       wordBankReason_due: 'Toca repasarla',
       wordBankReason_never_used: 'Aún no la has usado al escribir',
       wordBankReason_to_master: 'Un día más de uso para dominarla',
+      wordBankReason_from_book: 'De tu libro esta semana',
+      wordBankFromBook: 'Escribe sobre {title}. Primero van las palabras que guardaste de él.',
     },
     settings: {
       settings: 'Configuración',
@@ -1361,8 +1363,6 @@ const resources = {
       notYet: 'Todavía no',
       noMeaningYet: 'El significado aún no está creado.',
       print: 'Imprimir',
-      writeAboutTitle: 'Escribe sobre {title}',
-      writeAboutHint: 'Intenta usar algunas de las palabras de esta semana del libro.',
     },
     feedback: {
       grammarScore: 'Puntuación de Gramática',

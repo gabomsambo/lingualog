@@ -666,17 +666,20 @@ export async function submitReview(
 
 export async function getWordBank(
   language: string,
-  options: { count?: number; exclude?: string[] } = {},
+  options: { count?: number; exclude?: string[]; book?: string } = {},
 ): Promise<WordBank> {
   const params = new URLSearchParams({ language });
   if (options.count) params.set("count", String(options.count));
   for (const id of options.exclude ?? []) params.append("exclude", id);
+  if (options.book) params.set("book", options.book);
   const res = await fetch(`${API_BASE}/word-bank?${params}`, {
     headers: await userHeaders(),
     credentials: "include",
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as WordBank;
+}
+
 // --- Book mode API ---
 
 export type BookStatus = "reading" | "finished" | "paused";
@@ -793,11 +796,6 @@ export interface BookProgress {
   estimate: true;
 }
 
-export interface WritingWords {
-  book: { id: string; title: string; language: string };
-  words: Array<{ lemma: string; surface: string; gloss: string; status: VocabularyStatus | null; times_marked: number }>;
-}
-
 async function bookRequest<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: init.method ?? "GET",
@@ -839,7 +837,6 @@ export const skipMarks = (bookId: string, encounterIds: string[]) =>
   bookRequest<{ skipped: number }>(`/books/${bookId}/marks/skip`, { method: "POST", body: { encounter_ids: encounterIds } });
 export const getBookGlossary = (bookId: string) => bookRequest<BookGlossary>(`/books/${bookId}/glossary`);
 export const getBookProgress = (bookId: string) => bookRequest<BookProgress>(`/books/${bookId}/progress`);
-export const getWritingWords = (bookId: string) => bookRequest<WritingWords>(`/books/${bookId}/writing-words`);
 
 /** Send one page photo for transcription. The image is read once by the server and never stored. */
 export async function readPagePhoto(bookId: string, image: Blob): Promise<PagePhotoResult> {

@@ -10,7 +10,6 @@ const api = vi.hoisted(() => ({
   getBook: vi.fn(),
   getBookProgress: vi.fn(),
   getBookGlossary: vi.fn(),
-  getWritingWords: vi.fn(),
   startReadingSession: vi.fn(),
   updateBook: vi.fn(),
 }))
@@ -26,7 +25,6 @@ vi.mock("@/components/words-per-page-chart", () => ({ WordsPerPageChart: () => <
 import BooksPage from "@/app/(app)/books/page"
 import BookPage from "@/app/(app)/books/[id]/page"
 import BookGlossaryPage from "@/app/(app)/books/[id]/glossary/page"
-import { BookWordsStrip } from "@/components/book-words-strip"
 
 const book = {
   id: "book-1", title: "La sombra del viento", author: "Carlos Ruiz Zafón", language: "es", status: "reading",
@@ -174,31 +172,5 @@ describe("BookGlossaryPage", () => {
     render(<BookGlossaryPage />)
 
     expect(await screen.findByTestId("glossary-empty")).toBeInTheDocument()
-  })
-})
-
-describe("BookWordsStrip", () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    api.getWritingWords.mockResolvedValue({
-      book: { id: "book-1", title: "La sombra del viento", language: "es" },
-      words: [{ lemma: "atar", surface: "atadas", gloss: "tie up", status: "learning", times_marked: 2 }],
-    })
-  })
-
-  it("pre-fills the week's book words when the editor is opened from a book", async () => {
-    window.history.pushState({}, "", "/entries/new?book=book-1")
-    render(<BookWordsStrip />)
-
-    expect(await screen.findByTestId("book-words-strip")).toHaveTextContent("atar")
-    expect(api.getWritingWords).toHaveBeenCalledWith("book-1")
-  })
-
-  it("stays out of the way on a plain new entry", async () => {
-    window.history.pushState({}, "", "/entries/new")
-    render(<BookWordsStrip />)
-
-    await waitFor(() => expect(screen.queryByTestId("book-words-strip")).not.toBeInTheDocument())
-    expect(api.getWritingWords).not.toHaveBeenCalled()
   })
 })

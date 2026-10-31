@@ -308,23 +308,17 @@ def test_a_book_stays_hard_after_three_hard_sessions(client):
     assert client.get(f"/books/{book['id']}/progress", headers=HEADERS).json()["stays_hard"] is True
 
 
-def test_writing_words_put_saved_words_first_and_skip_ones_you_have(client, db, monkeypatch):
+def test_recent_book_words_are_the_saved_words_marked_this_week(client, db):
     book = make_book(client)
     session = start(client, book)
     for word in ("cinta", "atar", "mesa"):
         mark(client, book, session, word, page=1)
-    for lemma, status in (("atar", "learning"), ("mesa", "known")):
-        row = db.table("user_vocabulary").insert(
-            {"user_id": USER, "term": lemma, "lemma": lemma, "language": "es", "status": status, "card": {"gloss_l1": lemma}}
-        ).execute().data[0]
-        for encounter in db.rows("word_encounters"):
-            if encounter["lemma"] == lemma:
-                encounter["word_id"] = row["id"]
+    db.rows("word_encounters")[1]["word_id"] = "word-atar"
+    db.rows("word_encounters")[2]["word_id"] = "word-mesa"
+    db.rows("word_encounters")[2]["created_at"] = "2020-01-01T00:00:00+00:00"
 
-    writing = client.get(f"/books/{book['id']}/writing-words", headers=HEADERS).json()
-
-    assert [w["lemma"] for w in writing["words"]] == ["atar", "cinta"]
-    assert writing["book"]["title"] == "La sombra del viento"
+    assert book_service.recent_book_word_ids(USER, book["id"]) == {"word-atar"}
+    assert book_service.recent_book_word_ids(OTHER, book["id"]) == set()
 
 
 def test_deleting_a_book_keeps_saved_words_and_drops_unsaved_marks(client, db):

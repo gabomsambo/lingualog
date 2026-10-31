@@ -20,7 +20,6 @@ from ai.page_photo import PageTranscription, read_page_photo
 from ai.word_card import card_policy_snapshot, generate_word_card
 from app.services import review_service
 from book_coverage import (
-    HAVE_STATUSES,
     RECURRING_MARKS,
     band_for,
     page_estimate,
@@ -46,7 +45,7 @@ PHOTO_EVENTS_TABLE = "page_photo_events"
 
 CARD_BUILD_CONCURRENCY = 4
 ID_CHUNK = 100
-WRITING_WORDS_LIMIT = 12
+WRITING_WINDOW_DAYS = 7
 # Page photo limits. Per learner, on top of the Plus quota hook below.
 MAX_PHOTO_BYTES = 4 * 1024 * 1024
 PHOTOS_PER_MINUTE = 6
@@ -507,7 +506,7 @@ def skip_marks(user_id: str, book_id: str, mark_ids: list[str]) -> int:
     return owned
 
 
-# --- Glossary, progress, writing ----------------------------------------------
+# --- Glossary, progress, writing about what was read ------------------------------
 
 
 def _notebook_words(user_id: str, marks: list[dict]) -> dict[str, dict]:
@@ -580,29 +579,13 @@ def progress(user_id: str, book_id: str) -> dict:
     }
 
 
-def writing_words(user_id: str, book_id: str, days: int = 7) -> dict:
-    """This week's book words, saved ones first, to pre-fill "write about what you read"."""
-    book = get_book(user_id, book_id)
+def recent_book_word_ids(user_id: str, book_id: str, days: int = WRITING_WINDOW_DAYS) -> set[str]:
+    """Notebook words marked in this book in the last week, to write about first."""
     since = (_now() - timedelta(days=days)).isoformat()
-    marks = [mark for mark in book_marks(user_id, book_id) if mark["created_at"] >= since]
-    words = _notebook_words(user_id, marks)
-    chosen = []
-    for key, group in _groups(marks).items():
-        saved = next((words[mark["word_id"]] for mark in group if mark.get("word_id") in words), None)
-        if saved and saved.get("status") in HAVE_STATUSES:
-            continue
-        with_card = next((mark for mark in reversed(group) if mark.get("card")), None)
-        card = (saved or {}).get("card") or (with_card or {}).get("card") or {}
-        chosen.append({
-            "lemma": (saved or {}).get("lemma") or (with_card or {}).get("lemma") or key,
-            "surface": group[-1]["surface"],
-            "gloss": card.get("gloss_l1") or card.get("sense_in_context") or "",
-            "status": (saved or {}).get("status"),
-            "times_marked": len(group),
-        })
-    chosen.sort(key=lambda word: (word["status"] is None, -word["times_marked"], word["lemma"].casefold()))
-    return {"book": {"id": book["id"], "title": book["title"], "language": book["language"]},
-            "words": chosen[:WRITING_WORDS_LIMIT]}
+    return {
+        mark["word_id"] for mark in book_marks(user_id, book_id)
+        if mark.get("word_id") and mark["created_at"] >= since
+    }
 
 
 # --- Page photos ----------------------------------------------------------------

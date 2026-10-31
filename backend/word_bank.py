@@ -40,6 +40,7 @@ REASON_AT_RISK = "at_risk"
 REASON_DUE = "due"
 REASON_NEVER_USED = "never_used"
 REASON_TO_MASTER = "to_master"
+REASON_FROM_BOOK = "from_book"
 
 # Statuses a word can be in and still be offered. Mastered and ignored words are done.
 _OFFERED = frozenset({"new", "learning", "known"})
@@ -143,14 +144,21 @@ def pick_bank(
     scheduler: Any,
     count: int = DEFAULT_BANK_SIZE,
     exclude: Iterable[str] = (),
+    prefer: Iterable[str] = (),
 ) -> list[tuple[BankWord, str]]:
-    """The words to offer, each with why: the learner's own due words come before fresh ones."""
+    """The words to offer, each with why: the learner's own due words come before fresh ones.
+
+    ``prefer`` names words to write about first, e.g. this week's words from the book being read.
+    """
     skipped = {str(word_id) for word_id in exclude}
+    wanted = {str(word_id) for word_id in prefer}
     ranked = []
     for item in items:
         if str(item.word["id"]) in skipped:
             continue
         rank = _rank(item, now, scheduler)
+        if str(item.word["id"]) in wanted and item.word.get("status") in _OFFERED:
+            rank = (-1, (0,), REASON_FROM_BOOK)
         if rank:
             ranked.append((rank[0], rank[1], str(item.word["id"]), rank[2], item))
     ranked.sort(key=lambda row: row[:3])

@@ -102,8 +102,8 @@ The app may suggest a different immersion level for one language. It never chang
 - **POST /books/{id}/page-photo**
   - The raw JPEG, PNG or WebP bytes of a book page; returns its text and pre-highlighted words. The image is never stored
 
-- **POST /books/{id}/sessions/{session_id}/cards**, **POST /books/{id}/marks/skip**, **GET /books/{id}/glossary|progress|writing-words**
-  - End-of-session cards and choices, the book glossary, the words-per-page progress, and this week's words for "write about what you read"
+- **POST /books/{id}/sessions/{session_id}/cards**, **POST /books/{id}/marks/skip**, **GET /books/{id}/glossary|progress**
+  - End-of-session cards and choices, the book glossary, and the words-per-page progress
 
 Gemini infers what you meant. A translation is not fed into the correction.
 
@@ -142,7 +142,7 @@ Book mode is a companion, not a reader: LinguaLog never stores book text beyond 
 - **End of session.** The session's page range widens to cover every marked page, and `words_marked` and `pages_read` are fixed. `POST .../cards` builds the cards for the marks that have none, a few at a time (reusing a lookup of the same sentence when there is one), then returns the choices: words marked more than once first, one-offs after with "Skip all for now". Study and "I know it" use the normal save (`POST /vocabulary`, then the daily new-word cap applies); Skip only hides the mark from the choices. A failed card stores nothing and can be retried.
 - **Glossary and quiz.** `GET /books/{id}/glossary` lists every marked word with its sentences, pages and the card's meaning (already in the policy's language). The page prints as a bookmark, and "Quiz myself" hides each meaning until the learner reveals it.
 - **Words per page and coverage.** `backend/book_coverage.py` holds the soft bands: up to 6 unknown words a page is comfortable, 7-15 study reading, 16-24 demanding, 25 or more hard. They are always shown as estimates; a book that stays hard for three finished sessions suggests an easier one.
-- **Write about what you read.** `/entries/new?book=<id>` shows this week's words from that book above the editor.
+- **Write about what you read.** `/entries/new?book=<id>` opens the editor with the word bank started from that book: `GET /word-bank?book=<id>` offers the notebook words marked in it in the last 7 days first (reason `from_book`), then the usual picks. Marked words that were skipped are not in the notebook, so they are not offered.
 
 ### Data Models
 

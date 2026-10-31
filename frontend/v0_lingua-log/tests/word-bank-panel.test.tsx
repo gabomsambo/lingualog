@@ -49,6 +49,32 @@ describe("WordBankPanel", () => {
     expect(api.getWordBank).toHaveBeenCalledWith("es", { count: 6 })
   })
 
+  it("starts with the words from a book when the editor was opened to write about it", async () => {
+    window.history.pushState({}, "", "/entries/new?book=book-1")
+    api.getWordBank.mockResolvedValue({
+      ...bank(word("cinta", { reason: "from_book" }), word("rato")),
+      book: { id: "book-1", title: "La sombra del viento" },
+    })
+    setup()
+    const chips = await screen.findAllByTestId("word-bank-chip")
+
+    expect(api.getWordBank).toHaveBeenCalledWith("es", { count: 6, book: "book-1" })
+    expect(screen.getByTestId("word-bank-book")).toHaveTextContent("Write about La sombra del viento")
+    expect(chips[0]).toHaveTextContent("From your book this week")
+    window.history.pushState({}, "", "/")
+  })
+
+  it("is the plain bank, with no book banner, on an ordinary new entry", async () => {
+    window.history.pushState({}, "", "/entries/new")
+    api.getWordBank.mockResolvedValue(bank(word("rato")))
+    setup()
+    await screen.findAllByTestId("word-bank-chip")
+
+    expect(screen.queryByTestId("word-bank-book")).toBeNull()
+    expect(api.getWordBank.mock.calls[0][1].book).toBeUndefined()
+    window.history.pushState({}, "", "/")
+  })
+
   it("ticks a chip as the draft uses the word and counts them", async () => {
     api.getWordBank.mockResolvedValue(bank(word("madrugar", { forms: ["madrugar", "madrugué"] }), word("rato")))
     const { rerender } = setup("Hoy no escribí nada.")
