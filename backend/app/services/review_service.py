@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from database import (
     USER_VOCABULARY_TABLE,
@@ -162,14 +162,33 @@ def load_production_card(user_id: str, word_id: str) -> Optional[dict]:
     return response.data[0] if response.data else None
 
 
+def surviving_entry_ids(user_id: str, entry_ids: Iterable[str]) -> set[str]:
+    wanted = sorted({entry_id for entry_id in entry_ids if entry_id})
+    found: set[str] = set()
+    for start in range(0, len(wanted), WORD_ID_CHUNK):
+        response = (
+            create_supabase_client().table("journal_entries").select("id")
+            .eq("user_id", user_id).in_("id", wanted[start:start + WORD_ID_CHUNK]).execute()
+        )
+        found.update(row["id"] for row in response.data or [])
+    return found
+
+
+def drop_orphaned_uses(user_id: str, rows: list[dict]) -> list[dict]:
+    """Uses recorded for an entry that no longer exists are not evidence of anything."""
+    entry_ids = {row.get("source_id") for row in rows if row.get("source_type") == "entry"}
+    alive = surviving_entry_ids(user_id, entry_ids) if entry_ids else set()
+    return [row for row in rows if row.get("source_type") != "entry" or row.get("source_id") in alive]
+
+
 def load_use_days(user_id: str, word_id: str) -> int:
     """On how many different days the learner used this word correctly in their own entries."""
     response = (
-        create_supabase_client().table("word_encounters").select("created_at")
+        create_supabase_client().table("word_encounters").select("created_at, source_type, source_id")
         .eq("user_id", user_id).eq("word_id", word_id)
         .eq("kind", ENCOUNTER_USED_OK).eq("source_type", "entry").execute()
     )
-    return use_days(row["created_at"] for row in response.data or [])
+    return use_days(row["created_at"] for row in drop_orphaned_uses(user_id, response.data or []))
 
 
 def load_words(user_id: str, word_ids: list[str]) -> dict[str, dict]:

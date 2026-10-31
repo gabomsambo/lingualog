@@ -87,11 +87,13 @@ def load_word_signals(user_id: str, word_ids: Sequence[str]) -> list[dict]:
     rows: list[dict] = []
     for chunk in _chunks(word_ids):
         response = (
-            create_supabase_client().table("word_encounters").select("word_id, surface, kind, created_at")
+            create_supabase_client().table("word_encounters").select("word_id, surface, kind, created_at, source_type, source_id")
             .eq("user_id", user_id).in_("word_id", chunk).execute()
         )
         rows += response.data or []
-    return rows
+    uses = [row for row in rows if row["kind"] in USE_ENCOUNTER_KINDS]
+    orphaned = {id(row) for row in uses} - {id(row) for row in review_service.drop_orphaned_uses(user_id, uses)}
+    return [row for row in rows if id(row) not in orphaned]
 
 
 def _forms_met(signals: Iterable[Mapping[str, Any]]) -> list[str]:

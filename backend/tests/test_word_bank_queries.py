@@ -85,3 +85,49 @@ def test_signals_and_cards_are_read_in_chunks_so_a_big_notebook_fits_in_a_url(ca
     assert all(len(capture.query(i)["word_id"].split(",")) <= 100 for i in range(6))
     assert all(capture.query(i)["user_id"] == f"eq.{USER}" for i in range(6))
     assert "suspended_at" not in capture.query(5)
+
+
+class Tables:
+    """Routes each table to its rows, like the database would."""
+
+    def __init__(self, encounters, entries):
+        self.encounters, self.entries = encounters, entries
+
+    def client(self) -> SyncPostgrestClient:
+        def handler(request: httpx.Request) -> httpx.Response:
+            table = urlsplit(str(request.url)).path.rsplit("/", 1)[-1]
+            return httpx.Response(200, json=self.encounters if table == "word_encounters" else self.entries)
+
+        return SyncPostgrestClient(
+            "http://db.test/rest/v1", headers={}, http_client=httpx.Client(transport=httpx.MockTransport(handler))
+        )
+
+
+def _use(entry_id, created_at, kind="used_ok"):
+    return {"word_id": "w1", "kind": kind, "surface": "x", "created_at": created_at,
+            "source_type": "entry", "source_id": entry_id}
+
+
+@pytest.fixture
+def orphaned_use(monkeypatch):
+    from app.services import review_service
+
+    tables = Tables(
+        [_use("gone", "2026-10-01T10:00:00+00:00"), _use("kept", "2026-10-02T10:00:00+00:00")],
+        [{"id": "kept"}],
+    )
+    client = tables.client()
+    monkeypatch.setattr(review_service, "create_supabase_client", lambda: client)
+    monkeypatch.setattr(word_bank_service, "create_supabase_client", lambda: client)
+    return tables
+
+
+def test_a_use_in_a_deleted_entry_does_not_count_toward_mastered_days(orphaned_use):
+    from app.services import review_service
+
+    assert review_service.load_use_days(USER, "w1") == 1
+
+
+def test_the_bank_ignores_uses_whose_entry_no_longer_exists(orphaned_use):
+    signals = word_bank_service.load_word_signals(USER, ["w1"])
+    assert [row["source_id"] for row in signals] == ["kept"]
