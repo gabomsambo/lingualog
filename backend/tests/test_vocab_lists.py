@@ -41,6 +41,7 @@ def install(monkeypatch, words=(), encounters=(), cards=(), entries=None, books_
     monkeypatch.setattr(vocab_service, "load_words", lambda user_id, language=None: list(words))
     monkeypatch.setattr(vocab_service, "load_encounters", lambda user_id, language=None: list(encounters))
     monkeypatch.setattr(vocab_service, "load_cards", lambda user_id, language=None: list(cards))
+    monkeypatch.setattr(vocab_service, "load_profiles", lambda user_id: [])
     monkeypatch.setattr(
         vocab_service, "load_entry_summaries", lambda user_id, entry_ids: dict(entries or {})
     )

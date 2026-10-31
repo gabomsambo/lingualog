@@ -203,6 +203,36 @@ class SessionPlan:
         return self.due + self.new
 
 
+def waiting_cards(
+    cards: Sequence[Mapping[str, Any]],
+    now: datetime,
+    daily_new_words: Mapping[str, int],
+) -> list[Mapping[str, Any]]:
+    """Cards the review queue would deal today: due reviews plus the daily allowance of new words."""
+    active = [card for card in cards if card.get("suspended_at") is None]
+    waiting = [
+        card for card in active
+        if (card.get("reps") or card["card_type"] == PRODUCTION) and is_due(card, now)
+    ]
+    unseen: dict[Any, list[Mapping[str, Any]]] = {}
+    spent: dict[Any, int] = {}
+    for card in active:
+        if card["card_type"] != RECOGNITION:
+            continue
+        language = card.get("language")
+        first = aware(card.get("first_reviewed_at"))
+        if not card.get("reps"):
+            unseen.setdefault(language, []).append(card)
+        elif first is not None and first >= day_start(now):
+            spent[language] = spent.get(language, 0) + 1
+    for language, new_cards in unseen.items():
+        limit = daily_new_words.get(language)
+        remaining = max(0, (DEFAULT_DAILY_NEW_WORDS if limit is None else limit) - spent.get(language, 0))
+        new_cards.sort(key=lambda card: aware(card.get("created_at")) or now)
+        waiting += new_cards[:remaining]
+    return waiting
+
+
 def plan_session(
     cards: Sequence[Mapping[str, Any]],
     now: datetime,

@@ -54,6 +54,7 @@ def test_never_reviewed_due_cards_count_the_same_everywhere(monkeypatch):
     ])
     monkeypatch.setattr(vocab_service, "load_encounters", lambda user_id, language=None: [])
     monkeypatch.setattr(vocab_service, "load_cards", lambda user_id, language=None: cards)
+    monkeypatch.setattr(vocab_service, "load_profiles", lambda user_id: [])
     monkeypatch.setattr(vocab_service, "load_entry_summaries", lambda user_id, entry_ids: {})
     monkeypatch.setattr(vocab_service, "load_books", lambda user_id, book_ids: {})
     monkeypatch.setattr(vocab_service, "books_available", lambda: False)
@@ -76,4 +77,25 @@ def test_a_suspended_card_is_due_nowhere():
     )
     assert plan.cards == []
     assert stats_service.review_summary([suspended], [], NOW, {"es": scheduler})["due_today"] == 0
-    assert vocab_service._is_due(suspended, NOW) is False
+    assert vocab_service._due_word_ids([suspended], NOW) == set()
+
+
+def test_due_counts_stop_at_the_daily_new_word_limit(monkeypatch):
+    scheduler = rs.make_scheduler(0.9, None, fuzz=False)
+    fresh = [
+        card(f"c{i}", f"w{i}", state=1, reps=0, stability=None, difficulty=None, due=iso(),
+             last_review=None, created_at=iso(days=-1, ) )
+        for i in range(40)
+    ]
+    cards = [REVIEWED, *fresh]
+    plan = rs.plan_session(
+        cards, NOW, scheduler, daily_new_words=10, reviewed_new_today=0, reviews_today=0
+    )
+    assert len(plan.cards) == 11
+
+    summary = stats_service.review_summary(cards, [], NOW, {"es": scheduler}, {"es": 10})
+    assert summary["due_today"] == 11
+    assert summary["new_today"] == 10
+
+    profiles = [{"l2": "es", "daily_new_words": 10}]
+    assert len(vocab_service._due_word_ids(cards, NOW, profiles)) == 11

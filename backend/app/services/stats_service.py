@@ -13,7 +13,9 @@ from supabase import Client as SupabaseClient
 
 from app.schemas.stats_schemas import WordCountStat, LanguageStat, StreakData, UserStatsResponse
 from app.services import vocab_service
-from review_scheduler import aware, day_start, is_at_risk, make_scheduler
+from review_scheduler import (
+    DEFAULT_DAILY_NEW_WORDS, aware, day_start, is_at_risk, make_scheduler, waiting_cards,
+)
 
 VOCAB_STATUSES = ("new", "learning", "known", "mastered", "ignored")
 ENCOUNTER_KINDS = ("lookup", "read", "entry_text", "entry_fix", "entry_rewrite", "used_ok", "used_error")
@@ -291,10 +293,11 @@ def review_summary(
     logs: Sequence[Mapping[str, Any]],
     now: datetime,
     schedulers: Mapping[str, Any],
+    daily_new_words: Mapping[str, int] = {},
 ) -> Dict[str, Any]:
     """Review health: what is due today, the next seven days, and true retention."""
     active = [card for card in cards if _is_waiting(card)]
-    due_now = [card for card in active if (aware(card.get("due")) or now) <= now]
+    due_now = waiting_cards(active, now, daily_new_words)
     due_today = len(due_now)
     new_today = len([card for card in due_now if _is_new(card)])
 
@@ -397,7 +400,13 @@ def get_vocab_progress(
         "trend": notebook_trend(words, now),
         "active_words": encounters_block.pop("active_words"),
         "encounters": encounters_block,
-        "review": review_summary(cards, logs, now, schedulers),
+        "review": review_summary(
+            cards, logs, now, schedulers,
+            {
+                row["l2"]: int(row.get("daily_new_words") or DEFAULT_DAILY_NEW_WORDS)
+                for row in profiles if row.get("l2")
+            },
+        ),
         "week": week_summary(entries_written, encounters, logs, now),
         "placement": placement,
         "placement_available": vocab_service.placement_available(language),
