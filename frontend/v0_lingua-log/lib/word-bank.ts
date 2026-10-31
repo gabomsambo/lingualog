@@ -37,6 +37,25 @@ export const BANK_SIZE = 6
 // Languages written without spaces: a word has no boundary around it.
 const UNSPACED = new Set(["ja", "zh", "th"])
 const WORD_CHAR = "\\p{L}\\p{M}\\p{N}"
+const SPANISH_ENDINGS: Record<string, string[]> = {
+  ar: [
+    "o", "as", "a", "amos", "ais", "an", "e", "aste", "asteis", "aron", "aba", "abas",
+    "abamos", "abais", "aban", "ara", "aras", "aramos", "arais", "aran", "ase", "ases",
+    "asemos", "aseis", "asen", "ando", "ado",
+  ],
+  er: [
+    "o", "es", "e", "emos", "eis", "en", "i", "iste", "isteis", "ieron", "ia", "ias",
+    "iamos", "iais", "ian", "iera", "ieras", "ieramos", "ierais", "ieran", "iese", "ieses",
+    "iesemos", "ieseis", "iesen", "iendo", "ido",
+  ],
+  ir: [
+    "o", "es", "e", "imos", "is", "en", "i", "iste", "isteis", "ieron", "ia", "ias",
+    "iamos", "iais", "ian", "iera", "ieras", "ieramos", "ierais", "ieran", "iese", "ieses",
+    "iesemos", "ieseis", "iesen", "iendo", "ido",
+  ],
+}
+const SPANISH_FUTURE_ENDINGS = ["e", "as", "a", "emos", "eis", "an"]
+const SPANISH_CONDITIONAL_ENDINGS = ["ia", "ias", "iamos", "iais", "ian"]
 
 /** Case and accent insensitive form used to compare the draft with a stored form. */
 export function foldForMatch(text: string): string {
@@ -45,6 +64,47 @@ export function foldForMatch(text: string): string {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
+function spanishVerbForms(lemma: string): string[] {
+  const normalized = foldForMatch(lemma).trim()
+  const ending = normalized.slice(-2)
+  const endings = SPANISH_ENDINGS[ending]
+  if (!endings || normalized.length < 4) return [normalized]
+
+  const stem = normalized.slice(0, -2)
+  const forms = new Set([normalized, ...endings.map((suffix) => stem + suffix)])
+  for (const suffix of SPANISH_FUTURE_ENDINGS) forms.add(normalized + suffix)
+  for (const suffix of SPANISH_CONDITIONAL_ENDINGS) forms.add(normalized + suffix)
+
+  if (ending === "ar" && stem.endsWith("c")) {
+    forms.add(`${stem.slice(0, -1)}que`)
+  } else if (ending === "ar" && stem.endsWith("g")) {
+    forms.add(`${stem}ue`)
+  } else if (ending === "ar" && stem.endsWith("z")) {
+    forms.add(`${stem.slice(0, -1)}ce`)
+  }
+  return [...forms]
+}
+
+function formPattern(form: string, language: string): RegExp | null {
+  const normalized = foldForMatch(form).trim()
+  if (!normalized) return null
+  const baseLanguage = language.split("-")[0].toLowerCase()
+  if (UNSPACED.has(baseLanguage)) return new RegExp(escapeRegExp(normalized), "u")
+
+  const tokens = normalized.split(/\s+/)
+  const spanishInfinitive = baseLanguage === "es" && /(?:ar|er|ir)$/.test(tokens[0])
+  const heads = spanishInfinitive ? spanishVerbForms(tokens[0]) : [tokens[0]]
+  const escapedHeads = heads.map(escapeRegExp).join("|")
+  const tail = tokens.slice(1).map(escapeRegExp).join("\\s+")
+  const boundary = `(?<![${WORD_CHAR}])`
+  const endBoundary = `(?![${WORD_CHAR}])`
+  const gap = spanishInfinitive && tail ? `(?:\\s+[${WORD_CHAR}]+){0,3}\\s+` : "\\s+"
+  const source = tail
+    ? `${boundary}(?:${escapedHeads})${gap}${tail}${endBoundary}`
+    : `${boundary}(?:${escapedHeads})${endBoundary}`
+  return new RegExp(source, "u")
+}
+
 /**
  * Whether the draft contains one of the word's forms as a whole word. A hint only: the tutor
  * decides, after the entry is submitted, whether the word was really used and used well.
@@ -52,15 +112,7 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 export function wordAppearsIn(text: string, forms: string[], language = ""): boolean {
   const haystack = foldForMatch(text)
   if (!haystack.trim()) return false
-  const spaced = !UNSPACED.has(language.split("-")[0].toLowerCase())
-  return forms.some((form) => {
-    const needle = foldForMatch(form).trim()
-    if (!needle) return false
-    const pattern = spaced
-      ? `(?<![${WORD_CHAR}])${escapeRegExp(needle)}(?![${WORD_CHAR}])`
-      : escapeRegExp(needle)
-    return new RegExp(pattern, "u").test(haystack)
-  })
+  return forms.some((form) => formPattern(form, language)?.test(haystack) ?? false)
 }
 
 /**

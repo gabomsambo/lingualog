@@ -25,6 +25,13 @@ describe("wordAppearsIn", () => {
     expect(wordAppearsIn("¿Aprovechas?", ["aprovechas"], "es")).toBe(true)
   })
 
+  it("ticks Spanish infinitives used in conjugated and multiword forms", () => {
+    expect(wordAppearsIn("Ayer aproveché las vacaciones para leer.", ["aprovechar para"], "es")).toBe(true)
+    expect(wordAppearsIn("Aprovechó la oportunidad para viajar.", ["aprovechar"], "es")).toBe(true)
+    expect(wordAppearsIn("Busqué mis llaves.", ["buscar"], "es")).toBe(true)
+    expect(wordAppearsIn("Ayer aprobé el examen.", ["aprovechar"], "es")).toBe(false)
+  })
+
   it("treats unspaced languages as substrings", () => {
     expect(wordAppearsIn("今日は勉強しました", ["勉強"], "ja")).toBe(true)
     expect(wordAppearsIn("今日は散歩しました", ["勉強"], "ja")).toBe(false)
