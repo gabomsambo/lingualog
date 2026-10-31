@@ -273,7 +273,7 @@ def test_words_started_today_use_up_the_limit(db, client):
         db.add_word(f"w{index}")
         db.add_card(f"c{index}", f"w{index}")
     db.add_word("seen")
-    just_now = iso(timedelta(minutes=-2))
+    just_now = max(NOW - timedelta(minutes=2), rs.day_start(NOW)).isoformat()
     db.add_card("seen", "seen", reps=1, first_reviewed_at=just_now, last_review=just_now,
                 state=1, step=1, due=iso(timedelta(minutes=8)), stability=2.3)
     db.profiles[(USER, "es")] = {"daily_new_words": 2}
