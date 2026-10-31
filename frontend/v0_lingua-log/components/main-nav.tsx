@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, BarChart2, Bookmark, Repeat } from "lucide-react"
+import { BookText, BarChart2, Bookmark, Library, Repeat } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,13 @@ export function MainNav() {
       icon: <Repeat className="mr-2 h-5 w-5" />,
       active: pathname === "/review",
       variant: "yellow" as const,
+    },
+    {
+      href: "/books",
+      label: t('common.books'),
+      icon: <Library className="mr-2 h-5 w-5" />,
+      active: pathname.startsWith("/books"),
+      variant: "purple" as const,
     },
     {
       href: "/stats",

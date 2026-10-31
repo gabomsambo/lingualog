@@ -77,8 +77,8 @@ from ai.gemini import (
 from ai.word_card import card_policy_snapshot, generate_word_card
 from word_bank import clean_target_word_uses
 
-from app.routers import entry_translation, level_suggestions, review, support_events, word_bank
-from app.services import review_service, word_bank_service
+from app.routers import books, entry_translation, level_suggestions, review, support_events, word_bank
+from app.services import book_service, review_service, word_bank_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
@@ -537,6 +537,7 @@ app.include_router(support_events.router)
 app.include_router(level_suggestions.router)
 app.include_router(review.router)
 app.include_router(word_bank.router)
+app.include_router(books.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)
@@ -992,6 +993,26 @@ async def lookup_word_route(payload: LookupRequest, request: Request):
     if payload.source == "entry" and payload.source_id:
         if not fetch_single_entry(str(payload.source_id), user_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
+    reading_session = None
+    if payload.source == "book_session":
+        reading_session = (
+            book_service.fetch_session_for_user(user_id, str(payload.source_id)) if payload.source_id else None
+        )
+        if not reading_session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading session not found")
+        if reading_session.get("ended_at"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "session_ended", "message": "This reading session has ended"},
+            )
+        try:
+            book_language = book_service.get_book(user_id, reading_session["book_id"])["language"]
+        except book_service.BookNotFound as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found") from exc
+        if book_language != payload.language:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Lookup language does not match the book"
+            )
     cached = fetch_lookup_cache(
         user_id, payload.language, text, sentence, snapshot.get("vocab_def")
     )
@@ -1012,23 +1033,26 @@ async def lookup_word_route(payload: LookupRequest, request: Request):
             logger.error("Lookup card failed (%s): %s", exc.code, exc.message)
 
     saved = fetch_vocabulary_item_by_term(user_id, lemma, payload.language)
-    encounter = save_word_encounter(
-        {
-            "word_id": saved.get("id") if saved else None,
-            "language": payload.language,
-            "lemma": lemma,
-            "sense": sense or None,
-            "surface": text,
-            "sentence": sentence,
-            "kind": payload.kind,
-            "source_type": payload.source,
-            "source_id": str(payload.source_id) if payload.source_id else None,
-            "card": card_data,
-            "card_policy": snapshot if card_data else None,
-            "card_status": card_status,
-        },
-        user_id,
-    )
+    encounter_data = {
+        "word_id": saved.get("id") if saved else None,
+        "language": payload.language,
+        "lemma": lemma,
+        "sense": sense or None,
+        "surface": text,
+        "sentence": sentence,
+        "kind": "read" if reading_session else payload.kind,
+        "source_type": payload.source,
+        "source_id": str(payload.source_id) if payload.source_id else None,
+        "card": card_data,
+        "card_policy": snapshot if card_data else None,
+        "card_status": card_status,
+    }
+    if reading_session:
+        encounter = book_service.record_book_lookup(
+            user_id, reading_session, text, payload.page, encounter_data
+        )
+    else:
+        encounter = save_word_encounter(encounter_data, user_id)
     return {
         "encounter_id": encounter["id"],
         "text": text,

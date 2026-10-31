@@ -167,9 +167,10 @@ class LookupRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=500)
     sentence: Optional[str] = Field(None, max_length=5000)
     language: str = Field(..., min_length=2, max_length=35)
-    source: Literal["entry", "manual"]
+    source: Literal["entry", "manual", "book_session"]
     source_id: Optional[UUID] = None
     kind: Literal["lookup", "entry_text", "entry_fix", "entry_rewrite"] = "lookup"
+    page: Optional[int] = Field(None, ge=1, le=20000, description="Book page, for a lookup made in a reading session")
 
 
 class UserVocabularyItemPatch(BaseModel):

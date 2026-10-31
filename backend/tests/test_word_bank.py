@@ -90,6 +90,17 @@ def test_finished_words_are_never_offered(status):
     assert pick_bank([item(word("w", status))], NOW, SCHEDULER) == []
 
 
+def test_words_from_the_book_being_written_about_come_first_even_when_others_are_due():
+    items = [
+        item(word("risky"), reviewed_card(days_overdue=20, stability=3.0)),
+        item(word("fresh", "new", saved_days_ago=0)),
+        item(word("from_book", "new", saved_days_ago=30), used=True),
+        item(word("finished", "mastered")),
+    ]
+    chosen = pick_bank(items, NOW, SCHEDULER, prefer=["from_book", "finished"])
+    assert ids(chosen) == [("from_book", "from_book"), ("risky", "at_risk"), ("fresh", "never_used")]
+
+
 def test_count_and_exclude_shape_the_offer_and_shuffle_skips_whats_on_screen():
     items = [item(word(f"w{i}", "new", saved_days_ago=i)) for i in range(10)]
     first = pick_bank(items, NOW, SCHEDULER, count=5)

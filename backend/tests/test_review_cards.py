@@ -114,6 +114,16 @@ def test_a_lookup_sentence_from_outside_an_entry_can_be_blanked_as_written():
     assert card["sentence_source"] == "encounter"
 
 
+def test_a_sentence_from_a_book_mark_is_a_review_front():
+    mark = {"word_id": "word-1", "surface": "aprovechaba", "kind": "read", "source_type": "book_session",
+            "source_id": "session-1", "book_id": "book-1", "page": 12, "sentence": "Aprovechaba cada rato libre.",
+            "created_at": "2026-10-30T09:00:00Z"}
+    word = {**WORD, "example_sentence": None, "entry_id": None}
+    card = build("production", "l2_only", word=word, encounters=[mark], entries={})
+    assert card["front"] == {"before": "", "target": "Aprovechaba", "after": " cada rato libre."}
+    assert card["sentence_source"] == "encounter"
+
+
 def test_the_sentence_rotates_with_each_review():
     other = {**ENCOUNTER, "sentence": "Quiero aprovechar el día.", "surface": "aprovechar",
              "source_type": "manual", "source_id": None, "kind": "lookup", "created_at": "2026-10-31T09:00:00Z"}

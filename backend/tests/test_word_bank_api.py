@@ -232,6 +232,38 @@ def test_the_bank_offers_the_learners_words_for_one_language_with_why(book, clie
     assert first["hint"] == "gloss of aprovechar" and first["hint_mode"] == "shown"
 
 
+def test_writing_about_a_book_offers_its_words_from_this_week_first(book, client, monkeypatch):
+    from app.services import book_service
+
+    book.word(uid("due"), "aprovechar")
+    book.card(uid("due"), stability=3.0, reps=3, due_in=-2, last_review_days=20)
+    book.word(uid("read"), "cinta", "new", saved_days_ago=9)
+    monkeypatch.setattr(
+        book_service, "get_book", lambda user_id, book_id: {"id": book_id, "title": "La sombra", "language": "es"}
+    )
+    monkeypatch.setattr(book_service, "recent_book_word_ids", lambda user_id, book_id: {uid("read")})
+
+    body = client.get("/word-bank", params={"language": "es", "book": uid("book")}, headers=HEADERS).json()
+
+    assert [(w["word_id"], w["reason"]) for w in body["words"]] == [
+        (uid("read"), "from_book"), (uid("due"), "at_risk")]
+    assert body["book"] == {"id": uid("book"), "title": "La sombra"}
+    assert client.get("/word-bank", params={"language": "es"}, headers=HEADERS).json()["book"] is None
+
+
+def test_a_book_that_is_not_yours_or_in_another_language_is_refused(book, client, monkeypatch):
+    from app.services import book_service
+
+    def missing(user_id, book_id):
+        raise book_service.BookNotFound(book_id)
+
+    monkeypatch.setattr(book_service, "get_book", missing)
+    assert client.get("/word-bank", params={"language": "es", "book": uid("book")}, headers=HEADERS).status_code == 404
+
+    monkeypatch.setattr(book_service, "get_book", lambda *_: {"id": "b", "title": "t", "language": "fr"})
+    assert client.get("/word-bank", params={"language": "es", "book": uid("book")}, headers=HEADERS).status_code == 400
+
+
 def test_the_chip_hint_follows_the_policy_and_exclude_reshuffles(book, client):
     for index in range(4):
         book.word(uid(f"w{index}"), f"palabra{index}", "new", saved_days_ago=index)

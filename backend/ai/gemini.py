@@ -59,6 +59,7 @@ async def generate_structured(
     timeout: float = 30.0,
     model: Optional[str] = None,
     use_thinking: bool = True,
+    images: Optional[Sequence[tuple[bytes, str]]] = None,
 ) -> T:
     """
     Generate structured output from Gemini.
@@ -68,6 +69,8 @@ async def generate_structured(
         user_prompt: The journal entry text plus any request context.
         schema: Pydantic model describing the desired JSON output.
         timeout: Per-attempt timeout in seconds.
+        images: Optional ``(bytes, mime_type)`` pairs sent beside the prompt at medium
+            media resolution. They are only held in memory for the call.
 
     Returns:
         An instance of ``schema`` populated by the model.
@@ -81,14 +84,15 @@ async def generate_structured(
         logger.error("Gemini API key missing: GEMINI_API_KEY is not set")
         raise GeminiError("ai_unconfigured", "GEMINI_API_KEY is not set")
 
-    contents = [
-        types.Content(role="user", parts=[types.Part(text=user_prompt)])
-    ]
+    parts = [types.Part(text=user_prompt)]
+    parts += [types.Part.from_bytes(data=data, mime_type=mime) for data, mime in images or ()]
+    contents = [types.Content(role="user", parts=parts)]
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
         response_mime_type="application/json",
         response_schema=schema,
         thinking_config=_thinking_config() if use_thinking else None,
+        media_resolution=types.MediaResolution.MEDIA_RESOLUTION_MEDIUM if images else None,
     )
     selected_model = model or GEMINI_MODEL_FEEDBACK
 

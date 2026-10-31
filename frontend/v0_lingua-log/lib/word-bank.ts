@@ -3,7 +3,7 @@
  * choosing what the next submission sends. No React and no network here.
  */
 
-export type WordBankReason = "at_risk" | "due" | "never_used" | "to_master"
+export type WordBankReason = "at_risk" | "due" | "never_used" | "to_master" | "from_book"
 
 export interface WordBankWord {
   word_id: string
@@ -23,6 +23,8 @@ export interface WordBankWord {
 export interface WordBank {
   language: string
   words: WordBankWord[]
+  /** The book whose words come first, when the editor was opened to write about it. */
+  book?: { id: string; title: string } | null
 }
 
 export interface BankSelection {

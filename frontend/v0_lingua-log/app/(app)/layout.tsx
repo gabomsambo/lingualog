@@ -64,7 +64,7 @@ export default function AppGroupLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 w-full border-b-2 border-white/10 bg-gradient-to-r from-fun-blue/20 via-fun-purple/20 to-fun-pink/20 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-md">
+      <header className="sticky top-0 z-50 w-full print:hidden border-b-2 border-white/10 bg-gradient-to-r from-fun-blue/20 via-fun-purple/20 to-fun-pink/20 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-md">
         <div className="container flex h-16 items-center">
           <div className="mr-4 flex">
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-fun-blue via-fun-purple to-fun-pink bg-clip-text text-transparent">

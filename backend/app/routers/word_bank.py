@@ -1,12 +1,12 @@
 """The word bank beside the editor: a few of the learner's own words to write with."""
 
 import logging
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
-from app.services import word_bank_service
+from app.services import book_service, word_bank_service
 from word_bank import DEFAULT_BANK_SIZE, MAX_BANK_SIZE
 
 logger = logging.getLogger(__name__)
@@ -20,16 +20,23 @@ async def get_word_bank(
     language: str,
     count: int = Query(DEFAULT_BANK_SIZE, ge=1, le=MAX_BANK_SIZE),
     exclude: List[UUID] = Query(default_factory=list, max_length=50),
+    book: Optional[UUID] = None,
 ):
     """Words to use in today's entry: due or at-risk ones first, then words never used yet.
 
-    ``exclude`` lists words already on screen, so a shuffle offers different ones.
+    ``exclude`` lists words already on screen, so a shuffle offers different ones. ``book`` puts this
+    week's words from that book first, for "write about what you read".
     """
     user_id = request.headers.get("X-User-ID")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided")
     try:
-        return word_bank_service.get_bank(user_id, language, count, [str(word_id) for word_id in exclude])
+        return word_bank_service.get_bank(
+            user_id, language, count, [str(word_id) for word_id in exclude],
+            book_id=str(book) if book else None,
+        )
+    except book_service.BookNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found") from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
