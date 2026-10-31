@@ -485,30 +485,34 @@ export async function addVocabularyItem(item: UserVocabularyItemCreate): Promise
   return (await res.json()) as UserVocabularyItemResponse;
 }
 
-export async function getVocabularyItems(language?: string): Promise<UserVocabularyItemResponse[]> {
-  const authHeaders = await getAuthHeaders();
-  const user = await getUser();
-  const customHeaders: Record<string, string> = {
-    ...(authHeaders as Record<string, string>),
-  };
-  if (user && user.id) {
-    customHeaders["X-User-ID"] = user.id;
-  }
+export type VocabularyListId = "due" | "never_used";
+export type VocabularySource = "entry" | "book" | "lookup";
 
-  let url = `${API_BASE}/vocabulary`;
-  if (language) {
-    url += `?language=${encodeURIComponent(language)}`;
-  }
+/** List and filter selectors for the notebook (GET /vocabulary). */
+export interface VocabularyQuery {
+  list?: VocabularyListId;
+  tag?: string;
+  entry_id?: string;
+  book_id?: string;
+  status?: VocabularyStatus;
+  source?: VocabularySource;
+}
 
-  const res = await fetch(url, {
+export async function getVocabularyItems(
+  language?: string,
+  query?: VocabularyQuery,
+): Promise<UserVocabularyItemResponse[]> {
+  const url = new URL(`${API_BASE}/vocabulary`);
+  if (language) url.searchParams.append("language", language);
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== "") url.searchParams.append(key, String(value));
+  }
+  const res = await fetch(url.toString(), {
     method: "GET",
-    headers: customHeaders,
+    headers: await userHeaders(),
     credentials: "include",
   });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch vocabulary items. Status: ${res.status}` }));
-    throw new Error(errorData.detail || `Failed to fetch vocabulary items. Status: ${res.status}`);
-  }
+  if (!res.ok) throw await apiError(res);
   return (await res.json()) as UserVocabularyItemResponse[];
 }
 
@@ -557,6 +561,129 @@ export async function retryVocabularyCard(itemId: string): Promise<UserVocabular
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as UserVocabularyItemResponse;
+}
+
+// --- Progress, lists, export and placement ---
+
+export interface PlacementResult {
+  v: number;
+  estimate: number;
+  sample_size: number;
+  known: string[];
+  checked_at: string;
+}
+
+export interface VocabularyProgress {
+  language: string | null;
+  notebook: { new: number; learning: number; known: number; mastered: number; ignored: number; total: number };
+  trend: Array<{ date: string; count: number }>;
+  active_words: number;
+  encounters: {
+    by_kind: Record<string, number>;
+    reviews: number;
+    per_word: number;
+    guide_min: number;
+    guide_max: number;
+  };
+  review: {
+    due_today: number;
+    forecast: Array<{ date: string; count: number }>;
+    at_risk: number;
+    true_retention: number | null;
+    reviews_last_7_days: number;
+    minutes_last_7_days: number;
+  };
+  week: {
+    reading: number;
+    journal: number;
+    reviews: number;
+    review_minutes: number;
+    review_share: number;
+    over_budget: boolean;
+  };
+  placement: PlacementResult | null;
+  placement_available: boolean;
+}
+
+export interface VocabularyLists {
+  total: number;
+  smart: Array<{ id: VocabularyListId; count: number }>;
+  tags: Array<{ id: string; name: string; count: number }>;
+  entries: Array<{ id: string; entry_id: string; title: string | null; date: string | null; count: number }>;
+  books: Array<{ id: string; book_id: string; title: string | null; count: number }> | null;
+}
+
+export interface PlacementCheck {
+  language: string;
+  words: string[];
+  bands: string[][];
+  result: PlacementResult | null;
+}
+
+export async function getVocabularyProgress(language?: string): Promise<VocabularyProgress> {
+  const url = new URL(`${API_BASE}/vocabulary/progress`);
+  if (language) url.searchParams.append("language", language);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as VocabularyProgress;
+}
+
+export async function getVocabularyLists(language?: string): Promise<VocabularyLists> {
+  const url = new URL(`${API_BASE}/vocabulary/lists`);
+  if (language) url.searchParams.append("language", language);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as VocabularyLists;
+}
+
+/** Download the notebook (or one list) as CSV or as an Anki deck. */
+export async function exportVocabulary(
+  format: "csv" | "apkg",
+  language?: string,
+  query?: VocabularyQuery,
+): Promise<Blob> {
+  const url = new URL(`${API_BASE}/vocabulary/export`);
+  url.searchParams.append("format", format);
+  if (language) url.searchParams.append("language", language);
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== "") url.searchParams.append(key, String(value));
+  }
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return res.blob();
+}
+
+export async function getPlacementCheck(language: string): Promise<PlacementCheck> {
+  const res = await fetch(`${API_BASE}/placement/${encodeURIComponent(language)}`, {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as PlacementCheck;
+}
+
+export async function submitPlacementCheck(language: string, known: string[]): Promise<PlacementResult> {
+  const res = await fetch(`${API_BASE}/placement/${encodeURIComponent(language)}`, {
+    method: "POST",
+    headers: await userHeaders(true),
+    credentials: "include",
+    body: JSON.stringify({ known }),
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as PlacementResult;
 }
 
 // --- Review API ---
@@ -875,6 +1002,7 @@ export interface UserStats {
   languageBreakdown: Array<{
     language: string;
     count: number;
+    percentage: number;
   }>;
   streak: {
     current: number;

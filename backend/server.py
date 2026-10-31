@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from fastapi import FastAPI, HTTPException, status, Request
+from fastapi import FastAPI, HTTPException, Query, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
@@ -77,8 +77,8 @@ from ai.gemini import (
 from ai.word_card import card_policy_snapshot, generate_word_card
 from word_bank import clean_target_word_uses
 
-from app.routers import books, entry_translation, level_suggestions, review, support_events, word_bank
-from app.services import book_service, review_service, word_bank_service
+from app.routers import books, entry_translation, level_suggestions, review, support_events, vocab, word_bank
+from app.services import book_service, review_service, vocab_service, word_bank_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
@@ -538,6 +538,7 @@ app.include_router(level_suggestions.router)
 app.include_router(review.router)
 app.include_router(word_bank.router)
 app.include_router(books.router)
+app.include_router(vocab.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)
@@ -1216,9 +1217,18 @@ async def retry_vocabulary_card_route(item_id: str, request: Request):
     return updated
 
 @app.get("/vocabulary", status_code=status.HTTP_200_OK)
-async def get_user_vocabulary_route(request: Request, language: Optional[str] = None):
+async def get_user_vocabulary_route(
+    request: Request,
+    language: Optional[str] = None,
+    list_id: Optional[str] = Query(None, alias="list"),
+    tag: Optional[str] = None,
+    entry_id: Optional[str] = None,
+    book_id: Optional[str] = None,
+    item_status: Optional[str] = Query(None, alias="status"),
+    source: Optional[str] = None,
+):
     """
-    Fetch all vocabulary items for the authenticated user, optionally filtered by language.
+    Fetch vocabulary items for the authenticated user, filtered by language, list or tag.
     """
     user_id = request.headers.get("X-User-ID")
     if not user_id:
@@ -1226,7 +1236,13 @@ async def get_user_vocabulary_route(request: Request, language: Optional[str] = 
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided"
         )
     try:
-        items = fetch_user_vocabulary(user_id=user_id, language=language)
+        selector = vocab_service.selector_from(list_id, tag, entry_id, book_id, item_status, source)
+        if selector:
+            items = vocab_service.fetch_items(user_id, language, selector)
+        else:
+            items = fetch_user_vocabulary(user_id=user_id, language=language)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as e:
         logger.error(f"Error fetching vocabulary for user {user_id}: {str(e)}")
         raise HTTPException(

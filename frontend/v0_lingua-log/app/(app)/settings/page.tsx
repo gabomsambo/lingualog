@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { 
   Settings, 
@@ -751,6 +752,13 @@ export default function SettingsPage() {
                               max={RETENTION_RANGE.max * 100}
                               step={1}
                             />
+                          </div>
+                          <div>
+                            <Label>{t('settings.placementCheck')}</Label>
+                            <p className="text-sm text-muted-foreground mb-2">{t('settings.placementCheckDesc')}</p>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/stats?placement=${code}`}>{t('vocabulary.placementTake')}</Link>
+                            </Button>
                           </div>
                         </div>
                       )
