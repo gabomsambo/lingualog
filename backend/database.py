@@ -262,6 +262,19 @@ def list_language_profiles(user_id: str) -> List[Dict[str, Any]]:
     return rows
 
 
+def save_language_placement(user_id: str, l2: str, placement: Dict[str, Any]) -> bool:
+    """Store a placement check result on one language profile. False when the profile is missing."""
+    supabase = create_supabase_client()
+    response = (
+        supabase.table("user_language_profiles")
+        .update({"placement": placement})
+        .eq("user_id", user_id)
+        .eq("l2", l2)
+        .execute()
+    )
+    return bool(response.data)
+
+
 SAVE_USER_SETTINGS_RPC = "save_user_settings"
 
 
@@ -550,6 +563,18 @@ def delete_vocabulary_item(item_id: str, user_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error deleting vocabulary item {item_id} for user {user_id}: {str(e)}")
         raise
+
+def fetch_all_rows(query: Any, page_size: int = 1000) -> List[Dict[str, Any]]:
+    """Run a Supabase select through every page, so results are not capped at one page."""
+    rows: List[Dict[str, Any]] = []
+    offset = 0
+    while True:
+        batch = query.range(offset, offset + page_size - 1).execute().data or []
+        rows.extend(batch)
+        if len(batch) < page_size:
+            return rows
+        offset += page_size
+
 
 def fetch_user_vocabulary(user_id: str, language: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
     """

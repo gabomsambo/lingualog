@@ -130,7 +130,7 @@ Key reference files:
 
 ### `user_language_profiles`
 - One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), `active`, and `level_changed_at` (trigger-stamped)
-- Also `daily_new_words` and `desired_retention` (review settings)
+- Also `daily_new_words` and `desired_retention` (review settings) and the optional `placement` estimate
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`, `20261006000000_review_fsrs.sql`
 
 ### `user_vocabulary`
@@ -165,6 +165,7 @@ Key reference files:
 - `POST /user/level-suggestions/{l2}/accept` - Apply that suggestion via `save_user_settings`
 - `POST /user/level-suggestions/{l2}/dismiss` - Snooze that language's suggestion for 7 days
 - `GET /user/stats` - Get user statistics
+- `GET /vocabulary/progress`, `GET /vocabulary/lists`, `GET /vocabulary/export`, `GET|POST /placement/{language}` - Progress, lists, CSV/Anki export, placement check; see `README.md` (Progress, lists and export)
 - `GET /review/session`, `GET /review/summary`, `POST /review/{card_id}` - FSRS review (no model calls); see `README.md` (Vocabulary review)
 - `GET /word-bank?language=` - Words to write with beside the editor; `POST /log-entry` takes `target_word_ids`; see `README.md` (Word bank)
 - `POST /events` - Log a support event (reveal/rescue taps)

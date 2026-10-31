@@ -105,6 +105,18 @@ The app may suggest a different immersion level for one language. It never chang
 - **POST /books/{id}/sessions/{session_id}/cards**, **POST /books/{id}/marks/skip**, **GET /books/{id}/glossary|progress**
   - End-of-session cards and choices, the book glossary, and the words-per-page progress
 
+- **GET /vocabulary/progress?language=**
+  - Notebook, review health, encounters and the week for the Progress page
+
+- **GET /vocabulary/lists?language=**
+  - The notebook's lists with counts; `GET /vocabulary` takes `list`, `tag`, `entry_id`, `book_id`, `status`, `source` to filter
+
+- **GET /vocabulary/export?format=csv|apkg**
+  - Download the notebook or one list, with sentence and source (same filters as `/vocabulary`)
+
+- **GET/POST /placement/{language}**
+  - Optional vocabulary-size check: the sample words, and scoring the ones the learner knows
+
 Gemini infers what you meant. A translation is not fed into the correction.
 
 ### Vocabulary review
@@ -119,6 +131,15 @@ Review costs no model calls. `backend/review_scheduler.py` runs FSRS-6 (`py-fsrs
 - **Per-language settings** on `user_language_profiles`: `daily_new_words` (default 10; how many never-reviewed words a session may introduce a day, on top of the Study cap) and `desired_retention` (default 0.90, adjustable 0.80-0.95). Days are UTC days.
 - **Sessions** are 20 cards: due reviews first, the most likely forgotten first, then new words up to the daily limit. When 40 or more reviews are waiting the app offers **catch-up**: reviews only, 30 a day, most at risk first, no new words, so a backlog drains over days instead of arriving at once.
 - `user_fsrs_params` holds per-learner parameters for a later optimisation; with no row the library defaults apply.
+
+### Progress, lists and export
+
+All computed from the existing vocabulary, encounter and review tables; no model calls.
+
+- **Progress** (`GET /vocabulary/progress`, `stats_service.get_vocab_progress`): notebook counts by state with a trend, review health (due, at risk, true retention from the review logs), encounters and the last seven days. The Statistics page shows it; the journal half of `/user/stats` groups words by the language the entry was written in, not by tone.
+- **Lists** (`backend/app/services/vocab_service.py`): smart lists `due` and `never_used` (never used correctly in the learner's writing), plus tags, per entry and per book. `GET /vocabulary` filters by the same selectors.
+- **Export** (`backend/vocab_export.py`): CSV, or an Anki `.apkg` with one recognition card per word and a deck per language. Both keep the sentence and its source. CSV cells that start with a formula character are neutralised, and Anki fields are HTML-escaped.
+- **Placement check** (`backend/placement.py`): optional; the learner taps the sample words they know from fixed frequency bands (wordfreq ranks) and gets a vocabulary-size estimate, never a score. Stored on `user_language_profiles.placement`. Migration: `supabase/migrations/20261103000000_vocab_progress.sql`.
 
 ### Word bank and "used it" mastery
 
