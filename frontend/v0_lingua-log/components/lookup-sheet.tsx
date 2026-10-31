@@ -19,8 +19,10 @@ export interface LookupContext {
   text: string
   sentence?: string
   language: string
-  source: "entry" | "manual"
+  source: "entry" | "manual" | "book_session"
   sourceId?: string
+  /** Book page, for a lookup made in a reading session. */
+  page?: number
   kind?: "lookup" | "entry_text" | "entry_fix" | "entry_rewrite"
 }
 
@@ -47,6 +49,7 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
       source: context.source,
       source_id: context.sourceId,
       kind: context.kind,
+      page: context.page,
     }).then(setResult).catch(() => {
       toast({ title: "Lookup failed", description: "Try again in a moment.", variant: "destructive" })
     }).finally(() => setLoading(false))

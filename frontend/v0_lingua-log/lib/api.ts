@@ -410,9 +410,11 @@ export async function lookupWord(payload: {
   text: string;
   sentence?: string;
   language: string;
-  source: "entry" | "manual";
+  source: "entry" | "manual" | "book_session";
   source_id?: string;
   kind?: "lookup" | "entry_text" | "entry_fix" | "entry_rewrite";
+  /** Book page, for a lookup made in a reading session. */
+  page?: number;
 }): Promise<LookupResult> {
   const res = await fetch(`${API_BASE}/lookup`, {
     method: "POST",
@@ -675,6 +677,180 @@ export async function getWordBank(
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as WordBank;
+// --- Book mode API ---
+
+export type BookStatus = "reading" | "finished" | "paused";
+/** Soft estimate of how many unknown words a page holds; never a percentage. */
+export type CoverageBand = "comfortable" | "study" | "demanding" | "hard";
+
+export interface Book {
+  id: string;
+  title: string;
+  author?: string | null;
+  language: string;
+  status: BookStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookSummary extends Book {
+  sessions: number;
+  words_marked: number;
+  open_session_id: string | null;
+  /** Words marked per page, one number per finished session that had pages. */
+  rate_series: number[];
+  last_band: CoverageBand | null;
+}
+
+export interface ReadingSessionSummary {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  page_from: number | null;
+  page_to: number | null;
+  pages_read: number | null;
+  words_marked: number;
+  words_per_page: number | null;
+  band: CoverageBand | null;
+}
+
+export interface BookMark {
+  id: string;
+  surface: string;
+  sentence: string | null;
+  page: number | null;
+  created_at: string;
+  /** How often this word is marked in the whole book. */
+  times_marked: number;
+  in_notebook: boolean;
+}
+
+export interface BookDetail {
+  book: Book;
+  session: (ReadingSessionSummary & { marks: BookMark[] }) | null;
+}
+
+export interface TriageItem {
+  key: string;
+  lemma: string;
+  surface: string;
+  sentence: string | null;
+  page: number | null;
+  times_marked: number;
+  recurring: boolean;
+  card: VocabularyCardData | null;
+  card_status: "ok" | "failed" | "pending";
+  encounter_id: string | null;
+  encounter_ids: string[];
+}
+
+export interface SessionTriage {
+  items: TriageItem[];
+  recurring: number;
+  /** Cards the model could not build this time; the marks stay and can be retried. */
+  failed?: number;
+}
+
+export interface PageCandidate {
+  surface: string;
+  lemma: string;
+  status: VocabularyStatus | null;
+}
+
+export interface PagePhotoResult {
+  readable: boolean;
+  transcription: string;
+  candidates: PageCandidate[];
+  estimate: { unknown_estimate: number; page_words: number; band: CoverageBand | null } | null;
+}
+
+export interface GlossaryWord {
+  key: string;
+  lemma: string;
+  surfaces: string[];
+  times_marked: number;
+  pages: number[];
+  sentences: Array<{ sentence: string; page: number | null }>;
+  meaning: string;
+  gloss: string;
+  has_card: boolean;
+  status: VocabularyStatus | null;
+  skipped: boolean;
+}
+
+export interface BookGlossary {
+  book: Book;
+  words: GlossaryWord[];
+}
+
+export interface BookProgress {
+  book: Book;
+  sessions: ReadingSessionSummary[];
+  pages: Array<{ page: number; words: number; band: CoverageBand | null }>;
+  trend: "falling" | "flat" | "rising" | null;
+  latest_band: CoverageBand | null;
+  stays_hard: boolean;
+  estimate: true;
+}
+
+export interface WritingWords {
+  book: { id: string; title: string; language: string };
+  words: Array<{ lemma: string; surface: string; gloss: string; status: VocabularyStatus | null; times_marked: number }>;
+}
+
+async function bookRequest<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: init.method ?? "GET",
+    headers: await userHeaders(init.body !== undefined),
+    credentials: "include",
+    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+  });
+  if (!res.ok) throw await apiError(res);
+  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+export const listBooks = (language?: string) =>
+  bookRequest<BookSummary[]>(`/books${language ? `?${new URLSearchParams({ language })}` : ""}`);
+export const createBook = (book: { title: string; author?: string; language: string }) =>
+  bookRequest<Book>("/books", { method: "POST", body: book });
+export const getBook = (bookId: string) => bookRequest<BookDetail>(`/books/${bookId}`);
+export const updateBook = (bookId: string, changes: { title?: string; author?: string; status?: BookStatus }) =>
+  bookRequest<Book>(`/books/${bookId}`, { method: "PATCH", body: changes });
+export const deleteBook = (bookId: string) => bookRequest<void>(`/books/${bookId}`, { method: "DELETE" });
+export const startReadingSession = (bookId: string, pageFrom?: number) =>
+  bookRequest<ReadingSessionSummary>(`/books/${bookId}/sessions`, { method: "POST", body: { page_from: pageFrom ?? null } });
+export const markWord = (bookId: string, sessionId: string, mark: { word: string; sentence?: string; page?: number }) =>
+  bookRequest<BookMark & { created: boolean }>(`/books/${bookId}/sessions/${sessionId}/marks`, {
+    method: "POST",
+    body: { word: mark.word, sentence: mark.sentence || null, page: mark.page ?? null },
+  });
+export const unmarkWord = (bookId: string, sessionId: string, markId: string) =>
+  bookRequest<void>(`/books/${bookId}/sessions/${sessionId}/marks/${markId}`, { method: "DELETE" });
+export const endReadingSession = (bookId: string, sessionId: string, pageTo?: number) =>
+  bookRequest<ReadingSessionSummary>(`/books/${bookId}/sessions/${sessionId}/end`, {
+    method: "POST",
+    body: { page_to: pageTo ?? null },
+  });
+export const buildSessionCards = (bookId: string, sessionId: string) =>
+  bookRequest<SessionTriage>(`/books/${bookId}/sessions/${sessionId}/cards`, { method: "POST" });
+export const getSessionTriage = (bookId: string, sessionId: string) =>
+  bookRequest<SessionTriage>(`/books/${bookId}/sessions/${sessionId}/triage`);
+export const skipMarks = (bookId: string, encounterIds: string[]) =>
+  bookRequest<{ skipped: number }>(`/books/${bookId}/marks/skip`, { method: "POST", body: { encounter_ids: encounterIds } });
+export const getBookGlossary = (bookId: string) => bookRequest<BookGlossary>(`/books/${bookId}/glossary`);
+export const getBookProgress = (bookId: string) => bookRequest<BookProgress>(`/books/${bookId}/progress`);
+export const getWritingWords = (bookId: string) => bookRequest<WritingWords>(`/books/${bookId}/writing-words`);
+
+/** Send one page photo for transcription. The image is read once by the server and never stored. */
+export async function readPagePhoto(bookId: string, image: Blob): Promise<PagePhotoResult> {
+  const res = await fetch(`${API_BASE}/books/${bookId}/page-photo`, {
+    method: "POST",
+    headers: { ...(await userHeaders()), "Content-Type": "application/octet-stream" },
+    credentials: "include",
+    body: image,
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as PagePhotoResult;
 }
 
 // User Profile and Stats API

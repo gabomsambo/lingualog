@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 
+import { BookWordsStrip } from "@/components/book-words-strip"
 import { JournalEditor } from "@/components/journal-editor"
 import { useLocale } from "@/i18n/LocaleProvider"
 
@@ -24,6 +25,8 @@ export default function NewEntryPage() {
           {t('journal.writeEntry')}
         </p>
       </motion.div>
+
+      <BookWordsStrip />
 
       {/* Journal Editor */}
       <motion.div

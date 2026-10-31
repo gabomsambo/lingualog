@@ -19,6 +19,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Meaning translation into your native language (Lara Translate, Gemini fallback)
   - Explanation of mistakes
 - **Word notebook and review**: look up any word, keep it with the sentence you met it in, and review it with FSRS: two buttons, your own sentences, 10 new words a day per language (see Vocabulary review below)
+- **Book mode**: a reading companion for the paper or e-book you already read: mark words without stopping, photograph a page, build the cards when you stop, keep a printable glossary, and watch the words per page fall (see Book mode below)
 - **Side-by-side result**: after submit and on each entry page, every sentence shows what you wrote, what it means, and how to write it (corrected or native rewrite), with help shown per your immersion level
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
@@ -92,6 +93,18 @@ The settings "Explanation mode" control and the new-entry immersion slider stay.
 
 The app may suggest a different immersion level for one language. It never changes the level on its own. `GET /user/level-suggestions` reads `support_events` and scores from recent entries written at the current level, since it last changed (`user_language_profiles.level_changed_at`), with a real (`ok`) analysis. It does this only for the languages Settings lists under "Languages I'm learning" (active `user_language_profiles` rows and `default_target_lang`), never a removed language or one that only appears on an entry. A studied language that is also the native language stays at level 3. A default language with no profile row uses the level `resolve_policy` gives it today and counts only entries newer than its newest entry written at another level. An accept never cascades into a second suggestion, and returning to a level does not reuse its old history; the thresholds and windows are named constants in `backend/level_suggestion.py`. Accept (`POST /user/level-suggestions/{l2}/accept`) writes that language's profile through `save_user_settings`. Dismiss snoozes the suggestion for 7 days.
 
+- **POST /books**, **GET /books**, **GET|PATCH|DELETE /books/{id}**
+  - The books a learner is reading (title, author, language); `GET /books/{id}` also returns the open reading session with its marks
+
+- **POST /books/{id}/sessions**, **POST /books/{id}/sessions/{session_id}/marks**, **POST /books/{id}/sessions/{session_id}/end**
+  - Start (or resume) a reading session, mark a word with an optional sentence and page, and end the session
+
+- **POST /books/{id}/page-photo**
+  - The raw JPEG, PNG or WebP bytes of a book page; returns its text and pre-highlighted words. The image is never stored
+
+- **POST /books/{id}/sessions/{session_id}/cards**, **POST /books/{id}/marks/skip**, **GET /books/{id}/glossary|progress|writing-words**
+  - End-of-session cards and choices, the book glossary, the words-per-page progress, and this week's words for "write about what you read"
+
 Gemini infers what you meant. A translation is not fed into the correction.
 
 ### Vocabulary review
@@ -119,6 +132,17 @@ The word bank is a panel beside the editor with 5-6 of the learner's own words t
 - **FSRS credit.** Writing a word the bank displayed is copying, so it is not a review. In challenge mode the bank hides the words and shows only meanings; a correct use of a word the learner never peeked at is a real recall and becomes a "Got it" on that word's production card (`vocab_review_logs.source = 'challenge_use'`). A word with no production card yet earns no credit, and an entry credits a word once.
 - **The result** shows a "Your words today" row (`3 used well · 1 to fix · 1 not used`) with the fix for each error, the question for each unclear use and a note when a word has just become Mastered. Sample feedback from the offline provider (`AI_PROVIDER=mock`) shows the row but is never recorded.
 - Entries remember their chosen words and verdicts in `journal_entries.target_words` / `target_word_uses`, so a retried analysis checks the same words. Migration: `supabase/migrations/20261007000000_word_bank.sql`.
+### Book mode
+
+Book mode is a companion, not a reader: LinguaLog never stores book text beyond the sentence of a word you marked.
+
+- **Marks are encounters.** A mark is a `word_encounters` row (`kind` `read`, `source_type` `book_session`) with the sentence, page and `book_id`, so reading shares the "seen N times" count and the notebook with lookups. Marking makes no model call. The same word on the same page is not marked twice; on a later page it counts again.
+- **"I need this now"** is `POST /lookup` with `source: "book_session"`, the session id and the page: it shows the card at once and completes the mark already made of that word.
+- **Page photos.** `backend/ai/page_photo.py` makes one Flash-Lite vision call at medium resolution and returns the text plus words a learner at the language profile's proficiency probably does not know. The photo and its text are held in memory for the call and returned to the browser, never stored; only a `page_photo_events` row (no image) is kept. Limits live in `book_service.py`: 4 MB, 6 a minute, 40 a day per learner. A photo the model cannot read or fails on is not counted. `page_photo_quota_allows` is the one place a future Plus quota plugs in; today it allows everyone.
+- **End of session.** The session's page range widens to cover every marked page, and `words_marked` and `pages_read` are fixed. `POST .../cards` builds the cards for the marks that have none, a few at a time (reusing a lookup of the same sentence when there is one), then returns the choices: words marked more than once first, one-offs after with "Skip all for now". Study and "I know it" use the normal save (`POST /vocabulary`, then the daily new-word cap applies); Skip only hides the mark from the choices. A failed card stores nothing and can be retried.
+- **Glossary and quiz.** `GET /books/{id}/glossary` lists every marked word with its sentences, pages and the card's meaning (already in the policy's language). The page prints as a bookmark, and "Quiz myself" hides each meaning until the learner reveals it.
+- **Words per page and coverage.** `backend/book_coverage.py` holds the soft bands: up to 6 unknown words a page is comfortable, 7-15 study reading, 16-24 demanding, 25 or more hard. They are always shown as estimates; a book that stays hard for three finished sessions suggests an easier one.
+- **Write about what you read.** `/entries/new?book=<id>` shows this week's words from that book above the editor.
 
 ### Data Models
 
