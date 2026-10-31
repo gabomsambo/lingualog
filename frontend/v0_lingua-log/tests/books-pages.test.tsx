@@ -18,7 +18,14 @@ vi.mock("@/lib/api", () => api)
 vi.mock("@/lib/auth", () => ({ getUser: vi.fn().mockResolvedValue({ id: "user-1" }) }))
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "book-1" }) }))
 vi.mock("@/i18n/LocaleProvider", () => ({
-  useLocale: () => ({ t: (key: string, vars?: Record<string, unknown>) => `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}` }),
+  useLocale: () => ({
+    t: (key: string, vars?: Record<string, unknown>) => {
+      if (key === "books.quizScore" && vars) {
+        return `Remembered ${vars.remembered} of ${vars.total}`
+      }
+      return `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}`
+    },
+  }),
 }))
 vi.mock("@/components/book-session", () => ({ BookSession: () => <div data-testid="book-session" /> }))
 vi.mock("@/components/book-triage", () => ({ BookTriage: () => <div data-testid="book-triage" /> }))
@@ -183,12 +190,22 @@ describe("BookGlossaryPage", () => {
     await screen.findAllByTestId("glossary-row")
     fireEvent.click(screen.getByTestId("quiz-toggle"))
 
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
     expect(screen.queryByText("to tie")).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "showMeaning" })[0])
     expect(screen.getByTestId("glossary-meaning")).toHaveTextContent("to tie")
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
     fireEvent.click(screen.getByRole("button", { name: "remembered" }))
 
-    expect(screen.getByTestId("quiz-score")).toHaveTextContent('"remembered":1')
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 1 of 2")
+    fireEvent.click(screen.getByRole("button", { name: "notYet" }))
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
+    fireEvent.click(screen.getByRole("button", { name: "remembered" }))
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 1 of 2")
+    fireEvent.click(screen.getAllByRole("button", { name: "showMeaning" })[0])
+    fireEvent.click(screen.getAllByRole("button", { name: "remembered" })[1])
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 2 of 2")
+
     fireEvent.click(screen.getByTestId("quiz-toggle"))
     expect(screen.getByTestId("glossary-meaning")).toBeInTheDocument()
   })
