@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookText, BarChart2, Bookmark } from "lucide-react"
+import { BookText, BarChart2, Bookmark, Repeat } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,13 @@ export function MainNav() {
       icon: <Bookmark className="mr-2 h-5 w-5" />,
       active: pathname === "/vocabulary",
       variant: "blue" as const,
+    },
+    {
+      href: "/review",
+      label: t('common.review'),
+      icon: <Repeat className="mr-2 h-5 w-5" />,
+      active: pathname === "/review",
+      variant: "yellow" as const,
     },
     {
       href: "/stats",

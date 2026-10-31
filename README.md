@@ -18,6 +18,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Emotional tone detection
   - Meaning translation into your native language (Lara Translate, Gemini fallback)
   - Explanation of mistakes
+- **Word notebook and review**: look up any word, keep it with the sentence you met it in, and review it with FSRS: two buttons, your own sentences, 10 new words a day per language (see Vocabulary review below)
 - **Side-by-side result**: after submit and on each entry page, every sentence shows what you wrote, what it means, and how to write it (corrected or native rewrite), with help shown per your immersion level
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
@@ -55,6 +56,15 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **GET /user/policy?l2=**
   - The current learning policy for one language; entries stored without `policy_snapshot` render with it
 
+- **GET /review/session?language=&mode=normal|catchup**
+  - The next cards to review (20 by default) with the learner's own sentences, plus the counts the page needs
+
+- **GET /review/summary**
+  - Reviews waiting per studied language, for the dashboard's "N due"
+
+- **POST /review/{card_id}**
+  - Answer `{"rating": "again" | "got_it", "reps"?, "duration_ms"?}`; schedules the card and keeps the word's state in step. A repeated answer for the same serving returns 409
+
 ## Learning policy
 
 ### Languages
@@ -83,6 +93,19 @@ The settings "Explanation mode" control and the new-entry immersion slider stay.
 The app may suggest a different immersion level for one language. It never changes the level on its own. `GET /user/level-suggestions` reads `support_events` and scores from recent entries written at the current level, since it last changed (`user_language_profiles.level_changed_at`), with a real (`ok`) analysis. It does this only for the languages Settings lists under "Languages I'm learning" (active `user_language_profiles` rows and `default_target_lang`), never a removed language or one that only appears on an entry. A studied language that is also the native language stays at level 3. A default language with no profile row uses the level `resolve_policy` gives it today and counts only entries newer than its newest entry written at another level. An accept never cascades into a second suggestion, and returning to a level does not reuse its old history; the thresholds and windows are named constants in `backend/level_suggestion.py`. Accept (`POST /user/level-suggestions/{l2}/accept`) writes that language's profile through `save_user_settings`. Dismiss snoozes the suggestion for 7 days.
 
 Gemini infers what you meant. A translation is not fed into the correction.
+
+### Vocabulary review
+
+Review costs no model calls. `backend/review_scheduler.py` runs FSRS-6 (`py-fsrs` 6.3.2) and `backend/review_cards.py` builds each card from the learner's own sentences; `backend/app/services/review_service.py` loads and stores them.
+
+- **Cards.** Choosing Study on a word gives it a recognition card (`vocab_cards`). Once that card has held for about a week (stability of 7 days), a production card joins it. Every answer appends a row to `vocab_review_logs`; the review and its log row are written together by the `apply_card_review` function.
+- **Two buttons.** "Again" and "Got it" map to FSRS Again and Good. A word is never retired after one correct answer.
+- **The front is your sentence.** Recognition highlights the word in a sentence you met it in (the sentence rotates with each review). Production blanks the word in the *corrected* version of that sentence, found from the entry's sentence mapping, never in your mistaken original. If no sentence qualifies it falls back to the card's example, then to meaning-to-word.
+- **Format follows the policy `quiz` flag.** Level 0 recognition and meaning-to-word; level 1 adds typed recall; level 2 a cloze with the native gloss behind a tap; level 3 a target-language-only cloze with the definition.
+- **States.** Learning until the recognition card's stability reaches 21 days, then Known; a lapse can move it back. At risk is a flag, not a state: due and below 80% recall probability. Mastered is not set by review.
+- **Per-language settings** on `user_language_profiles`: `daily_new_words` (default 10; how many never-reviewed words a session may introduce a day, on top of the Study cap) and `desired_retention` (default 0.90, adjustable 0.80-0.95). Days are UTC days.
+- **Sessions** are 20 cards: due reviews first, the most likely forgotten first, then new words up to the daily limit. When 40 or more reviews are waiting the app offers **catch-up**: reviews only, 30 a day, most at risk first, no new words, so a backlog drains over days instead of arriving at once.
+- `user_fsrs_params` holds per-learner parameters for a later optimisation; with no row the library defaults apply.
 
 ### Data Models
 

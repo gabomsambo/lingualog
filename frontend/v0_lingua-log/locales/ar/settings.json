@@ -39,5 +39,9 @@
   "explanationNativeOnly": "اللغة الأم فقط",
   "explanationTargetOnly": "اللغة الهدف فقط",
   "explanationBilingual": "ثنائي اللغة",
-  "explanationSmart": "ذكي"
+  "explanationSmart": "ذكي",
+  "newWordsPerDay": "كلمات جديدة يوميًا",
+  "newWordsPerDayDesc": "عدد الكلمات الجديدة التي تدخل المراجعة كل يوم في هذه اللغة. الكلمات الزائدة عن الحد تنتظر حتى الغد.",
+  "desiredRetention": "هدف التذكّر",
+  "desiredRetentionDesc": "كم مرة تريد أن تتذكر الكلمة عند مراجعتها. كلما ارتفع الرقم زادت المراجعات."
 }

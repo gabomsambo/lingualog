@@ -18,6 +18,15 @@ def client():
     return TestClient(server.app)
 
 
+@pytest.fixture(autouse=True)
+def card_sync(monkeypatch):
+    """Review cards live in their own tests; here only the calls into them are checked."""
+    sync = MagicMock()
+    monkeypatch.setattr(server.review_service, "sync_word_cards", sync)
+    monkeypatch.setattr(server.review_service, "attach_review_state", lambda _user_id, items: items)
+    return sync
+
+
 def row(**changes):
     base = {
         "id": "word-1",

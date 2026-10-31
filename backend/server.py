@@ -38,6 +38,7 @@ from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSetting
 
 # Import new language policy and prompt builder modules
 from learning_policy import LearningPolicy, is_same_language, resolve_policy
+from review_scheduler import MAX_RETENTION, MIN_RETENTION
 from prompt_builder import build_messages, build_user_message, extract_snapshot_data
 from database import (
     save_entry,
@@ -75,7 +76,8 @@ from ai.gemini import (
 )
 from ai.word_card import card_policy_snapshot, generate_word_card
 
-from app.routers import entry_translation, level_suggestions, support_events
+from app.routers import entry_translation, level_suggestions, review, support_events
+from app.services import review_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
@@ -107,6 +109,8 @@ def _language_profiles_for_user(user_id: str) -> list:
                     immersion_level=row.get("immersion_level", 1),
                     proficiency=row.get("proficiency") or "A2",
                     active=row.get("active") is not False,
+                    daily_new_words=row.get("daily_new_words"),
+                    desired_retention=row.get("desired_retention"),
                 )
             )
         except Exception as exc:
@@ -133,12 +137,29 @@ def _validated_language_profile(profile: dict) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"proficiency must be one of {', '.join(PROFICIENCY_LEVELS)}",
         )
-    return {
+    validated = {
         "l2": l2,
         "immersion_level": int(immersion),
         "proficiency": proficiency,
         "active": profile.get("active") is not False,
     }
+    # Review settings are written only when the request carries them.
+    daily_new_words = profile.get("daily_new_words")
+    if daily_new_words is not None:
+        if not 1 <= int(daily_new_words) <= 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="daily_new_words must be 1-100"
+            )
+        validated["daily_new_words"] = int(daily_new_words)
+    desired_retention = profile.get("desired_retention")
+    if desired_retention is not None:
+        if not MIN_RETENTION <= float(desired_retention) <= MAX_RETENTION:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"desired_retention must be {MIN_RETENTION}-{MAX_RETENTION}",
+            )
+        validated["desired_retention"] = float(desired_retention)
+    return validated
 
 
 def _studied_languages(user_id: str, profile_rows: Optional[list] = None) -> dict:
@@ -444,6 +465,7 @@ app.add_middleware(
 app.include_router(entry_translation.router)
 app.include_router(support_events.router)
 app.include_router(level_suggestions.router)
+app.include_router(review.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)
@@ -997,6 +1019,8 @@ async def add_vocabulary_item_route(item: UserVocabularyItemCreate, request: Req
             link_word_encounters(
                 user_id, item.language, saved_item.get("lemma") or item.term, saved_item["id"]
             )
+        if saved_item.get("status") == "learning":
+            review_service.sync_word_cards(user_id, saved_item)
         return saved_item
     except HTTPException:
         raise
@@ -1068,13 +1092,19 @@ async def get_user_vocabulary_route(request: Request, language: Optional[str] = 
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not provided"
         )
     try:
-        return fetch_user_vocabulary(user_id=user_id, language=language)
+        items = fetch_user_vocabulary(user_id=user_id, language=language)
     except Exception as e:
         logger.error(f"Error fetching vocabulary for user {user_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not fetch vocabulary: {str(e)}",
         ) from e
+    try:
+        return review_service.attach_review_state(user_id, items)
+    except Exception as e:
+        # The notebook is still useful without review progress.
+        logger.error(f"Could not attach review state for user {user_id}: {str(e)}")
+        return items
 
 
 @app.patch("/vocabulary/{item_id}", response_model=UserVocabularyItemResponse)
@@ -1115,6 +1145,11 @@ async def patch_vocabulary_item_route(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Vocabulary item with id {item_id} not found or not owned by user.",
         )
+    if "status" in changes:
+        try:
+            review_service.sync_word_cards(user_id, updated)
+        except Exception as e:
+            logger.error(f"Card sync failed for vocabulary item {item_id}: {str(e)}")
     return updated
 
 @app.delete("/vocabulary/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

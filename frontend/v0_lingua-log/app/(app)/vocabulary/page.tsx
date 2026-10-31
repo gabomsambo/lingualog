@@ -20,6 +20,7 @@ import {
   getVocabularyItems,
   type UserVocabularyItemResponse,
 } from "@/lib/api"
+import { statusClass } from "@/lib/review"
 
 function languageBadge(code: string) {
   const language = resolveLanguage(code)
@@ -145,8 +146,23 @@ export default function VocabularyPage() {
                   <Badge variant="outline">{languageBadge(item.language)}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="purple">{t(`vocabulary.status_${item.status || "new"}`)}</Badge>
+                  <Badge className={statusClass(item.status)}>{t(`vocabulary.status_${item.status || "new"}`)}</Badge>
+                  {item.review?.at_risk && (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-medium text-red-600"
+                      title={t("vocabulary.reviewAtRiskTitle")}
+                      data-testid="at-risk-flag"
+                    >
+                      <span className="inline-block h-2 w-2 rounded-full bg-red-500" aria-hidden />
+                      {t("vocabulary.reviewAtRisk")}
+                    </span>
+                  )}
                   {item.card?.part_of_speech && <span className="text-xs text-muted-foreground">{item.card.part_of_speech}</span>}
+                  {item.review && item.status === "learning" && (
+                    <span className="text-xs text-muted-foreground">
+                      {t("vocabulary.reviewDueOn", { date: new Date(item.review.due).toLocaleDateString() })}
+                    </span>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex-1 space-y-3 text-sm">

@@ -77,5 +77,9 @@
   "removeLanguageHint": "Quitar un idioma conserva sus entradas. Vuelve a añadirlo cuando quieras para seguir donde lo dejaste.",
   "defaultBadge": "Predeterminado",
   "fullImmersion": "Inmersión total",
-  "fullImmersionDesc": "Aprendes {language} con explicaciones en {language}, así que no hay nada que traducir: todo queda en {language}."
+  "fullImmersionDesc": "Aprendes {language} con explicaciones en {language}, así que no hay nada que traducir: todo queda en {language}.",
+  "newWordsPerDay": "Palabras nuevas al día",
+  "newWordsPerDayDesc": "Cuántas palabras nuevas entran al repaso cada día en este idioma. Las que pasen del límite esperan hasta mañana.",
+  "desiredRetention": "Objetivo de memoria",
+  "desiredRetentionDesc": "Con qué frecuencia quieres acordarte de una palabra cuando toca repasarla. Más alto significa más repasos."
 }

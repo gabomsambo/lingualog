@@ -23,6 +23,7 @@ import {
   updateVocabularyItem,
   type UserVocabularyItemResponse,
 } from "@/lib/api"
+import { statusClass } from "@/lib/review"
 
 interface WordCardProps {
   item: UserVocabularyItemResponse | null
@@ -149,7 +150,7 @@ export function WordCard({ item, open, onOpenChange, onUpdated }: WordCardProps)
             <SheetHeader className="pr-8">
               <div className="flex flex-wrap items-center gap-2">
                 <SheetTitle className="font-serif text-3xl">{current.lemma || current.term}</SheetTitle>
-                <Badge variant="purple">{t(`vocabulary.status_${current.status || "new"}`)}</Badge>
+                <Badge className={statusClass(current.status)}>{t(`vocabulary.status_${current.status || "new"}`)}</Badge>
               </div>
               <SheetDescription>
                 {[card?.part_of_speech || current.part_of_speech, card?.gender].filter(Boolean).join(" · ")}
