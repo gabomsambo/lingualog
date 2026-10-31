@@ -84,7 +84,13 @@ const resources = {
       streakChampion: 'Streak Champion',
       streakChampionDescription: 'Maintained a 7-day streak',
       languageExplorer: 'Language Explorer',
-      languageExplorerDescription: 'Started learning a new language'
+      languageExplorerDescription: 'Started learning a new language',
+
+      // Keys the stats page and the user menu render (kept in locales/*/common.json too)
+      yourLearningStats: 'Your Learning Stats',
+      writingStreak: 'Writing Streak',
+      words: 'words',
+      signOut: 'Sign Out'
     },
     auth: {
       signIn: 'Sign In',
@@ -890,7 +896,13 @@ const resources = {
       streakChampion: 'Campeón de la racha',
       streakChampionDescription: 'Has mantenido una racha de 7 días',
       languageExplorer: 'Explorador de idiomas',
-      languageExplorerDescription: 'Empezaste a aprender un nuevo idioma'
+      languageExplorerDescription: 'Empezaste a aprender un nuevo idioma',
+
+      // Claves que muestran la página de estadísticas y el menú de usuario (también en locales/*/common.json)
+      yourLearningStats: 'Tus Estadísticas de Aprendizaje',
+      writingStreak: 'Racha de Escritura',
+      words: 'palabras',
+      signOut: 'Cerrar Sesión'
     },
     auth: {
       signIn: 'Iniciar Sesión',

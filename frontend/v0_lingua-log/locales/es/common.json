@@ -110,5 +110,8 @@
   "ran": "corrió",
   "appMetaTitle": "LinguaLog - Diario de Aprendizaje de Idiomas",
   "appMetaDescription": "Rastrea tu viaje de aprendizaje de idiomas con diarios diarios y seguimiento de vocabulario",
-  "review": "Repaso"
+  "review": "Repaso",
+  "yourLearningStats": "Tus Estadísticas de Aprendizaje",
+  "writingStreak": "Racha de Escritura",
+  "words": "palabras"
 }
