@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   updateBook: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
+vi.mock("@/lib/auth", () => ({ getUser: vi.fn().mockResolvedValue({ id: "user-1" }) }))
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "book-1" }) }))
 vi.mock("@/i18n/LocaleProvider", () => ({
   useLocale: () => ({ t: (key: string, vars?: Record<string, unknown>) => `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}` }),
@@ -99,6 +100,13 @@ describe("BookPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "startReading" }))
 
     await waitFor(() => expect(api.startReadingSession).toHaveBeenCalledWith("book-1", 37))
+  })
+
+  it("shows the first-visit guide above the start card when no session is open", async () => {
+    render(<BookPage />)
+
+    const guide = await screen.findByTestId("book-guide")
+    expect(guide.compareDocumentPosition(await screen.findByTestId("start-reading")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("resumes an open session straight into the capture bar", async () => {
