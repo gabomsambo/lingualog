@@ -152,27 +152,32 @@ def sentence_candidates(
     order: list[str] = []
     found: dict[str, dict[str, Any]] = {}
 
-    def add(sentence: Optional[str], surface: Optional[str], entry_id: Any, kind: str) -> None:
+    def is_bare(text: str, surface: Optional[str]) -> bool:
+        # A word met in a sentence that is just the word itself gives no context.
+        forms = (surface, word.get("lemma"), word.get("term"), card.get("surface"))
+        return text.casefold() in {str(f).strip().casefold() for f in forms if f and str(f).strip()}
+
+    def add(sentence: Optional[str], surface: Optional[str], entry_id: Any, kind: str) -> bool:
         text = (sentence or "").strip()
-        if not text:
-            return
+        if not text or is_bare(text, surface):
+            return False
         if text not in found:
             order.append(text)
             found[text] = {"surfaces": [], "entry_id": str(entry_id) if entry_id else None, "kind": kind}
         if surface and surface.strip() and surface.strip() not in found[text]["surfaces"]:
             found[text]["surfaces"].append(surface.strip())
+        return True
 
     add(word.get("example_sentence"), card.get("surface"), word.get("entry_id"), "lookup")
     for encounter in sorted(encounters, key=lambda row: str(row.get("created_at"))):
         # A use with a mistake in it is feedback, not a sentence to learn from.
         if encounter.get("kind") == "used_error":
             continue
-        # A word met in a sentence that is just the word itself gives no context.
-        if encounter.get("sentence") and encounter["sentence"].strip() != encounter.get("surface", "").strip():
-            entry_id = encounter.get("source_id") if encounter.get("source_type") == "entry" else None
-            add(encounter["sentence"], encounter.get("surface"), entry_id, encounter.get("kind") or "lookup")
-            if entry_id and not found[encounter["sentence"].strip()]["entry_id"]:
-                found[encounter["sentence"].strip()]["entry_id"] = str(entry_id)
+        sentence = encounter.get("sentence")
+        entry_id = encounter.get("source_id") if encounter.get("source_type") == "entry" else None
+        if add(sentence, encounter.get("surface"), entry_id, encounter.get("kind") or "lookup"):
+            if entry_id and not found[sentence.strip()]["entry_id"]:
+                found[sentence.strip()]["entry_id"] = str(entry_id)
     return [Candidate(text, tuple(found[text]["surfaces"]), found[text]["entry_id"], found[text]["kind"])
             for text in order]
 
@@ -259,8 +264,10 @@ def build_review_card(
             {"before": cut.before, "target": cut.answer, "after": cut.after}
             if cut else {"before": chosen.sentence, "target": "", "after": ""}
         )
-    if asked == "recognition" and not candidates:
-        front = {"before": "", "target": lemma, "after": ""}
+    elif asked == "recognition":
+        # Nothing to recognise the word in (a top-search save with no sentence): ask for
+        # the word from its meaning instead of showing the bare word as its own sentence.
+        asked = "meaning_to_word"
 
     meaning = card.get("sense_in_context") or word.get("sense") or ""
     native = card.get("gloss_l1") or ""

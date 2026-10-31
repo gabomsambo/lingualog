@@ -37,11 +37,17 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
   const [result, setResult] = useState<LookupResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [sentenceField, setSentenceField] = useState("")
+
+  // A top search looks up the bare word as its own "sentence": ask for the real one.
+  const keptSentence =
+    context?.sentence && context.sentence.trim() !== context.text.trim() ? context.sentence : undefined
 
   useEffect(() => {
     if (!open || !context) return
     setLoading(true)
     setResult(null)
+    setSentenceField("")
     void lookupWord({
       text: context.text,
       sentence: context.sentence,
@@ -62,11 +68,12 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
       const saved = result.saved_item || await addVocabularyItem({
         term: result.text,
         language: result.language,
-        example_sentence: context?.sentence,
+        example_sentence: sentenceField.trim() || keptSentence,
         entry_id: context?.source === "entry" ? context.sourceId : undefined,
         encounter_id: result.encounter_id,
       })
       setResult({ ...result, saved_item: saved })
+      toast({ title: "Saved to your notebook (Vocabulary)" })
     } catch {
       toast({ title: "Could not save this word", variant: "destructive" })
     } finally {
@@ -79,6 +86,11 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
     try {
       const saved = await updateVocabularyItem(result.saved_item.id, { status })
       setResult({ ...result, saved_item: saved })
+      toast({
+        title: status === "learning"
+          ? "Added to your notebook - it will come up in Review"
+          : "Saved to your notebook (Vocabulary)",
+      })
     } catch {
       toast({
         title: status === "learning" ? "Today's new-word limit is full" : "Could not update this word",
@@ -99,7 +111,7 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
           <div className="mt-6 space-y-5">
             <div>
               <h2 className="font-serif text-3xl">{result.lemma}</h2>
-              {context?.sentence && <p className="mt-2 text-sm text-muted-foreground">{context.sentence}</p>}
+              {keptSentence && <p className="mt-2 text-sm text-muted-foreground">{keptSentence}</p>}
             </div>
             {result.card_status === "ok" && result.card ? (
               <>
@@ -114,9 +126,25 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
               <p className="rounded-xl bg-fun-yellow/15 p-3 text-sm font-medium">Seen {result.seen_count}× — worth saving?</p>
             )}
             {!result.saved_item ? (
-              <Button onClick={save} disabled={saving || result.card_status !== "ok"}>
-                <BookmarkPlus className="mr-2 h-4 w-4" /> {saving ? "Saving…" : "Save to notebook"}
-              </Button>
+              <>
+                {!keptSentence && (
+                  <div className="space-y-2">
+                    <label htmlFor="lookup-sentence" className="text-sm font-medium">
+                      The sentence you saw it in
+                    </label>
+                    <Input
+                      id="lookup-sentence"
+                      value={sentenceField}
+                      onChange={(event) => setSentenceField(event.target.value)}
+                      placeholder="e.g. Me senté en un banco."
+                      data-testid="lookup-sentence-field"
+                    />
+                  </div>
+                )}
+                <Button onClick={save} disabled={saving || result.card_status !== "ok"}>
+                  <BookmarkPlus className="mr-2 h-4 w-4" /> {saving ? "Saving…" : "Save to notebook"}
+                </Button>
+              </>
             ) : (
               <div className="flex flex-wrap gap-2" aria-label="Choose what to do with this word">
                 <Button onClick={() => void triage("learning")}>Study</Button>

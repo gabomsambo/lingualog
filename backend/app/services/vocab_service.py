@@ -19,7 +19,7 @@ from database import (
     save_language_placement,
 )
 from placement import estimate_size, has_samples, matching_words, sample_words
-from review_scheduler import PRODUCTION, aware
+from review_scheduler import DEFAULT_DAILY_NEW_WORDS, aware, waiting_cards
 
 CARDS_TABLE = "vocab_cards"
 LOGS_TABLE = "vocab_review_logs"
@@ -35,7 +35,7 @@ SOURCES = ("entry", "book", "lookup")
 STATUSES = ("new", "learning", "known", "mastered", "ignored")
 
 ENCOUNTER_FIELDS = "id, word_id, kind, surface, sentence, source_type, source_id, page, book_id, created_at"
-CARD_FIELDS = "id, word_id, language, card_type, state, step, stability, difficulty, due, last_review, reps, lapses, suspended_at"
+CARD_FIELDS = "id, word_id, language, card_type, state, step, stability, difficulty, due, last_review, reps, lapses, suspended_at, created_at, first_reviewed_at"
 LOG_FIELDS = "card_id, rating, reviewed_at, duration_ms, source"
 WORD_FIELDS = "*"
 
@@ -198,14 +198,15 @@ def source_of(word: Mapping[str, Any], books: Optional[Mapping[Any, str]] = None
     return "lookup"
 
 
-def _is_due(card: Mapping[str, Any], now: datetime) -> bool:
-    """A card waiting to be reviewed today: answered before (or a production card) and due."""
-    if card.get("suspended_at"):
-        return False
-    if not (card.get("reps") or card.get("card_type") == PRODUCTION):
-        return False
-    due = aware(card.get("due"))
-    return due is not None and due <= now
+def _due_word_ids(
+    cards: Sequence[Mapping[str, Any]], now: datetime, profiles: Sequence[Mapping[str, Any]] = ()
+) -> set:
+    """Words with a card the review queue deals today, honouring each language's daily new-word limit."""
+    limits = {
+        row.get("l2"): int(row.get("daily_new_words") or DEFAULT_DAILY_NEW_WORDS)
+        for row in profiles if row.get("l2")
+    }
+    return {card.get("word_id") for card in waiting_cards(cards, now, limits)}
 
 
 def _used_word_ids(encounters: Sequence[Mapping[str, Any]]) -> set:
@@ -221,6 +222,7 @@ def filter_items(
     cards: Sequence[Mapping[str, Any]],
     selector: Mapping[str, str],
     now: Optional[datetime] = None,
+    profiles: Sequence[Mapping[str, Any]] = (),
 ) -> List[dict]:
     """Apply the list and filter selectors to notebook rows."""
     now = now or _now()
@@ -240,12 +242,12 @@ def filter_items(
     if selector.get("source"):
         selected = [word for word in selected if source_of(word, books) == selector["source"]]
     if selector.get("list") == "due":
-        due_ids = {card.get("word_id") for card in cards if _is_due(card, now)}
+        due_ids = _due_word_ids(cards, now, profiles)
         selected = [word for word in selected if word.get("id") in due_ids]
     elif selector.get("list") == "never_used":
         used = _used_word_ids(encounters)
         selected = [word for word in selected if word.get("id") not in used]
-    return [dict(word) for word in selected]
+    return scrub_example_sentences(selected)
 
 
 def fetch_items(
@@ -253,8 +255,11 @@ def fetch_items(
 ) -> List[dict]:
     words = load_words(user_id, language)
     if not selector:
-        return words
-    return filter_items(words, load_encounters(user_id, language), load_cards(user_id, language), selector)
+        return scrub_example_sentences(words)
+    return filter_items(
+        words, load_encounters(user_id, language), load_cards(user_id, language), selector,
+        profiles=load_profiles(user_id) if selector.get("list") == "due" else (),
+    )
 
 
 # --- Lists -------------------------------------------------------------------
@@ -269,7 +274,7 @@ def get_lists(
     cards = load_cards(user_id, language)
     now = now or _now()
 
-    due = {card.get("word_id") for card in cards if _is_due(card, now)}
+    due = _due_word_ids(cards, now, load_profiles(user_id))
     used = _used_word_ids(encounters)
     books_by_word = book_of_word(encounters)
 
@@ -329,13 +334,33 @@ def get_lists(
 # --- Export rows -------------------------------------------------------------
 
 
+def _bare_sentence(text: Optional[str], word: Mapping[str, Any]) -> bool:
+    """A sentence that is just the word itself: the top-search save left no context."""
+    value = (text or "").strip()
+    if not value:
+        return True
+    card = word.get("card") or {}
+    forms = (word.get("term"), word.get("lemma"), card.get("surface"))
+    return value.casefold() in {str(form).strip().casefold() for form in forms if form and str(form).strip()}
+
+
+def scrub_example_sentences(items: Sequence[Mapping[str, Any]]) -> List[dict]:
+    """Rows whose saved sentence is just the word itself keep no quote to show."""
+    rows = []
+    for word in items:
+        row = dict(word)
+        if _bare_sentence(row.get("example_sentence"), word):
+            row["example_sentence"] = ""
+        rows.append(row)
+    return rows
+
+
 def _first_sentence(word: Mapping[str, Any], encounters: Sequence[Mapping[str, Any]]) -> str:
-    sentence = (word.get("example_sentence") or "").strip()
-    if sentence:
-        return sentence
+    if not _bare_sentence(word.get("example_sentence"), word):
+        return (word.get("example_sentence") or "").strip()
     for encounter in sorted(encounters, key=lambda row: str(row.get("created_at") or "")):
         text = (encounter.get("sentence") or "").strip()
-        if text and text != (encounter.get("surface") or "").strip():
+        if text and text != (encounter.get("surface") or "").strip() and not _bare_sentence(text, word):
             return text
     return ""
 

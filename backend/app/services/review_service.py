@@ -371,6 +371,7 @@ def _plan(
 def _counts(plan: SessionPlan) -> dict[str, Any]:
     return {
         "due": plan.due,
+        "new": plan.new,
         "new_available": plan.new_available,
         "new_remaining": plan.new_remaining,
         "total": plan.total,
@@ -453,6 +454,7 @@ def get_summary(user_id: str, now: Optional[datetime] = None) -> dict[str, Any]:
     return {
         "languages": rows,
         "total": sum(row["total"] for row in rows),
+        "new": sum(row["new"] for row in rows),
         "at_risk": sum(row["at_risk"] for row in rows),
     }
 

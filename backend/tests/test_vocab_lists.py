@@ -41,6 +41,7 @@ def install(monkeypatch, words=(), encounters=(), cards=(), entries=None, books_
     monkeypatch.setattr(vocab_service, "load_words", lambda user_id, language=None: list(words))
     monkeypatch.setattr(vocab_service, "load_encounters", lambda user_id, language=None: list(encounters))
     monkeypatch.setattr(vocab_service, "load_cards", lambda user_id, language=None: list(cards))
+    monkeypatch.setattr(vocab_service, "load_profiles", lambda user_id: [])
     monkeypatch.setattr(
         vocab_service, "load_entry_summaries", lambda user_id, entry_ids: dict(entries or {})
     )
@@ -114,7 +115,7 @@ def test_never_used_ignores_writing_evidence():
     assert [row["id"] for row in selected] == ["w2", "w3"]
 
 
-def test_due_list_needs_a_waiting_card_that_is_due():
+def test_due_list_counts_answered_and_new_cards_that_are_due():
     items = [word("w1"), word("w2"), word("w3"), word("w4")]
     cards = [
         card("c1", "w1", reps=1, due=iso(days=-1)),
@@ -123,7 +124,22 @@ def test_due_list_needs_a_waiting_card_that_is_due():
         card("c4", "w4", reps=1, due=iso(days=-1), suspended_at=iso()),
     ]
     selected = vocab_service.filter_items(items, [], cards, {"list": "due"}, now=NOW)
-    assert [row["id"] for row in selected] == ["w1"]
+    assert [row["id"] for row in selected] == ["w1", "w3"]
+
+
+def test_a_saved_sentence_that_is_just_the_word_shows_no_quote():
+    bare = word("w1", lemma="madrugar", term="madrugar", example_sentence="madrugar")
+    assert vocab_service.scrub_example_sentences([bare])[0]["example_sentence"] == ""
+    kept = word("w2", lemma="mesa", term="mesa", example_sentence="La mesa está lista.")
+    assert vocab_service.scrub_example_sentences([kept])[0]["example_sentence"] == "La mesa está lista."
+
+
+def test_the_first_sentence_skips_a_word_quoted_to_itself():
+    bare = word("w1", lemma="madrugar", term="madrugar", example_sentence="madrugar")
+    encounters = [{"sentence": "Tuve que madrugar mucho.", "surface": "madrugar",
+                   "kind": "lookup", "created_at": iso(days=-1)}]
+    assert vocab_service._first_sentence(bare, encounters) == "Tuve que madrugar mucho."
+    assert vocab_service._first_sentence(bare, []) == ""
 
 
 def test_filters_combine_tags_source_status_and_entry():

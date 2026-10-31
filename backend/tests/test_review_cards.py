@@ -147,8 +147,22 @@ def test_a_lookup_of_the_bare_word_is_not_a_sentence():
     word = {**WORD, "example_sentence": None}
     assert rc.sentence_candidates(word, [bare]) == []
     card = build(word=word, encounters=[bare])
-    assert card["front"] == {"before": "", "target": "aprovechar", "after": ""}
-    assert card["sentence_source"] == "word"
+    assert card["format"] == "meaning_to_word"
+    assert card["answer"] == "aprovechar"
+
+
+def test_an_example_sentence_that_is_just_the_word_is_not_a_sentence():
+    word = {**WORD, "example_sentence": "aprovechar", "entry_id": None}
+    assert rc.sentence_candidates(word, []) == []
+
+
+def test_recognition_without_a_sentence_falls_back_to_a_meaning_prompt():
+    word = {**WORD, "example_sentence": None, "card": {**WORD["card"], "examples": []}}
+    card = build(word=word, encounters=[], entries={})
+    assert card["format"] == "meaning_to_word"
+    assert card["answer"] == "aprovechar"
+    assert card["front"] == {"before": "", "target": "", "after": ""}
+    assert card["meaning"] == "to make good use of"
 
 
 @pytest.mark.parametrize("quiz,card_type,expected", [

@@ -133,7 +133,7 @@ def test_review_summary_counts_due_forecast_and_at_risk():
         {"id": "c2", "word_id": "w2", "language": "es", "card_type": "recognition", "state": 2,
          "reps": 3, "stability": 30.0, "difficulty": 5.0, "due": iso(days=2),
          "last_review": iso(days=-3), "suspended_at": None},
-        # Never reviewed: a new word, not a due review.
+        # Never reviewed: a new word, due from creation and dealt as new.
         {"id": "c3", "word_id": "w3", "language": "es", "card_type": "recognition", "state": 1,
          "reps": 0, "stability": None, "difficulty": None, "due": iso(),
          "last_review": None, "suspended_at": None},
@@ -145,7 +145,8 @@ def test_review_summary_counts_due_forecast_and_at_risk():
     logs = [{"rating": 3, "reviewed_at": iso(days=-1), "duration_ms": 60000}]
     schedulers = {"es": rs.make_scheduler(0.9, None, fuzz=False)}
     summary = stats_service.review_summary(cards, logs, NOW, schedulers)
-    assert summary["due_today"] == 1
+    assert summary["due_today"] == 2
+    assert summary["new_today"] == 1
     assert summary["at_risk"] == 1
     assert summary["reviews_last_7_days"] == 1
     assert summary["minutes_last_7_days"] == 1.0

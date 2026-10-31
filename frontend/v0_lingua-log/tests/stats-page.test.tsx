@@ -47,6 +47,7 @@ function progress(overrides: Record<string, unknown> = {}) {
     },
     review: {
       due_today: 5,
+      new_today: 2,
       forecast: Array.from({ length: 7 }, (_, day) => ({ date: `2026-11-1${day}`, count: day })),
       at_risk: 1,
       true_retention: 0.8,
@@ -81,6 +82,7 @@ describe("StatsPage", () => {
   it("shows review health with true retention and the at-risk flag", async () => {
     render(<StatsPage />)
     expect(await screen.findByText("dueToday")).toBeInTheDocument()
+    expect(screen.getByText("newToday")).toBeInTheDocument()
     expect(screen.getByText("trueRetention")).toBeInTheDocument()
     expect(screen.getByText("80%")).toBeInTheDocument()
     expect(screen.getByText(/reviewAtRiskCount/)).toHaveTextContent('"count":1')

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, BookMarked, BookOpen, Edit, ListChecks } from "lucide-react"
 
+import { BookGuide } from "@/components/book-guide"
 import { BookSession } from "@/components/book-session"
 import { BookTriage } from "@/components/book-triage"
 import { LoadingSpinner } from "@/components/loading-spinner"
@@ -93,6 +94,7 @@ export default function BookPage() {
             {book.author && <>{book.author} · </>}
             {language?.flag} {language?.name ?? book.language}
           </p>
+          <p className="mt-1 text-muted-foreground">{t("books.intro")}</p>
         </div>
         <Select
           value={book.status}
@@ -131,35 +133,41 @@ export default function BookPage() {
           }}
         />
       ) : (
-        <Card className="rounded-3xl" data-testid="start-reading">
-          <CardContent className="space-y-4 p-6">
-            <h2 className="flex items-center gap-2 text-2xl font-bold"><BookOpen className="h-6 w-6" />{t("books.startTitle")}</h2>
-            <p className="text-muted-foreground">{t("books.startBody")}</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Input
-                value={startPage}
-                onChange={(event) => setStartPage(event.target.value.replace(/\D/g, ""))}
-                inputMode="numeric"
-                placeholder={t("books.startPagePlaceholder")}
-                aria-label={t("books.startPageLabel")}
-                className="w-40"
-              />
-              <Button onClick={() => void start()}>{t("books.startReading")}</Button>
-              {lastEnded && (
-                <Button variant="outline" onClick={() => setFinished(lastEnded)} data-testid="finish-last">
-                  <ListChecks className="mr-2 h-4 w-4" />{t("books.finishLast")}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <>
+          <BookGuide />
+          <Card className="rounded-3xl" data-testid="start-reading">
+            <CardContent className="space-y-4 p-6">
+              <h2 className="flex items-center gap-2 text-2xl font-bold"><BookOpen className="h-6 w-6" />{t("books.startTitle")}</h2>
+              <p className="text-muted-foreground">{t("books.startBody")}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Input
+                  value={startPage}
+                  onChange={(event) => setStartPage(event.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  placeholder={t("books.startPagePlaceholder")}
+                  aria-label={t("books.startPageLabel")}
+                  className="w-40"
+                />
+                <Button onClick={() => void start()}>{t("books.startReading")}</Button>
+                {lastEnded && (
+                  <Button variant="outline" onClick={() => setFinished(lastEnded)} data-testid="finish-last">
+                    <ListChecks className="mr-2 h-4 w-4" />{t("books.finishLast")}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {!finished && (
         <>
-          <section className="mt-8 flex flex-wrap gap-3">
-            <Button asChild variant="outline"><Link href={`/books/${book.id}/glossary`}><BookMarked className="mr-2 h-4 w-4" />{t("books.openGlossary")}</Link></Button>
-            <Button asChild variant="outline"><Link href={`/entries/new?book=${book.id}`}><Edit className="mr-2 h-4 w-4" />{t("books.writeAbout")}</Link></Button>
+          <section className="mt-8">
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline"><Link href={`/books/${book.id}/glossary`}><BookMarked className="mr-2 h-4 w-4" />{t("books.openGlossary")}</Link></Button>
+              <Button asChild variant="outline"><Link href={`/entries/new?book=${book.id}`}><Edit className="mr-2 h-4 w-4" />{t("books.writeAbout")}</Link></Button>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground" data-testid="words-path">{t("books.wordsPath")}</p>
           </section>
 
           {progress && (

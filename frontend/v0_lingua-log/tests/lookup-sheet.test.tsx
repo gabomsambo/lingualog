@@ -7,7 +7,8 @@ const api = vi.hoisted(() => ({
   updateVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
-vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }))
 
 import { LookupSheet } from "@/components/lookup-sheet"
 
@@ -45,9 +46,40 @@ describe("LookupSheet triage", () => {
     await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
       encounter_id: "enc-1", example_sentence: "Me senté en un banco.",
     })))
+    expect(toastSpy).toHaveBeenCalledWith({ title: "Saved to your notebook (Vocabulary)" })
     expect(await screen.findByRole("button", { name: "I know it" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Ignore" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Study" }))
     await waitFor(() => expect(api.updateVocabularyItem).toHaveBeenCalledWith("word-1", { status: "learning" }))
+    expect(toastSpy).toHaveBeenCalledWith({ title: "Added to your notebook - it will come up in Review" })
+    expect(screen.queryByTestId("lookup-sentence-field")).not.toBeInTheDocument()
+  })
+
+  it("asks for the sentence you saw it in when the lookup has none", async () => {
+    render(<LookupSheet
+      context={{ text: "madrugar", sentence: "madrugar", language: "es", source: "manual" }}
+      open onOpenChange={vi.fn()}
+    />)
+    expect(await screen.findByTestId("lookup-sentence-field")).toBeInTheDocument()
+    expect(screen.queryByText("madrugar", { selector: "p" })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByTestId("lookup-sentence-field"), { target: { value: "Tuve que madrugar." } })
+    fireEvent.click(screen.getByRole("button", { name: "Save to notebook" }))
+
+    await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
+      example_sentence: "Tuve que madrugar.",
+    })))
+  })
+
+  it("saves no example sentence when none was typed, never the bare word", async () => {
+    render(<LookupSheet
+      context={{ text: "madrugar", sentence: "madrugar", language: "es", source: "manual" }}
+      open onOpenChange={vi.fn()}
+    />)
+    fireEvent.click(await screen.findByRole("button", { name: "Save to notebook" }))
+
+    await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
+      example_sentence: undefined,
+    })))
   })
 })

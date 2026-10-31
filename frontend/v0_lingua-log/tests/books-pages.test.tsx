@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BookDetail, BookGlossary, BookProgress, BookSummary } from "@/lib/api"
@@ -12,11 +12,20 @@ const api = vi.hoisted(() => ({
   getBookGlossary: vi.fn(),
   startReadingSession: vi.fn(),
   updateBook: vi.fn(),
+  addVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
+vi.mock("@/lib/auth", () => ({ getUser: vi.fn().mockResolvedValue({ id: "user-1" }) }))
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "book-1" }) }))
 vi.mock("@/i18n/LocaleProvider", () => ({
-  useLocale: () => ({ t: (key: string, vars?: Record<string, unknown>) => `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}` }),
+  useLocale: () => ({
+    t: (key: string, vars?: Record<string, unknown>) => {
+      if (key === "books.quizScore" && vars) {
+        return `Remembered ${vars.remembered} of ${vars.total}`
+      }
+      return `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}`
+    },
+  }),
 }))
 vi.mock("@/components/book-session", () => ({ BookSession: () => <div data-testid="book-session" /> }))
 vi.mock("@/components/book-triage", () => ({ BookTriage: () => <div data-testid="book-triage" /> }))
@@ -101,6 +110,13 @@ describe("BookPage", () => {
     await waitFor(() => expect(api.startReadingSession).toHaveBeenCalledWith("book-1", 37))
   })
 
+  it("shows the first-visit guide above the start card when no session is open", async () => {
+    render(<BookPage />)
+
+    const guide = await screen.findByTestId("book-guide")
+    expect(guide.compareDocumentPosition(await screen.findByTestId("start-reading")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it("resumes an open session straight into the capture bar", async () => {
     api.getBook.mockResolvedValue({ book, session: { id: "s1", marks: [] } })
     render(<BookPage />)
@@ -114,6 +130,7 @@ describe("BookPage", () => {
 
     expect(await screen.findByRole("link", { name: /openGlossary/ })).toHaveAttribute("href", "/books/book-1/glossary")
     expect(screen.getByRole("link", { name: /writeAbout/ })).toHaveAttribute("href", "/entries/new?book=book-1")
+    expect(screen.getByTestId("words-path")).toHaveTextContent("wordsPath")
     expect(screen.getByTestId("chart")).toBeInTheDocument()
   })
 
@@ -152,17 +169,43 @@ describe("BookGlossaryPage", () => {
     expect(rows[1]).toHaveTextContent("noMeaningYet")
   })
 
+  it("offers 'Add to notebook' on a skipped word and saves it through the vocabulary path", async () => {
+    api.addVocabularyItem.mockResolvedValue({ id: "word-2" })
+    render(<BookGlossaryPage />)
+    const rows = await screen.findAllByTestId("glossary-row")
+
+    expect(within(rows[0]).queryByTestId("glossary-add")).not.toBeInTheDocument()
+    fireEvent.click(within(rows[1]).getByTestId("glossary-add"))
+
+    await waitFor(() =>
+      expect(api.addVocabularyItem).toHaveBeenCalledWith({
+        term: "cinta", language: "es", example_sentence: undefined,
+      }),
+    )
+    await waitFor(() => expect(api.getBookGlossary).toHaveBeenCalledTimes(2))
+  })
+
   it("hides each meaning in the self-quiz until you reveal it, and counts what you remembered", async () => {
     render(<BookGlossaryPage />)
     await screen.findAllByTestId("glossary-row")
     fireEvent.click(screen.getByTestId("quiz-toggle"))
 
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
     expect(screen.queryByText("to tie")).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "showMeaning" })[0])
     expect(screen.getByTestId("glossary-meaning")).toHaveTextContent("to tie")
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
     fireEvent.click(screen.getByRole("button", { name: "remembered" }))
 
-    expect(screen.getByTestId("quiz-score")).toHaveTextContent('"remembered":1')
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 1 of 2")
+    fireEvent.click(screen.getByRole("button", { name: "notYet" }))
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 0 of 2")
+    fireEvent.click(screen.getByRole("button", { name: "remembered" }))
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 1 of 2")
+    fireEvent.click(screen.getAllByRole("button", { name: "showMeaning" })[0])
+    fireEvent.click(screen.getAllByRole("button", { name: "remembered" })[1])
+    expect(screen.getByTestId("quiz-score")).toHaveTextContent("Remembered 2 of 2")
+
     fireEvent.click(screen.getByTestId("quiz-toggle"))
     expect(screen.getByTestId("glossary-meaning")).toBeInTheDocument()
   })

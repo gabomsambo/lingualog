@@ -23,9 +23,14 @@
   "profile": "Profile",
   "settings": "Settings",
   "signOut": "Sign Out",
+  "welcomeBack": "Welcome back!",
+  "readyToContinue": "Ready to continue your language journey?",
   "user": "User",
   "appMetaTitle": "LinguaLog - Language Learning Journal",
   "appMetaDescription": "Track your language learning journey with daily journaling and vocabulary tracking",
   "testFallbackKey": "This key only exists in English to test fallback behavior",
-  "review": "Review"
+  "review": "Review",
+  "yourLearningStats": "Your Learning Stats",
+  "writingStreak": "Writing Streak",
+  "words": "words"
 }

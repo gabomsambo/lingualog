@@ -618,7 +618,7 @@ def test_summary_total_does_not_count_new_words_over_the_daily_limit(db, client)
 def test_summary_ignores_other_learners(db, client):
     db.add_word("theirs", user=OTHER)
     db.add_card("c1", "theirs", user=OTHER)
-    assert client.get("/review/summary", headers=HEADERS).json() == {"languages": [], "total": 0, "at_risk": 0}
+    assert client.get("/review/summary", headers=HEADERS).json() == {"languages": [], "total": 0, "new": 0, "at_risk": 0}
 
 
 def test_notebook_items_carry_their_review_progress_and_the_at_risk_flag(db):

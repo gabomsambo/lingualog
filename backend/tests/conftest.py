@@ -14,3 +14,10 @@ def stub_language_profile_lookup(monkeypatch):
     """Unit tests resolve policy from the settings dict, not a live database."""
     import server
     monkeypatch.setattr(server, "fetch_language_profile", lambda user_id, l2: None)
+
+
+@pytest.fixture(autouse=True)
+def default_ai_provider(monkeypatch):
+    """Run the Gemini code path unless a test explicitly picks the mock provider."""
+    import server
+    monkeypatch.setattr(server, "AI_PROVIDER", "gemini")
