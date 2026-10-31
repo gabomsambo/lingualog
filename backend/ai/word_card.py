@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import List
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from ai.gemini import generate_structured
 from learning_policy import LANG_NAMES, LearningPolicy
@@ -100,6 +100,61 @@ def _language_rule(policy: LearningPolicy) -> str:
     return rules[policy.vocab_def]
 
 
+def _definition_language(policy: LearningPolicy) -> str:
+    """The single language used for definitions and explanations at this policy level."""
+    if policy.vocab_def in ("l1", "l1_plus_l2"):
+        return _language_name(policy.l1)
+    return _language_name(policy.l2)
+
+
+def _word_card_schema(policy: LearningPolicy) -> type[WordCard]:
+    """Make the structured-output schema name the definition language explicitly."""
+    l1 = _language_name(policy.l1)
+    l2 = _language_name(policy.l2)
+    definition_language = _definition_language(policy)
+    l2_only = policy.vocab_def == "l2"
+
+    other_sense_schema = create_model(
+        f"OtherSense_{policy.vocab_def}_{l1}_{l2}",
+        __base__=OtherSense,
+        meaning=(str, Field(..., description=f"Short meaning written in {definition_language}.")),
+        example=(str, Field(..., description=f"Short example written in target-language {l2}.")),
+    )
+    return create_model(
+        f"WordCard_{policy.vocab_def}_{l1}_{l2}",
+        __base__=WordCard,
+        sense_in_context=(
+            str,
+            Field(..., description=f"What the word means in this sentence, written in {definition_language}."),
+        ),
+        gloss_l1=(
+            str,
+            Field(..., description=(
+                f"A 1-4 word {l1} gloss." if not l2_only else "Empty string; this policy forbids L1."
+            )),
+        ),
+        other_senses=(
+            List[other_sense_schema],
+            Field(..., description=f"Zero to two other common senses, with meanings in {definition_language}."),
+        ),
+        example_translations=(
+            List[str],
+            Field(..., description=(
+                f"Translations into {l1}, parallel to examples."
+                if not l2_only else "Empty array; this policy forbids L1."
+            )),
+        ),
+        common_mistake=(
+            str,
+            Field(..., description=f"One typical learner mistake, written in {definition_language}."),
+        ),
+        memory_hook=(
+            str,
+            Field(..., description=f"A short mnemonic, written in {definition_language}."),
+        ),
+    )
+
+
 def build_word_card_prompts(
     term: str,
     source_sentence: str,
@@ -127,10 +182,11 @@ async def generate_word_card(
 ) -> WordCard:
     """Generate one structured Flash-Lite card for a saved word in context."""
     system_prompt, user_prompt = build_word_card_prompts(term, source_sentence, policy)
+    schema = _word_card_schema(policy)
     return await generate_structured(
         system_prompt,
         user_prompt,
-        WordCard,
+        schema,
         timeout=30.0,
         model=GEMINI_MODEL_WORD_CARD,
         use_thinking=False,
