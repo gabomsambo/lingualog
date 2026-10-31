@@ -33,6 +33,16 @@ class JournalEntryRequest(BaseModel):
     formality: Optional[str] = Field(None, description="Override formality level (casual, neutral, formal, academic)")
     immersion_level: Optional[int] = Field(None, description="Override immersion level (0-3)", ge=0, le=3)
 
+    # Word bank: words from the learner's notebook they chose to write with in this entry
+    target_word_ids: List[UUID] = Field(
+        default_factory=list, max_length=8, description="Notebook words the learner meant to use in this entry"
+    )
+    challenge_word_ids: List[UUID] = Field(
+        default_factory=list,
+        max_length=8,
+        description="Target words whose text stayed hidden while writing; a correct use is real recall",
+    )
+
     class Config:
         orm_mode = True
 
@@ -109,6 +119,13 @@ class FeedbackResponse(BaseModel):
     )
     detected_language: Optional[str] = Field(
         None, description="ISO 639-1 code of the language the entry is written in, as read by the tutor"
+    )
+    target_word_uses: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description=(
+            "How each word-bank word was used: status, the form written, a fix or question, and"
+            " what the use did to the word. Null when no words were chosen"
+        ),
     )
 
     # TODO: Add metrics/analytics fields as needed for progress tracking

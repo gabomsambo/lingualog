@@ -68,6 +68,29 @@ export interface SentenceAction {
   reason_l2?: string
 }
 
+export type TargetWordStatus = "used_correctly" | "used_with_error" | "not_used" | "unclear"
+
+/** The tutor's checked verdict on one word the learner chose from their word bank. */
+export interface TargetWordUse {
+  word_id: string
+  term: string
+  status: TargetWordStatus
+  form_in_text: string
+  fix: string
+  /** The reason for an error, or the question for an unclear use. */
+  note: string
+  sentence: string
+  /** The word's notebook state after this entry. */
+  word_status?: string
+  became_mastered?: boolean
+  /** Different days the word has now been used correctly. */
+  use_days?: number
+  /** A hidden word used correctly was counted as a review. */
+  credited?: boolean
+}
+
+const TARGET_STATUSES: readonly string[] = ["used_correctly", "used_with_error", "not_used", "unclear"]
+
 export interface SideBySideEntry {
   id: string
   title?: string
@@ -87,6 +110,8 @@ export interface SideBySideEntry {
   rewriteIdioms: RewriteIdiom[]
   suggestions: SuggestionData[]
   newWords: EntryWord[]
+  /** Word-bank words the entry was written with, empty when none were chosen. */
+  targetWordUses: TargetWordUse[]
   sentenceMapping: SentenceMapping[] | null
   sentenceMappingStatus: string | null
   sentenceActions: SentenceAction[] | null
@@ -127,6 +152,15 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
       (item) => item && typeof item.original === "string",
     ),
     newWords: asArray<EntryWord>(ai.new_words).filter((item) => item && item.term),
+    targetWordUses: asArray<TargetWordUse>(raw?.target_word_uses)
+      .filter((item) => item && item.term && TARGET_STATUSES.includes(item.status))
+      .map((item) => ({
+        ...item,
+        form_in_text: item.form_in_text || "",
+        fix: item.fix || "",
+        note: item.note || "",
+        sentence: item.sentence || "",
+      })),
     sentenceMapping: Array.isArray(raw?.sentence_mapping ?? ai.sentence_mapping)
       ? asArray<SentenceMapping>(raw?.sentence_mapping ?? ai.sentence_mapping)
       : null,

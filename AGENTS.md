@@ -166,6 +166,7 @@ Key reference files:
 - `POST /user/level-suggestions/{l2}/dismiss` - Snooze that language's suggestion for 7 days
 - `GET /user/stats` - Get user statistics
 - `GET /review/session`, `GET /review/summary`, `POST /review/{card_id}` - FSRS review (no model calls); see `README.md` (Vocabulary review)
+- `GET /word-bank?language=` - Words to write with beside the editor; `POST /log-entry` takes `target_word_ids`; see `README.md` (Word bank)
 - `POST /events` - Log a support event (reveal/rescue taps)
 
 ## Maintaining this file

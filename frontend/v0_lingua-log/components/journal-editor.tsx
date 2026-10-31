@@ -30,6 +30,7 @@ import { EntrySideBySide } from "@/components/entry-side-by-side"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Slider } from "@/components/ui/slider"
 import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
+import { WordBankPanel } from "@/components/word-bank-panel"
 
 import {
   ApiError,
@@ -41,6 +42,7 @@ import {
 } from "@/lib/api"
 import { studiedLanguages } from "@/lib/studied-languages"
 import { toSideBySideEntry, type SideBySideEntry } from "@/lib/side-by-side"
+import type { BankSelection } from "@/lib/word-bank"
 import type { Entry } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
@@ -66,6 +68,8 @@ export function JournalEditor() {
   const [showTranslation, setShowTranslation] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [lookupContext, setLookupContext] = useState<LookupContext | null>(null)
+  const [wordSelection, setWordSelection] = useState<BankSelection>({ targetWordIds: [], challengeWordIds: [] })
+  const [bankKey, setBankKey] = useState(0)
   
   // User settings and overrides
   const [userSettings, setUserSettings] = useState<UserSettingsData | null>(null)
@@ -154,7 +158,13 @@ export function JournalEditor() {
       // Build overrides with target language
       const submissionOverrides: JournalEntryOverrides = {
         target_language: targetLanguage,
-        ...overrides
+        ...overrides,
+        ...(wordSelection.targetWordIds.length > 0
+          ? {
+              target_word_ids: wordSelection.targetWordIds,
+              challenge_word_ids: wordSelection.challengeWordIds,
+            }
+          : {}),
       }
       
       // Use the API helper function with overrides
@@ -200,6 +210,7 @@ export function JournalEditor() {
     setSavedEntryId(null)
     setError(null)
     setOverrides({})
+    setBankKey((key) => key + 1)
   }
 
   /**
@@ -309,6 +320,17 @@ export function JournalEditor() {
                 {t('journal.wordCount')}: {wordCount}
               </div>
             </div>
+
+            {settingsStatus === "ready" && (
+              <WordBankPanel
+                language={targetLanguage}
+                text={text}
+                immersionLevel={displayedImmersionLevel}
+                disabled={isSubmitting}
+                resetKey={bankKey}
+                onSelectionChange={setWordSelection}
+              />
+            )}
 
             <Textarea
               placeholder={t('journal.writeThoughtsIn', { language: getLanguageDisplayName(targetLanguage) })}

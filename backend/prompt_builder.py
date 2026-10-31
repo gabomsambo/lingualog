@@ -5,7 +5,7 @@ This module constructs system prompts and user messages for AI-powered journal e
 It uses effective language settings to customize prompts while maintaining consistent JSON output.
 """
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Optional, Sequence, Tuple
 import json
 import logging
 from lang_policy import EffectiveSettings, explanation_instruction
@@ -91,6 +91,15 @@ You must respond with a valid JSON object containing exactly these fields:
       "example": "example sentence using the word",
       "part_of_speech": "noun, verb, adjective, etc."
     }}
+  ],
+  "target_word_uses": [
+    {{
+      "term": "a target word, exactly as listed in the request",
+      "status": "used_correctly | used_with_error | not_used | unclear",
+      "form_in_text": "the form as written in the entry, copied exactly; empty when not used",
+      "fix": "the corrected phrase, only for used_with_error",
+      "note": "one short sentence, only for used_with_error and unclear"
+    }}
   ]
 }}
 
@@ -114,6 +123,7 @@ You must respond with a valid JSON object containing exactly these fields:
    source sentences to the same corrected index, split sentences to every corrected index they became,
    removed sentences to [], and unchanged sentences to their corresponding corrected index. Every corrected
    sentence index must appear in at least one mapping item.
+10. `target_word_uses` is an empty array unless the request lists TARGET WORDS.
 
 **SENTENCE FATE RULES — read carefully:**
 A. Never drop a learner's sentence just because it is odd, off-topic, awkward, or has a small grammar slip.
@@ -149,7 +159,40 @@ E. Every JSON object you return MUST include the keys `sentence_mapping` and `se
 Remember: Your response must be a single, valid JSON object that can be parsed programmatically."""
 
 
-def build_messages(entry_text: str, effective: EffectiveSettings) -> Tuple[str, Dict[str, Any]]:
+# Appended to the system prompt only when the learner picked words from their word bank.
+TARGET_WORD_RULES = """
+
+**TARGET WORDS:**
+The learner chose the words listed under TARGET WORDS in the request to use in this entry. Return exactly
+one `target_word_uses` item per listed word, in the order listed, with `term` copied exactly from the list.
+- used_correctly: the entry uses the word, in any inflected or conjugated form, with the right meaning and
+  the right grammar around it. Set `form_in_text` to that form, copied exactly from the entry. Leave `fix`
+  and `note` empty.
+- used_with_error: the word is used but something that belongs to it is wrong (a preposition it takes,
+  agreement, tense or mood, a wrong sense). Set `form_in_text` exactly as written, `fix` to the corrected
+  phrase, and `note` to one short sentence in the note language from the language settings.
+- not_used: the word appears in no form. A synonym does not count. Leave `form_in_text`, `fix` and `note` empty.
+- unclear: the use is defensible, but you cannot tell whether it is what the learner meant (right in one
+  reading, odd in another). Never mark such a use wrong. Set `form_in_text` and put one short question to the
+  learner in `note`, in the note language from the language settings.
+Judge only the target word and what it governs. A correct use stays used_correctly when the rest of the
+sentence needs fixes. Never invent a use: `form_in_text` must be text that is really in the entry. Write
+`note` only for used_with_error and unclear."""
+
+
+def _target_words_block(target_words: Optional[Sequence[str]]) -> str:
+    words = [word.strip() for word in target_words or [] if word and word.strip()]
+    if not words:
+        return ""
+    listed = "\n".join(f"- {word}" for word in words)
+    return f"\n\nTARGET WORDS (the learner chose these to use in this entry):\n{listed}"
+
+
+def build_messages(
+    entry_text: str,
+    effective: EffectiveSettings,
+    target_words: Optional[Sequence[str]] = None,
+) -> Tuple[str, Dict[str, Any]]:
     """
     Build system prompt and user payload for AI analysis.
     
@@ -172,6 +215,8 @@ def build_messages(entry_text: str, effective: EffectiveSettings) -> Tuple[str, 
     system_prompt = SYSTEM_TEMPLATE.format(
         explanation_instruction=explanation_instr
     )
+    if _target_words_block(target_words):
+        system_prompt += TARGET_WORD_RULES
     
     # Build user payload with entry and metadata
     user_payload = {
@@ -199,7 +244,11 @@ def build_messages(entry_text: str, effective: EffectiveSettings) -> Tuple[str, 
     return system_prompt, user_payload
 
 
-def build_user_message(entry_text: str, effective: EffectiveSettings) -> str:
+def build_user_message(
+    entry_text: str,
+    effective: EffectiveSettings,
+    target_words: Optional[Sequence[str]] = None,
+) -> str:
     """
     Build a user message string that includes the entry and context.
     
@@ -234,7 +283,7 @@ CONTEXT:
 - Correction level: {effective.strictness}
 - Tone: {effective.formality}
 - Immersion level: {effective.immersion_level} (0 = native-first, 3 = full immersion)
-- Proficiency: {_proficiency(effective)} (A1-C2, separate from immersion)
+- Proficiency: {_proficiency(effective)} (A1-C2, separate from immersion){_target_words_block(target_words)}
 
 Please provide your analysis as a JSON object following the specified format."""
     

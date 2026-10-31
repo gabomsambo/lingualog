@@ -686,6 +686,8 @@ def fetch_lookup_cache(
             query = query.eq("card_policy->>vocab_def", vocab_def)
         if sentence:
             query = query.eq("sentence", sentence)
+        # Encounters that only record a use in the learner's entry carry no card.
+        query = query.not_.is_("card", "null")
         response = query.order("created_at", desc=True).limit(1).execute()
         if response.data:
             return response.data[0]
@@ -700,6 +702,43 @@ def save_word_encounter(data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
     if not response.data:
         raise RuntimeError("Word encounter was not recorded")
     return response.data[0]
+
+
+def save_word_encounters(rows: List[Dict[str, Any]], user_id: str) -> List[Dict[str, Any]]:
+    """Insert several encounters for one learner in a single request."""
+    if not rows:
+        return []
+    response = (
+        create_supabase_client().table("word_encounters")
+        .insert([{**row, "user_id": user_id} for row in rows]).execute()
+    )
+    return response.data or []
+
+
+def fetch_entry_encounters(
+    user_id: str, entry_id: str, kinds: List[str], word_ids: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """The learner's encounters of these kinds that came from one entry."""
+    query = (
+        create_supabase_client().table("word_encounters").select("id, word_id, kind")
+        .eq("user_id", user_id).eq("source_type", "entry").eq("source_id", entry_id).in_("kind", kinds)
+    )
+    if word_ids is not None:
+        query = query.in_("word_id", word_ids)
+    return query.execute().data or []
+
+
+def delete_entry_encounters(
+    user_id: str, entry_id: str, kinds: List[str], word_ids: Optional[List[str]] = None
+) -> None:
+    """Remove the learner's encounters of these kinds that came from one entry."""
+    query = (
+        create_supabase_client().table("word_encounters").delete()
+        .eq("user_id", user_id).eq("source_type", "entry").eq("source_id", entry_id).in_("kind", kinds)
+    )
+    if word_ids is not None:
+        query = query.in_("word_id", word_ids)
+    query.execute()
 
 
 def fetch_word_encounter(encounter_id: str, user_id: str) -> Optional[Dict[str, Any]]:

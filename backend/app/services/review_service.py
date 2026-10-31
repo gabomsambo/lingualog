@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from database import (
     USER_VOCABULARY_TABLE,
@@ -25,10 +25,12 @@ from review_scheduler import (
     DEFAULT_DAILY_NEW_WORDS,
     DEFAULT_RETENTION,
     FSRS_VERSION,
+    KNOWN_STABILITY_DAYS,
     PRODUCTION,
     PRODUCTION_FIRST_DUE,
     RECOGNITION,
     SESSION_SIZE,
+    STATUS_KNOWN,
     SessionPlan,
     aware,
     day_start,
@@ -39,7 +41,9 @@ from review_scheduler import (
     production_card_due,
     schedule_review,
 )
+from word_bank import ENCOUNTER_USED_OK, is_mastered, use_days
 
+STATUS_MASTERED = "mastered"
 L2_PATTERN = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
 CARDS_TABLE = "vocab_cards"
 LOGS_TABLE = "vocab_review_logs"
@@ -147,6 +151,44 @@ def load_recognition_card(user_id: str, word_id: str) -> Optional[dict]:
         .limit(1).execute()
     )
     return response.data[0] if response.data else None
+
+
+def load_production_card(user_id: str, word_id: str) -> Optional[dict]:
+    response = (
+        create_supabase_client().table(CARDS_TABLE).select("*")
+        .eq("user_id", user_id).eq("word_id", word_id).eq("card_type", PRODUCTION)
+        .limit(1).execute()
+    )
+    return response.data[0] if response.data else None
+
+
+def surviving_entry_ids(user_id: str, entry_ids: Iterable[str]) -> set[str]:
+    wanted = sorted({entry_id for entry_id in entry_ids if entry_id})
+    found: set[str] = set()
+    for start in range(0, len(wanted), WORD_ID_CHUNK):
+        response = (
+            create_supabase_client().table("journal_entries").select("id")
+            .eq("user_id", user_id).in_("id", wanted[start:start + WORD_ID_CHUNK]).execute()
+        )
+        found.update(row["id"] for row in response.data or [])
+    return found
+
+
+def drop_orphaned_uses(user_id: str, rows: list[dict]) -> list[dict]:
+    """Uses recorded for an entry that no longer exists are not evidence of anything."""
+    entry_ids = {row.get("source_id") for row in rows if row.get("source_type") == "entry"}
+    alive = surviving_entry_ids(user_id, entry_ids) if entry_ids else set()
+    return [row for row in rows if row.get("source_type") != "entry" or row.get("source_id") in alive]
+
+
+def load_use_days(user_id: str, word_id: str) -> int:
+    """On how many different days the learner used this word correctly in their own entries."""
+    response = (
+        create_supabase_client().table("word_encounters").select("created_at, source_type, source_id")
+        .eq("user_id", user_id).eq("word_id", word_id)
+        .eq("kind", ENCOUNTER_USED_OK).eq("source_type", "entry").execute()
+    )
+    return use_days(row["created_at"] for row in drop_orphaned_uses(user_id, response.data or []))
 
 
 def load_words(user_id: str, word_ids: list[str]) -> dict[str, dict]:
@@ -440,6 +482,21 @@ def attach_review_state(user_id: str, items: list[dict], now: Optional[datetime]
     return enriched
 
 
+# --- Mastery -------------------------------------------------------------------
+
+
+def promote_if_mastered(user_id: str, word: dict[str, Any], status: str, recognition_stability: Optional[float]) -> str:
+    """Mastered once the word is Known and was used correctly in the learner's entries on two days.
+
+    Writing evidence only ever promotes: nothing here moves a Mastered word back.
+    """
+    if recognition_stability is None or recognition_stability < KNOWN_STABILITY_DAYS:
+        return status
+    if not is_mastered(status, recognition_stability, load_use_days(user_id, word["id"])):
+        return status
+    return STATUS_MASTERED
+
+
 # --- Reviews -------------------------------------------------------------------
 
 
@@ -470,7 +527,10 @@ def submit_review(
 
     recognition = updated if updated["card_type"] == RECOGNITION else load_recognition_card(user_id, row["word_id"])
     word = load_words(user_id, [row["word_id"]]).get(row["word_id"]) or {}
-    status = derived_status(word.get("status"), (recognition or {}).get("stability"))
+    stability = (recognition or {}).get("stability")
+    status = derived_status(word.get("status"), stability)
+    if word and status == STATUS_KNOWN:
+        status = promote_if_mastered(user_id, word, status, stability)
     if word and status != word.get("status"):
         update_vocabulary_item(row["word_id"], user_id, {"status": status})
 

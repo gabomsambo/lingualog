@@ -9,7 +9,7 @@ import asyncio
 import logging
 import os
 import re
-from typing import Optional, Type, TypeVar
+from typing import Optional, Sequence, Type, TypeVar
 
 from google import genai
 from google.genai import types
@@ -165,19 +165,28 @@ async def generate_structured(
     raise GeminiError("ai_unavailable", "Gemini request failed after retry")
 
 
+def _mock_word_use(word: str, entry_text: str) -> dict:
+    """The offline stand-in for the tutor's word check: used when the word appears as written."""
+    match = re.search(rf"(?<!\w){re.escape(word)}(?!\w)", entry_text, re.IGNORECASE)
+    if match:
+        return {"term": word, "status": "used_correctly", "form_in_text": match.group(0)}
+    return {"term": word, "status": "not_used"}
+
+
 async def mock_generate_structured(
     system_prompt: str,
     user_prompt: str,
     schema: Type[T],
     timeout: float = 30.0,
     entry_text: Optional[str] = None,
+    target_words: Optional[Sequence[str]] = None,
 ) -> T:
     """
     Mock provider for offline development and tests.
 
     Returns plausible feedback and marks it with ``is_mock=True``. The
     response is never persisted as real feedback unless ``AI_PROVIDER=mock``
-    is explicitly set.
+    is explicitly set. A target word counts as used when it appears in the text.
     """
     logger.info("Using mock feedback provider (AI_PROVIDER=mock)")
     if entry_text is None:
@@ -213,6 +222,7 @@ async def mock_generate_structured(
             for index, _sentence in enumerate(source_sentences)
         ],
         sentence_actions=[],
+        target_word_uses=[_mock_word_use(word, entry_text) for word in target_words or []],
         is_mock=True,
     )
 
