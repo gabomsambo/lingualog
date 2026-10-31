@@ -188,3 +188,23 @@ def test_export_route_downloads_csv_and_apkg(monkeypatch):
 def test_export_route_validates_the_selector(monkeypatch):
     client = TestClient(server.app, raise_server_exceptions=False)
     assert client.get("/vocabulary/export?list=someday", headers=HEADERS).status_code == 400
+
+
+def test_csv_neutralises_spreadsheet_formulas():
+    row = dict(sample_rows()[0], note='=HYPERLINK("http://x","hi")', sentence="+1+1",
+               source_reference="@SUM(A1)", tags=["-cmd"])
+    parsed = list(csv.reader(io.StringIO(vocab_export.rows_to_csv([row]))))[1]
+    for cell in (parsed[4], parsed[6], parsed[8], parsed[9]):
+        assert cell[0] not in "=+-@"
+    assert "HYPERLINK" in parsed[9] and "+1+1" in parsed[4]
+
+
+def test_apkg_escapes_html_in_every_field():
+    row = dict(sample_rows()[0], word="a<b>&", meaning="m <i>", gloss="g & h",
+               source_reference="Book <x>")
+    _, conn = open_apkg(vocab_export.rows_to_apkg([row]))
+    fields = conn.execute("select flds from notes").fetchone()[0].split("\x1f")
+    assert fields[0] == "a&lt;b&gt;&amp;"
+    assert fields[2] == "m &lt;i&gt;"
+    assert fields[3] == "g &amp; h"
+    assert fields[4] == "Book &lt;x&gt;"
