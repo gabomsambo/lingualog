@@ -384,6 +384,21 @@ def test_a_lookup_must_use_your_session_and_the_books_language(client, monkeypat
     ).status_code == 404
 
 
+def test_a_lookup_against_an_ended_session_is_refused(client, db, monkeypatch):
+    generator = AsyncMock(return_value=card_for("cinta"))
+    monkeypatch.setattr(server, "generate_word_card", generator)
+    monkeypatch.setattr(server, "fetch_lookup_cache", lambda *_: None)
+    book = make_book(client)
+    session = start(client, book)
+    client.post(f"/books/{book['id']}/sessions/{session['id']}/end", headers=HEADERS, json={})
+
+    response = lookup(client, book, session)
+
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "session_ended"
+    assert db.rows("word_encounters") == []
+    generator.assert_not_awaited()
+
+
 # --- Page photo ---------------------------------------------------------------
 
 
@@ -433,17 +448,17 @@ def test_a_page_photo_must_be_a_small_image(client, monkeypatch):
     reader.assert_not_awaited()
 
 
-def test_a_failed_photo_does_not_count_against_the_limit(client, db, monkeypatch):
+def test_a_failed_photo_still_counts_against_the_limit(client, db, monkeypatch):
     monkeypatch.setattr(book_service, "read_page_photo", AsyncMock(side_effect=GeminiError("ai_unavailable", "down")))
     book = make_book(client)
 
     response = photo(client, book)
 
     assert response.status_code == 503 and response.json()["detail"]["code"] == "ai_unavailable"
-    assert db.rows("page_photo_events") == []
+    assert len(db.rows("page_photo_events")) == 1
 
 
-def test_an_unreadable_photo_says_so_and_is_not_counted(client, db, monkeypatch):
+def test_an_unreadable_photo_says_so_and_still_counts(client, db, monkeypatch):
     blank = PageTranscription(readable=False, transcription="", candidates=[])
     monkeypatch.setattr(book_service, "read_page_photo", AsyncMock(return_value=blank))
     book = make_book(client)
@@ -451,7 +466,7 @@ def test_an_unreadable_photo_says_so_and_is_not_counted(client, db, monkeypatch)
     body = photo(client, book).json()
 
     assert body["readable"] is False and body["candidates"] == [] and body["estimate"] is None
-    assert db.rows("page_photo_events") == []
+    assert len(db.rows("page_photo_events")) == 1
 
 
 def test_photos_are_rate_limited_per_learner(client, db, monkeypatch):
@@ -463,6 +478,7 @@ def test_photos_are_rate_limited_per_learner(client, db, monkeypatch):
     limited = photo(client, book)
 
     assert limited.status_code == 429 and limited.json()["detail"]["code"] == "photo_rate_limited"
+    assert len(db.rows("page_photo_events")) == book_service.PHOTOS_PER_MINUTE
     db.rows("page_photo_events").clear()
     monkeypatch.setattr(book_service, "PHOTOS_PER_MINUTE", 10_000)
     monkeypatch.setattr(book_service, "PHOTOS_PER_DAY", 2)

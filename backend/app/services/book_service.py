@@ -616,20 +616,23 @@ def _photo_events_since(user_id: str, since: datetime) -> int:
 
 
 def reserve_photo(user_id: str, book_id: str) -> str:
-    """Check the limits and log the photo before the model call. Returns the event id."""
+    """Log the photo, then check the limits against the log, so concurrent requests cannot all pass.
+
+    Every photo that reaches the model stays logged, readable or not. Returns the event id.
+    """
     if not page_photo_quota_allows(user_id):
         raise PhotoRefused("photo_quota_reached", 403)
+    event_id = _table(PHOTO_EVENTS_TABLE).insert({"user_id": user_id, "book_id": book_id}).execute().data[0]["id"]
     now = _now()
-    if _photo_events_since(user_id, now - timedelta(minutes=1)) >= PHOTOS_PER_MINUTE:
-        raise PhotoRefused("photo_rate_limited", 429)
-    if _photo_events_since(user_id, now.replace(hour=0, minute=0, second=0, microsecond=0)) >= PHOTOS_PER_DAY:
-        raise PhotoRefused("photo_daily_limit", 429)
-    return _table(PHOTO_EVENTS_TABLE).insert({"user_id": user_id, "book_id": book_id}).execute().data[0]["id"]
-
-
-def release_photo(user_id: str, event_id: str) -> None:
-    """A photo the model could not read does not count against the learner."""
-    _table(PHOTO_EVENTS_TABLE).delete().eq("id", event_id).eq("user_id", user_id).execute()
+    refusal: Optional[PhotoRefused] = None
+    if _photo_events_since(user_id, now - timedelta(minutes=1)) > PHOTOS_PER_MINUTE:
+        refusal = PhotoRefused("photo_rate_limited", 429)
+    elif _photo_events_since(user_id, now.replace(hour=0, minute=0, second=0, microsecond=0)) > PHOTOS_PER_DAY:
+        refusal = PhotoRefused("photo_daily_limit", 429)
+    if refusal:
+        _table(PHOTO_EVENTS_TABLE).delete().eq("id", event_id).eq("user_id", user_id).execute()
+        raise refusal
+    return event_id
 
 
 def notebook_statuses(user_id: str, language: str, lemmas: list[str]) -> dict[str, str]:
@@ -648,15 +651,10 @@ async def read_page(user_id: str, book: dict, image: bytes, mime_type: str) -> d
 
     The image and the transcription are returned to the caller and stored nowhere.
     """
-    event_id = reserve_photo(user_id, book["id"])
-    try:
-        policy = resolve_policy(user_id, book["language"])
-        page: PageTranscription = await read_page_photo(image, mime_type, book["language"], policy.proficiency)
-    except GeminiError:
-        release_photo(user_id, event_id)
-        raise
+    reserve_photo(user_id, book["id"])
+    policy = resolve_policy(user_id, book["language"])
+    page: PageTranscription = await read_page_photo(image, mime_type, book["language"], policy.proficiency)
     if not page.readable or not page.transcription.strip():
-        release_photo(user_id, event_id)
         return {"readable": False, "transcription": "", "candidates": [], "estimate": None}
     statuses = notebook_statuses(user_id, book["language"], [word.lemma for word in page.candidates])
     candidates = [

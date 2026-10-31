@@ -1000,6 +1000,11 @@ async def lookup_word_route(payload: LookupRequest, request: Request):
         )
         if not reading_session:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading session not found")
+        if reading_session.get("ended_at"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "session_ended", "message": "This reading session has ended"},
+            )
         try:
             book_language = book_service.get_book(user_id, reading_session["book_id"])["language"]
         except book_service.BookNotFound as exc:
