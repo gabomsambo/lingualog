@@ -75,9 +75,10 @@ from ai.gemini import (
     AI_PROVIDER,
 )
 from ai.word_card import card_policy_snapshot, generate_word_card
+from word_bank import clean_target_word_uses
 
-from app.routers import entry_translation, level_suggestions, review, support_events
-from app.services import review_service
+from app.routers import entry_translation, level_suggestions, review, support_events, word_bank
+from app.services import review_service, word_bank_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
@@ -348,8 +349,17 @@ def _validate_sentence_mapping(result: JournalFeedback, original_text: str) -> t
     return mapping, actions, "valid"
 
 
-def _build_feedback_response(result: JournalFeedback, original_text: str) -> FeedbackResponse:
-    """Convert the Gemini structured output to the API response model."""
+def _build_feedback_response(
+    result: JournalFeedback,
+    original_text: str,
+    targets: Optional[List[dict]] = None,
+    language: str = "",
+) -> FeedbackResponse:
+    """Convert the Gemini structured output to the API response model.
+
+    ``targets`` are the word-bank words the learner chose. Only the tutor's claims about them
+    that the entry text backs up are kept.
+    """
     suggestions = []
     for suggestion in result.grammar_suggestions:
         payload = suggestion.model_dump()
@@ -379,6 +389,9 @@ def _build_feedback_response(result: JournalFeedback, original_text: str) -> Fee
         sentence_mapping_status=sentence_mapping_status,
         sentence_actions=sentence_actions or None,
         detected_language=_detected_language(result.detected_language),
+        target_word_uses=(
+            clean_target_word_uses(result.target_word_uses, targets, original_text, language) if targets else None
+        ),
     )
 
 
@@ -431,14 +444,71 @@ def _analysis_columns(feedback_response: FeedbackResponse) -> dict:
     return {"analysis_status": "ok", "analysis_model": GEMINI_MODEL_FEEDBACK, "analysis_error_code": None}
 
 
-async def _analyze_with_provider(text: str, effective: LearningPolicy) -> JournalFeedback:
+def _target_words_for_request(user_id: str, language: str, word_ids: List[str]) -> List[dict]:
+    """The learner's own word-bank words behind these ids. A lookup failure must not block feedback."""
+    if not word_ids:
+        return []
+    try:
+        return word_bank_service.load_target_words(user_id, language, word_ids)
+    except Exception as exc:
+        logger.error("Could not load word-bank words for %s: %s", user_id, exc)
+        return []
+
+
+def _target_word_columns(targets: List[dict], challenge_ids: set) -> List[dict]:
+    """What an entry remembers of the words it was written with, so a retry can use them."""
+    return [
+        {
+            "word_id": target["word_id"],
+            "lemma": target["lemma"],
+            "term": target["term"],
+            "challenge": target["word_id"] in challenge_ids,
+        }
+        for target in targets
+    ]
+
+
+def _record_target_word_uses(
+    user_id: str,
+    entry_id: str,
+    entry_created_at: Optional[str],
+    feedback_response: FeedbackResponse,
+    challenge_ids: set,
+    replace_word_ids: Optional[List[str]] = None,
+) -> None:
+    """Write the entry's checked uses into the notebook, then keep what they did on the entry.
+
+    ``replace_word_ids`` are the entry's words on a re-analysis: whatever the entry recorded
+    for them before is replaced, even for a word the tutor now says nothing usable about.
+    The entry and its feedback are already saved, so a failure here is logged and never turns
+    into a failed submission. Sample feedback from the offline provider proves nothing, so it
+    is shown but never counted.
+    """
+    uses = feedback_response.target_word_uses or []
+    if feedback_response.is_mock or not (uses or replace_word_ids):
+        return
+    try:
+        outcomes = word_bank_service.record_uses(
+            user_id, entry_id, uses, challenge_ids, entry_created_at, replace_word_ids=replace_word_ids or ()
+        )
+        merged = [{**use, **outcomes.get(use["word_id"], {})} for use in uses]
+        update_entry_analysis(entry_id, user_id, {"target_word_uses": merged})
+        feedback_response.target_word_uses = merged
+    except Exception as exc:
+        logger.error("Could not record word-bank uses for entry %s: %s", entry_id, exc)
+
+
+async def _analyze_with_provider(
+    text: str, effective: LearningPolicy, targets: Optional[List[dict]] = None
+) -> JournalFeedback:
     """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
-    system_prompt, _user_payload = build_messages(text, effective)
-    user_message = build_user_message(text, effective)
+    target_terms = [target["lemma"] or target["term"] for target in targets or []]
+    system_prompt, _user_payload = build_messages(text, effective, target_terms)
+    user_message = build_user_message(text, effective, target_terms)
 
     if AI_PROVIDER == "mock":
         return await mock_generate_structured(
-            system_prompt, user_message, JournalFeedback, entry_text=text
+            system_prompt, user_message, JournalFeedback, entry_text=text, target_words=target_terms
         )
     result = await generate_structured(
         system_prompt, user_message, GeminiJournalFeedback, timeout=30.0
@@ -466,6 +536,7 @@ app.include_router(entry_translation.router)
 app.include_router(support_events.router)
 app.include_router(level_suggestions.router)
 app.include_router(review.router)
+app.include_router(word_bank.router)
 
 
 @app.post("/login", status_code=status.HTTP_200_OK)
@@ -539,9 +610,17 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     effective_settings = _policy_for_request(user_id, profile_settings, request_overrides)
     snapshot_data = _snapshot_columns(effective_settings)
 
+    targets = _target_words_for_request(
+        user_id, effective_settings.l2, [str(word_id) for word_id in entry.target_word_ids]
+    )
+    challenge_ids = {str(word_id) for word_id in entry.challenge_word_ids} & {t["word_id"] for t in targets}
+    target_columns = (
+        {"target_words": _target_word_columns(targets, challenge_ids)} if targets else {}
+    )
+
     try:
-        result = await _analyze_with_provider(entry.text, effective_settings)
-        feedback_response = _build_feedback_response(result, entry.text)
+        result = await _analyze_with_provider(entry.text, effective_settings, targets)
+        feedback_response = _build_feedback_response(result, entry.text, targets, effective_settings.l2)
     except GeminiError as e:
         logger.error(f"AI feedback failed ({e.code}): {e.message}")
         # Keep the entry so the learner can retry later.
@@ -553,6 +632,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
             "analysis_status": "failed",
             "analysis_model": GEMINI_MODEL_FEEDBACK,
             "analysis_error_code": e.code,
+            **target_columns,
             **snapshot_data,
         }
         entry_id = None
@@ -590,6 +670,8 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "sentence_actions": feedback_response.sentence_actions,
         "detected_language": feedback_response.detected_language,
         **_analysis_columns(feedback_response),
+        **target_columns,
+        **({"target_word_uses": feedback_response.target_word_uses or []} if targets else {}),
         **snapshot_data,
     }
 
@@ -598,6 +680,9 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
     feedback_response.id = saved_entry.get("id")
     feedback_response.entry_id = feedback_response.id
+    _record_target_word_uses(
+        user_id, feedback_response.id, saved_entry.get("created_at"), feedback_response, challenge_ids
+    )
     return feedback_response
 
 
@@ -776,8 +861,17 @@ async def analyze_existing_entry(
         }
         effective_settings = _policy_for_request(user_id, profile_settings, overrides)
 
+    # The words the entry was written with, unless it is moving to a language they do not belong to.
+    stored_targets = entry.get("target_words") or []
+    targets = [] if switch_to else _target_words_for_request(
+        user_id, effective_settings.l2, [item["word_id"] for item in stored_targets if item.get("word_id")]
+    )
+    challenge_ids = {
+        item["word_id"] for item in stored_targets if item.get("challenge") and item.get("word_id")
+    } & {t["word_id"] for t in targets}
+
     try:
-        result = await _analyze_with_provider(entry["content"], effective_settings)
+        result = await _analyze_with_provider(entry["content"], effective_settings, targets)
     except GeminiError as e:
         logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
         if entry.get("analysis_status") not in ("ok", "mock", "legacy"):
@@ -798,7 +892,7 @@ async def analyze_existing_entry(
             },
         ) from e
 
-    feedback_response = _build_feedback_response(result, entry["content"])
+    feedback_response = _build_feedback_response(result, entry["content"], targets, effective_settings.l2)
     update_data = {
         "corrected": feedback_response.corrected,
         "rewrite": feedback_response.rewritten,
@@ -816,6 +910,9 @@ async def analyze_existing_entry(
         **_analysis_columns(feedback_response),
         **_snapshot_columns(effective_settings),
     }
+    if stored_targets:
+        update_data["target_words"] = _target_word_columns(targets, challenge_ids)
+        update_data["target_word_uses"] = feedback_response.target_word_uses or []
     if switch_to:
         # Translations of the old rewrite and notes no longer match the new analysis.
         update_data.update(
@@ -828,6 +925,15 @@ async def analyze_existing_entry(
     update_entry_analysis(entry_id, user_id, update_data)
 
     feedback_response.id = entry_id
+    if stored_targets and not targets:
+        try:
+            word_bank_service.clear_entry_uses(user_id, entry_id)
+        except Exception as exc:
+            logger.error("Could not clear word-bank uses for entry %s: %s", entry_id, exc)
+    _record_target_word_uses(
+        user_id, entry_id, entry.get("created_at"), feedback_response, challenge_ids,
+        replace_word_ids=[target["word_id"] for target in targets],
+    )
     return feedback_response
 
 
@@ -856,6 +962,10 @@ async def delete_entry_route(entry_id: str, request: Request):
             logger.warning(f"Attempt to delete entry {entry_id} for user {user_id} was not successful (entry not found or no permission).")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found or user does not have permission to delete.")
         logger.info(f"Entry {entry_id} deleted successfully for user {user_id}.")
+        try:
+            word_bank_service.clear_entry_uses(user_id, entry_id)
+        except Exception as exc:
+            logger.error(f"Could not clear word-bank uses of deleted entry {entry_id}: {exc}")
         return # FastAPI handles the 204 No Content response
     except HTTPException: # Re-raise HTTPExceptions directly
         raise

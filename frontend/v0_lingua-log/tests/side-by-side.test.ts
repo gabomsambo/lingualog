@@ -295,3 +295,23 @@ describe("language model helpers", () => {
     expect(languageMismatch(entry({}))).toBeNull()
   })
 })
+
+
+describe("toSideBySideEntry target word uses", () => {
+  const raw = (uses: unknown) => ({ id: "e", language: "es", content: "x", ai_feedback: {}, target_word_uses: uses })
+
+  it("keeps the checked uses and fills in what the server left out", () => {
+    const entry = toSideBySideEntry(
+      raw([{ word_id: "w1", term: "madrugar", status: "used_correctly", form_in_text: "madrugué", became_mastered: true }]),
+    )
+    expect(entry.targetWordUses).toEqual([
+      { word_id: "w1", term: "madrugar", status: "used_correctly", form_in_text: "madrugué", fix: "", note: "", sentence: "", became_mastered: true },
+    ])
+  })
+
+  it("drops malformed items and unknown statuses, and is empty for older entries", () => {
+    expect(toSideBySideEntry(raw([{ term: "x", status: "weird" }, null, { status: "not_used" }])).targetWordUses).toEqual([])
+    expect(toSideBySideEntry({ id: "e", language: "es", content: "x" }).targetWordUses).toEqual([])
+    expect(toSideBySideEntry(raw(null)).targetWordUses).toEqual([])
+  })
+})

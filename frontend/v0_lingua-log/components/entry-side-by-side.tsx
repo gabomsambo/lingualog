@@ -9,6 +9,7 @@ import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
+import { WordsTodayRow } from "@/components/words-today-row"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
 import { getLanguageDisplayName } from "@/i18n/languages"
@@ -626,6 +627,8 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
           </div>
         </div>
       )}
+
+      {!failed && <WordsTodayRow uses={entry.targetWordUses} l2={l2} l2Dir={l2Dir} />}
 
       <Card className="overflow-hidden rounded-3xl border-fun-purple/20 shadow-fun">
         <CardHeader className="bg-gradient-to-r from-fun-purple/10 to-fun-blue/10 pb-4">

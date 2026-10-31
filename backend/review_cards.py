@@ -164,6 +164,9 @@ def sentence_candidates(
 
     add(word.get("example_sentence"), card.get("surface"), word.get("entry_id"), "lookup")
     for encounter in sorted(encounters, key=lambda row: str(row.get("created_at"))):
+        # A use with a mistake in it is feedback, not a sentence to learn from.
+        if encounter.get("kind") == "used_error":
+            continue
         # A word met in a sentence that is just the word itself gives no context.
         if encounter.get("sentence") and encounter["sentence"].strip() != encounter.get("surface", "").strip():
             entry_id = encounter.get("source_id") if encounter.get("source_type") == "entry" else None

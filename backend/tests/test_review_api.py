@@ -11,6 +11,7 @@ import review_scheduler as rs
 import server
 from app.models import UserSettings
 from app.services import review_service
+from word_bank import use_days
 
 USER = "00000000-0000-0000-0000-00000000000a"
 OTHER = "00000000-0000-0000-0000-00000000000b"
@@ -97,6 +98,16 @@ class FakeDb:
         return next((dict(c) for c in self.cards.values()
                      if c["user_id"] == user_id and c["word_id"] == word_id and c["card_type"] == "recognition"), None)
 
+    def load_production_card(self, user_id, word_id):
+        return next((dict(c) for c in self.cards.values()
+                     if c["user_id"] == user_id and c["word_id"] == word_id and c["card_type"] == "production"), None)
+
+    def load_use_days(self, user_id, word_id):
+        return use_days(
+            e["created_at"] for e in self.encounters
+            if e["word_id"] == word_id and e.get("kind") == "used_ok" and e.get("user_id", user_id) == user_id
+        )
+
     def load_words(self, user_id, word_ids):
         return {i: dict(self.words[i]) for i in word_ids if i in self.words and self.words[i]["user_id"] == user_id}
 
@@ -178,7 +189,7 @@ class FakeDb:
     def install(self, monkeypatch):
         for name in (
             "load_review_settings", "load_fsrs_parameters", "load_active_cards", "load_recognition_cards", "load_card",
-            "load_recognition_card", "load_words", "load_encounters", "load_entries", "count_new_words_today",
+            "load_recognition_card", "load_production_card", "load_use_days", "load_words", "load_encounters", "load_entries", "count_new_words_today",
             "count_reviews_today", "load_learning_words", "load_card_word_ids", "insert_cards",
             "set_cards_suspended", "suspend_inactive_cards", "apply_card_review", "update_vocabulary_item",
         ):

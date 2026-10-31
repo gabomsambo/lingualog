@@ -302,6 +302,29 @@ describe("EntrySideBySide layout", () => {
   })
 })
 
+describe("Your words today", () => {
+  const uses = [
+    { word_id: "w1", term: "madrugar", status: "used_correctly", form_in_text: "madrugué", fix: "", note: "", sentence: "" },
+    { word_id: "w2", term: "rato", status: "not_used", form_in_text: "", fix: "", note: "", sentence: "" },
+  ]
+
+  it("shows the row on the entry when words were chosen, beside the side-by-side", () => {
+    renderEntry(1, { target_word_uses: uses })
+    expect(screen.getByTestId("words-today-summary")).toHaveTextContent("1 used well · 1 not used")
+    expect(screen.getByTestId("side-by-side-grid")).toBeInTheDocument()
+  })
+
+  it("is absent for entries written without the word bank", () => {
+    renderEntry(1)
+    expect(screen.queryByTestId("words-today")).toBeNull()
+  })
+
+  it("is not shown when the analysis failed", () => {
+    renderEntry(1, { analysis_status: "failed", target_word_uses: uses })
+    expect(screen.queryByTestId("words-today")).toBeNull()
+  })
+})
+
 describe("level 0 (meaning open, rewrite gloss open)", () => {
   it("shows the sentence-aligned meaning and the as-written warnings without logging", async () => {
     renderEntry(0)

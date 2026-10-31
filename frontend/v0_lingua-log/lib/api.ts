@@ -1,6 +1,7 @@
 import { Entry } from "@/types/entry";
 import { getAuthHeaders, getUser } from "./auth";
 import type { LearningPolicySnapshot } from "./side-by-side";
+import type { WordBank } from "./word-bank";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -15,6 +16,10 @@ export interface JournalEntryOverrides {
   strictness?: string;
   formality?: string;
   immersion_level?: number;
+  /** Notebook words chosen from the word bank to write this entry with. */
+  target_word_ids?: string[];
+  /** Target words whose text stayed hidden while writing. */
+  challenge_word_ids?: string[];
 }
 
 export async function postLogEntry(
@@ -653,6 +658,23 @@ export async function submitReview(
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as ReviewResult;
+}
+
+// --- Word bank API ---
+
+export async function getWordBank(
+  language: string,
+  options: { count?: number; exclude?: string[] } = {},
+): Promise<WordBank> {
+  const params = new URLSearchParams({ language });
+  if (options.count) params.set("count", String(options.count));
+  for (const id of options.exclude ?? []) params.append("exclude", id);
+  const res = await fetch(`${API_BASE}/word-bank?${params}`, {
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as WordBank;
 }
 
 // User Profile and Stats API

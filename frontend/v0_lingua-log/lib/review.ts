@@ -17,7 +17,7 @@ export function isCorrectAnswer(card: Pick<ReviewCard, "accepted">, typed: strin
 
 const GREEN = "border-green-300 bg-green-100 text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-200"
 
-/** Notebook state colours: New blue, Learning amber, Known green. Mastered shares green until writing evidence adds its mark. */
+/** Notebook state colours: New blue, Learning amber, Known green. Mastered is green too; its label carries the pen mark. */
 export const STATUS_CLASS = {
   new: "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
   learning: "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200",

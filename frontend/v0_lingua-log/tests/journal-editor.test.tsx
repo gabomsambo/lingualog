@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   getEntryById: vi.fn(),
   postLogEntry: vi.fn(),
   getUserSettings: vi.fn(),
+  getWordBank: vi.fn(),
+  postSupportEvent: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -43,6 +45,8 @@ function fillEntry() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  api.getWordBank.mockResolvedValue({ language: "fr", words: [] })
+  api.postSupportEvent.mockResolvedValue(undefined)
 })
 
 describe("JournalEditor when settings fail to load", () => {
@@ -76,5 +80,54 @@ describe("JournalEditor lookup", () => {
     Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 17 })
     fireEvent.mouseUp(editor)
     expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
+  })
+})
+
+
+describe("JournalEditor word bank", () => {
+  const bankWord = (id: string, term: string) => ({
+    word_id: id, lemma: term, term, status: "learning", reason: "never_used", forms: [term],
+    hint: `meaning of ${term}`, hint_mode: "shown", use_days: 0,
+  })
+
+  beforeEach(() => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    api.getWordBank.mockResolvedValue({ language: "fr", words: [bankWord("w1", "marché"), bankWord("w2", "bouger")] })
+    api.postLogEntry.mockResolvedValue({ id: "entry-1" })
+    api.getEntryById.mockResolvedValue(null)
+  })
+
+  it("offers the bank for the chosen language and ticks a word once the draft uses it", async () => {
+    render(<JournalEditor />)
+    await screen.findAllByTestId("word-bank-chip")
+    expect(api.getWordBank).toHaveBeenCalledWith("fr", { count: 6 })
+    expect(screen.getByTestId("word-bank-count")).toHaveTextContent("0 of 2")
+    fillEntry()
+    expect(screen.getByTestId("word-bank-count")).toHaveTextContent("1 of 2")
+  })
+
+  it("sends the chosen words, and the hidden ones as challenge words, with the entry", async () => {
+    render(<JournalEditor />)
+    await screen.findAllByTestId("word-bank-chip")
+    fireEvent.click(screen.getByRole("switch"))
+    fireEvent.click(screen.getAllByRole("button", { name: "Show word" })[1])
+    fillEntry()
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+    const overrides = api.postLogEntry.mock.calls[0][3]
+    expect(overrides).toMatchObject({
+      target_language: "fr", target_word_ids: ["w1", "w2"], challenge_word_ids: ["w1"],
+    })
+  })
+
+  it("sends no word fields when the bank is empty", async () => {
+    api.getWordBank.mockResolvedValue({ language: "fr", words: [] })
+    render(<JournalEditor />)
+    await screen.findByTestId("word-bank-empty")
+    fillEntry()
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+    expect(api.postLogEntry.mock.calls[0][3]).not.toHaveProperty("target_word_ids")
   })
 })
