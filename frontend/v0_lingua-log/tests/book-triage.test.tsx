@@ -22,6 +22,8 @@ const api = vi.hoisted(() => {
   }
 })
 vi.mock("@/lib/api", () => api)
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }))
 vi.mock("@/i18n/LocaleProvider", () => ({
   useLocale: () => ({ t: (key: string, vars?: Record<string, unknown>) => `${key.split(".").at(-1)}${vars ? JSON.stringify(vars) : ""}` }),
 }))
@@ -91,6 +93,7 @@ describe("BookTriage", () => {
     )
     await waitFor(() => expect(api.updateVocabularyItem).toHaveBeenCalledWith("word-1", { status: "learning" }))
     expect(await screen.findByTestId("triage-empty")).toBeInTheDocument()
+    expect(toastSpy).toHaveBeenCalledWith({ title: "addedToReview" })
   })
 
   it("'I know it' saves the word as known", async () => {
@@ -115,6 +118,7 @@ describe("BookTriage", () => {
 
     await waitFor(() => expect(api.skipMarks).toHaveBeenCalledWith("book-1", ["enc-1", "enc-2"]))
     expect(api.addVocabularyItem).not.toHaveBeenCalled()
+    expect(toastSpy).toHaveBeenCalledWith({ title: "keptInGlossary" })
   })
 
   it("skips every one-off at once and leaves the recurring words", async () => {

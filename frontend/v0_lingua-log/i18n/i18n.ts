@@ -421,7 +421,7 @@ const resources = {
     },
     vocabulary: {
       myVocabulary: 'My vocabulary',
-      reviewAndManage: 'Your word notebook, with every word kept in context.',
+      reviewAndManage: 'Your word notebook, with every word kept in context - including words you kept from books.',
       searchPlaceholder: 'Search words, meanings, or examples…',
       filterByLanguage: 'Filter by language',
       allLanguages: 'All languages',
@@ -698,6 +698,11 @@ const resources = {
       notYet: 'Not yet',
       noMeaningYet: 'Meaning not built yet.',
       print: 'Print',
+      wordsPath: 'Kept words appear in Vocabulary after you end the session and tap Study.',
+      addToNotebook: 'Add to notebook',
+      addedToNotebook: 'Saved to your notebook (Vocabulary)',
+      addedToReview: 'Added to your notebook - it will come up in Review',
+      keptInGlossary: 'Kept in this book\'s glossary only - not in your notebook',
     },
     feedback: {
       grammarScore: 'Grammar Score',
@@ -1220,7 +1225,7 @@ const resources = {
     },
     vocabulary: {
       myVocabulary: 'Mi vocabulario',
-      reviewAndManage: 'Tu cuaderno de palabras, siempre con su contexto.',
+      reviewAndManage: 'Tu cuaderno de palabras, siempre con su contexto - incluidas las palabras que guardaste de tus libros.',
       searchPlaceholder: 'Busca palabras, significados o ejemplos…',
       filterByLanguage: 'Filtrar por idioma',
       allLanguages: 'Todos los idiomas',
@@ -1497,6 +1502,11 @@ const resources = {
       notYet: 'Todavía no',
       noMeaningYet: 'El significado aún no está creado.',
       print: 'Imprimir',
+      wordsPath: 'Las palabras que guardas aparecen en Vocabulario cuando terminas la sesión y pulsas Estudiar.',
+      addToNotebook: 'Añadir al cuaderno',
+      addedToNotebook: 'Guardada en tu cuaderno (Vocabulario)',
+      addedToReview: 'Añadida a tu cuaderno - aparecerá en Repaso',
+      keptInGlossary: 'Solo queda en el glosario de este libro - no en tu cuaderno',
     },
     feedback: {
       grammarScore: 'Puntuación de Gramática',

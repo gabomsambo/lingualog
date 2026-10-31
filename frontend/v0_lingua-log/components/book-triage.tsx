@@ -7,6 +7,7 @@ import { Loader2, RotateCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { useToast } from "@/components/ui/use-toast"
 import { useLocale } from "@/i18n/LocaleProvider"
 import {
   addVocabularyItem,
@@ -31,6 +32,7 @@ type Choice = "study" | "known" | "skip"
 /** After a session: cards for what you marked, recurring words first, then Study / I know it / Skip. */
 export function BookTriage({ book, session, onDone }: BookTriageProps) {
   const { t } = useLocale()
+  const { toast } = useToast()
   const [items, setItems] = useState<TriageItem[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [failedBuild, setFailedBuild] = useState(false)
@@ -66,6 +68,7 @@ export function BookTriage({ book, session, onDone }: BookTriageProps) {
       if (choice === "skip") {
         await skipMarks(book.id, item.encounter_ids)
         remove(item)
+        toast({ title: t("books.keptInGlossary") })
         return
       }
       const saved = await addVocabularyItem({
@@ -74,14 +77,17 @@ export function BookTriage({ book, session, onDone }: BookTriageProps) {
         example_sentence: item.sentence ?? undefined,
         encounter_id: item.encounter_id ?? undefined,
       })
+      let capped = false
       try {
         await updateVocabularyItem(saved.id, { status: choice === "study" ? "learning" : "known" })
       } catch (error) {
         // Over today's new-word limit: the word is kept in the notebook as New and waits.
         if (!(error instanceof ApiError && error.status === 409)) throw error
+        capped = true
         setMessage(t("books.capReached", { word: item.lemma }))
       }
       remove(item)
+      toast({ title: choice === "study" && !capped ? t("books.addedToReview") : t("books.addedToNotebook") })
     } catch {
       setMessage(t("books.choiceFailed", { word: item.lemma }))
     } finally {
@@ -96,6 +102,7 @@ export function BookTriage({ book, session, onDone }: BookTriageProps) {
       await skipMarks(book.id, oneOffs.flatMap((item) => item.encounter_ids))
       setItems((current) => (current ?? []).filter((item) => !oneOffs.includes(item)))
       setHandled((count) => count + oneOffs.length)
+      toast({ title: t("books.keptInGlossary") })
     } catch {
       setMessage(t("books.choiceFailed", { word: "" }))
     }

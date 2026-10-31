@@ -67,6 +67,7 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
         encounter_id: result.encounter_id,
       })
       setResult({ ...result, saved_item: saved })
+      toast({ title: "Saved to your notebook (Vocabulary)" })
     } catch {
       toast({ title: "Could not save this word", variant: "destructive" })
     } finally {
@@ -79,6 +80,11 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
     try {
       const saved = await updateVocabularyItem(result.saved_item.id, { status })
       setResult({ ...result, saved_item: saved })
+      toast({
+        title: status === "learning"
+          ? "Added to your notebook - it will come up in Review"
+          : "Saved to your notebook (Vocabulary)",
+      })
     } catch {
       toast({
         title: status === "learning" ? "Today's new-word limit is full" : "Could not update this word",

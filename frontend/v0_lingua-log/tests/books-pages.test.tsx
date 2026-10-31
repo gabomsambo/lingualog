@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BookDetail, BookGlossary, BookProgress, BookSummary } from "@/lib/api"
@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   getBookGlossary: vi.fn(),
   startReadingSession: vi.fn(),
   updateBook: vi.fn(),
+  addVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 vi.mock("@/lib/auth", () => ({ getUser: vi.fn().mockResolvedValue({ id: "user-1" }) }))
@@ -122,6 +123,7 @@ describe("BookPage", () => {
 
     expect(await screen.findByRole("link", { name: /openGlossary/ })).toHaveAttribute("href", "/books/book-1/glossary")
     expect(screen.getByRole("link", { name: /writeAbout/ })).toHaveAttribute("href", "/entries/new?book=book-1")
+    expect(screen.getByTestId("words-path")).toHaveTextContent("wordsPath")
     expect(screen.getByTestId("chart")).toBeInTheDocument()
   })
 
@@ -158,6 +160,22 @@ describe("BookGlossaryPage", () => {
     expect(rows[0]).toHaveTextContent("pagesShort")
     expect(rows[0]).toHaveTextContent("to tie")
     expect(rows[1]).toHaveTextContent("noMeaningYet")
+  })
+
+  it("offers 'Add to notebook' on a skipped word and saves it through the vocabulary path", async () => {
+    api.addVocabularyItem.mockResolvedValue({ id: "word-2" })
+    render(<BookGlossaryPage />)
+    const rows = await screen.findAllByTestId("glossary-row")
+
+    expect(within(rows[0]).queryByTestId("glossary-add")).not.toBeInTheDocument()
+    fireEvent.click(within(rows[1]).getByTestId("glossary-add"))
+
+    await waitFor(() =>
+      expect(api.addVocabularyItem).toHaveBeenCalledWith({
+        term: "cinta", language: "es", example_sentence: undefined,
+      }),
+    )
+    await waitFor(() => expect(api.getBookGlossary).toHaveBeenCalledTimes(2))
   })
 
   it("hides each meaning in the self-quiz until you reveal it, and counts what you remembered", async () => {

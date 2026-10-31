@@ -8,8 +8,9 @@ import { ArrowLeft, Eye, Printer } from "lucide-react"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { useLocale } from "@/i18n/LocaleProvider"
-import { getBookGlossary, type BookGlossary, type GlossaryWord } from "@/lib/api"
+import { addVocabularyItem, getBookGlossary, type BookGlossary, type GlossaryWord } from "@/lib/api"
 import { statusClass } from "@/lib/review"
 
 type Recall = "remembered" | "not_yet"
@@ -21,12 +22,14 @@ function pagesLabel(pages: number[]): string {
 /** The book's index card: every marked word with its sentence and pages, printable, with a re-read self-quiz. */
 export default function BookGlossaryPage() {
   const { t } = useLocale()
+  const { toast } = useToast()
   const { id } = useParams<{ id: string }>()
   const [glossary, setGlossary] = useState<BookGlossary | null>(null)
   const [failed, setFailed] = useState(false)
   const [quiz, setQuiz] = useState(false)
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
   const [recall, setRecall] = useState<Record<string, Recall>>({})
+  const [adding, setAdding] = useState<string | null>(null)
 
   useEffect(() => {
     getBookGlossary(id).then(setGlossary).catch(() => setFailed(true))
@@ -43,6 +46,23 @@ export default function BookGlossaryPage() {
     setQuiz((on) => !on)
     setRevealed(new Set())
     setRecall({})
+  }
+
+  const addToNotebook = async (word: GlossaryWord) => {
+    if (!glossary) return
+    setAdding(word.key)
+    try {
+      await addVocabularyItem({
+        term: word.lemma,
+        language: glossary.book.language,
+        example_sentence: word.sentences[0]?.sentence,
+      })
+      setGlossary(await getBookGlossary(glossary.book.id))
+    } catch {
+      toast({ title: t("books.choiceFailed", { word: word.lemma }) })
+    } finally {
+      setAdding(null)
+    }
   }
 
   return (
@@ -81,8 +101,10 @@ export default function BookGlossaryPage() {
               quiz={quiz}
               revealed={!quiz || revealed.has(word.key)}
               recall={recall[word.key]}
+              adding={adding === word.key}
               onReveal={() => reveal(word.key)}
               onRecall={(value) => setRecall((current) => ({ ...current, [word.key]: value }))}
+              onAdd={() => void addToNotebook(word)}
             />
           ))}
         </ul>
@@ -96,15 +118,19 @@ function GlossaryRow({
   quiz,
   revealed,
   recall,
+  adding,
   onReveal,
   onRecall,
+  onAdd,
 }: {
   word: GlossaryWord
   quiz: boolean
   revealed: boolean
   recall?: Recall
+  adding: boolean
   onReveal: () => void
   onRecall: (value: Recall) => void
+  onAdd: () => void
 }) {
   const { t } = useLocale()
   const sentence = word.sentences[0]
@@ -136,6 +162,13 @@ function GlossaryRow({
         <div className="flex gap-2 print:hidden">
           <Button size="sm" variant={recall === "remembered" ? "default" : "outline"} onClick={() => onRecall("remembered")}>{t("books.remembered")}</Button>
           <Button size="sm" variant={recall === "not_yet" ? "secondary" : "outline"} onClick={() => onRecall("not_yet")}>{t("books.notYet")}</Button>
+        </div>
+      )}
+      {word.skipped && (
+        <div className="print:hidden">
+          <Button size="sm" variant="outline" disabled={adding} onClick={onAdd} data-testid="glossary-add">
+            {t("books.addToNotebook")}
+          </Button>
         </div>
       )}
     </li>

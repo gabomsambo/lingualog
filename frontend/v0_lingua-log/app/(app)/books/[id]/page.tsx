@@ -162,9 +162,12 @@ export default function BookPage() {
 
       {!finished && (
         <>
-          <section className="mt-8 flex flex-wrap gap-3">
-            <Button asChild variant="outline"><Link href={`/books/${book.id}/glossary`}><BookMarked className="mr-2 h-4 w-4" />{t("books.openGlossary")}</Link></Button>
-            <Button asChild variant="outline"><Link href={`/entries/new?book=${book.id}`}><Edit className="mr-2 h-4 w-4" />{t("books.writeAbout")}</Link></Button>
+          <section className="mt-8">
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline"><Link href={`/books/${book.id}/glossary`}><BookMarked className="mr-2 h-4 w-4" />{t("books.openGlossary")}</Link></Button>
+              <Button asChild variant="outline"><Link href={`/entries/new?book=${book.id}`}><Edit className="mr-2 h-4 w-4" />{t("books.writeAbout")}</Link></Button>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground" data-testid="words-path">{t("books.wordsPath")}</p>
           </section>
 
           {progress && (

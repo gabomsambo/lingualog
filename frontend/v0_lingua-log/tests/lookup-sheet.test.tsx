@@ -7,7 +7,8 @@ const api = vi.hoisted(() => ({
   updateVocabularyItem: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
-vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }))
 
 import { LookupSheet } from "@/components/lookup-sheet"
 
@@ -45,9 +46,11 @@ describe("LookupSheet triage", () => {
     await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
       encounter_id: "enc-1", example_sentence: "Me senté en un banco.",
     })))
+    expect(toastSpy).toHaveBeenCalledWith({ title: "Saved to your notebook (Vocabulary)" })
     expect(await screen.findByRole("button", { name: "I know it" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Ignore" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Study" }))
     await waitFor(() => expect(api.updateVocabularyItem).toHaveBeenCalledWith("word-1", { status: "learning" }))
+    expect(toastSpy).toHaveBeenCalledWith({ title: "Added to your notebook - it will come up in Review" })
   })
 })
