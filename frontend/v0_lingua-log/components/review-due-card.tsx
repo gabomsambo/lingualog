@@ -36,6 +36,11 @@ export function ReviewDueCard() {
           <>
             <p className="text-3xl font-bold" data-testid="review-due-count">
               {t("vocabulary.reviewDueCount", { count: summary.total })}
+              {summary.new > 0 && (
+                <span className="ml-3 align-middle text-base font-medium text-muted-foreground" data-testid="review-new-count">
+                  {t("vocabulary.reviewNewCount", { count: summary.new })}
+                </span>
+              )}
             </p>
             <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
               {waiting.length > 1 &&

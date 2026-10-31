@@ -193,9 +193,14 @@ class SessionPlan:
     catchup_budget: int = 0
 
     @property
+    def new(self) -> int:
+        """New words allowed in a session today: the separate count, like Anki's."""
+        return min(self.new_available, self.new_remaining)
+
+    @property
     def total(self) -> int:
         """What the dashboard calls "due": reviews waiting plus new words allowed today."""
-        return self.due + min(self.new_available, self.new_remaining)
+        return self.due + self.new
 
 
 def plan_session(

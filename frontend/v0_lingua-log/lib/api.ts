@@ -587,6 +587,7 @@ export interface VocabularyProgress {
   };
   review: {
     due_today: number;
+    new_today: number;
     forecast: Array<{ date: string; count: number }>;
     at_risk: number;
     true_retention: number | null;
@@ -721,6 +722,8 @@ export interface ReviewCard {
 
 export interface ReviewCounts {
   due: number;
+  /** New words allowed in a session today, counted apart like Anki's new count. */
+  new: number;
   new_available: number;
   new_remaining: number;
   /** Reviews waiting plus the new words still allowed today. */
@@ -742,6 +745,7 @@ export interface ReviewSession {
 export interface ReviewSummary {
   languages: Array<{ language: string } & ReviewCounts>;
   total: number;
+  new: number;
   at_risk: number;
 }
 

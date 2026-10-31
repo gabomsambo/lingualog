@@ -324,8 +324,9 @@ export default function StatsPage() {
                     <CardDescription>{t("vocabulary.reviewHealthDesc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <Stat label={t("vocabulary.dueToday")} value={progress.review.due_today} />
+                      <Stat label={t("vocabulary.newToday")} value={progress.review.new_today} />
                       <Stat
                         label={t("vocabulary.trueRetention")}
                         value={

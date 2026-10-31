@@ -114,7 +114,7 @@ def test_never_used_ignores_writing_evidence():
     assert [row["id"] for row in selected] == ["w2", "w3"]
 
 
-def test_due_list_needs_a_waiting_card_that_is_due():
+def test_due_list_counts_answered_and_new_cards_that_are_due():
     items = [word("w1"), word("w2"), word("w3"), word("w4")]
     cards = [
         card("c1", "w1", reps=1, due=iso(days=-1)),
@@ -123,7 +123,7 @@ def test_due_list_needs_a_waiting_card_that_is_due():
         card("c4", "w4", reps=1, due=iso(days=-1), suspended_at=iso()),
     ]
     selected = vocab_service.filter_items(items, [], cards, {"list": "due"}, now=NOW)
-    assert [row["id"] for row in selected] == ["w1"]
+    assert [row["id"] for row in selected] == ["w1", "w3"]
 
 
 def test_filters_combine_tags_source_status_and_entry():

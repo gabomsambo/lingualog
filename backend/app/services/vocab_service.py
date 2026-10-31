@@ -19,7 +19,7 @@ from database import (
     save_language_placement,
 )
 from placement import estimate_size, has_samples, matching_words, sample_words
-from review_scheduler import PRODUCTION, aware
+from review_scheduler import aware
 
 CARDS_TABLE = "vocab_cards"
 LOGS_TABLE = "vocab_review_logs"
@@ -199,10 +199,12 @@ def source_of(word: Mapping[str, Any], books: Optional[Mapping[Any, str]] = None
 
 
 def _is_due(card: Mapping[str, Any], now: datetime) -> bool:
-    """A card waiting to be reviewed today: answered before (or a production card) and due."""
+    """A card waiting to be reviewed today: not suspended and due.
+
+    Never-reviewed cards are due from creation and the review session deals them, so they
+    count here too - the same rule as stats_service and review_service (V1 due-count bug).
+    """
     if card.get("suspended_at"):
-        return False
-    if not (card.get("reps") or card.get("card_type") == PRODUCTION):
         return False
     due = aware(card.get("due"))
     return due is not None and due <= now

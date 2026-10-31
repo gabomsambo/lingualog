@@ -9,18 +9,25 @@ vi.mock("@/i18n/LocaleProvider", () => ({
 
 import { ReviewDueCard } from "@/components/review-due-card"
 
-const row = (language: string, total: number) => ({
-  language, due: total, new_available: 0, new_remaining: 10, total, backlog: 0, at_risk: 0, suggest_catchup: false,
+const row = (language: string, total: number, newCount = 0) => ({
+  language, due: total - newCount, new: newCount, new_available: newCount, new_remaining: 10, total, backlog: 0, at_risk: 0, suggest_catchup: false,
 })
 
 describe("ReviewDueCard", () => {
   beforeEach(() => vi.clearAllMocks())
 
   it("shows how many words are due and links into the review", async () => {
-    api.getReviewSummary.mockResolvedValue({ languages: [row("es", 7)], total: 7, at_risk: 0 })
+    api.getReviewSummary.mockResolvedValue({ languages: [row("es", 7)], total: 7, new: 0, at_risk: 0 })
     render(<ReviewDueCard />)
     expect(await screen.findByTestId("review-due-count")).toHaveTextContent('"count":7')
     expect(screen.getByRole("link", { name: "reviewStartReview" })).toHaveAttribute("href", "/review?language=es")
+  })
+
+  it("counts new words apart, like Anki", async () => {
+    api.getReviewSummary.mockResolvedValue({ languages: [row("es", 3, 2)], total: 3, new: 2, at_risk: 0 })
+    render(<ReviewDueCard />)
+
+    expect(await screen.findByTestId("review-new-count")).toHaveTextContent('"count":2')
   })
 
   it("opens the first language that has something waiting", async () => {
