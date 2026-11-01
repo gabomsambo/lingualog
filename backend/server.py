@@ -77,7 +77,7 @@ from ai.gemini import (
 from ai.word_card import card_policy_snapshot, generate_word_card
 from word_bank import clean_target_word_uses
 
-from app.routers import books, entry_translation, level_suggestions, review, support_events, vocab, word_bank
+from app.routers import books, entry_translation, level_suggestions, prompts, review, support_events, vocab, word_bank
 from app.services import book_service, review_service, vocab_service, word_bank_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
@@ -535,6 +535,7 @@ app.add_middleware(
 app.include_router(entry_translation.router)
 app.include_router(support_events.router)
 app.include_router(level_suggestions.router)
+app.include_router(prompts.router)
 app.include_router(review.router)
 app.include_router(word_bank.router)
 app.include_router(books.router)
