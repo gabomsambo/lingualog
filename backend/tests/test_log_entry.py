@@ -136,6 +136,29 @@ def test_log_entry_saves_real_feedback(client):
     assert saved["sentence_mapping_status"] == "valid"
 
 
+def test_guided_prompt_is_saved_and_context_is_given_to_tutor(client):
+    with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
+        with patch("server.save_entry", return_value={"id": "entry-prompt"}) as mock_save:
+            with patch(
+                "server.generate_structured", new=AsyncMock(return_value=sample_feedback("Hola"))
+            ) as mock_generate:
+                response = client.post(
+                    "/log-entry",
+                    json={
+                        "text": "Me llamo Ana. Soy de Chile.",
+                        "prompt_id": "es-a1-01",
+                        "entry_mode": "frame",
+                    },
+                    headers={"X-User-ID": "user-1"},
+                )
+
+    assert response.status_code == 201
+    saved = mock_save.call_args[0][0]
+    assert saved["prompt_id"] == "es-a1-01"
+    assert saved["entry_mode"] == "frame"
+    assert "This guided entry uses a sentence template." in mock_generate.call_args.args[1]
+
+
 def test_log_entry_honest_failure_keeps_entry(client):
     from ai.gemini import GeminiError
 

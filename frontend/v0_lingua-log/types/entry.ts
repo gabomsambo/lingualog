@@ -36,6 +36,8 @@ export interface Entry {
   updated_at?: string;        // from DB
   is_favorite?: boolean;      // from DB
   tags?: string[];            // Added to match backend and usage in page.tsx
+  prompt_id?: string | null;
+  entry_mode?: "idea" | "frame" | "one_sentence" | null;
 
   // Fields from Gemini API analysis
   translation: string;

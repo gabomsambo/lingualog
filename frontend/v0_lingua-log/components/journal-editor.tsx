@@ -31,14 +31,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Slider } from "@/components/ui/slider"
 import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 import { WordBankPanel } from "@/components/word-bank-panel"
+import { PromptPicker } from "@/components/prompt-picker"
 
 import {
   ApiError,
   getEntryById,
   postLogEntry,
+  postSupportEvent,
   getUserSettings,
   type JournalEntryOverrides,
+  type PromptEntryMode,
   type UserSettingsData,
+  type WritingPrompt,
 } from "@/lib/api"
 import { studiedLanguages } from "@/lib/studied-languages"
 import { toSideBySideEntry, type SideBySideEntry } from "@/lib/side-by-side"
@@ -71,6 +75,9 @@ export function JournalEditor() {
   const [lookupContext, setLookupContext] = useState<LookupContext | null>(null)
   const [wordSelection, setWordSelection] = useState<BankSelection>({ targetWordIds: [], challengeWordIds: [] })
   const [bankKey, setBankKey] = useState(0)
+  const [promptSelection, setPromptSelection] = useState<{ promptId: string; mode: PromptEntryMode } | null>(null)
+  const [recentPromptIds, setRecentPromptIds] = useState<string[]>([])
+  const [promptPickerKey, setPromptPickerKey] = useState(0)
   
   // User settings and overrides
   const [userSettings, setUserSettings] = useState<UserSettingsData | null>(null)
@@ -174,6 +181,9 @@ export function JournalEditor() {
               challenge_word_ids: wordSelection.challengeWordIds,
             }
           : {}),
+        ...(promptSelection
+          ? { prompt_id: promptSelection.promptId, entry_mode: promptSelection.mode }
+          : {}),
       }
       
       // Use the API helper function with overrides
@@ -219,6 +229,8 @@ export function JournalEditor() {
     setSavedEntryId(null)
     setError(null)
     setOverrides({})
+    setPromptSelection(null)
+    setPromptPickerKey((key) => key + 1)
     setBankKey((key) => key + 1)
   }
 
@@ -250,6 +262,7 @@ export function JournalEditor() {
 
   const chooseLanguage = (code: string) => {
     setTargetLanguage(code)
+    setPromptSelection(null)
     setOverrides((prev) => {
       const next = { ...prev }
       delete next.immersion_level
@@ -261,6 +274,28 @@ export function JournalEditor() {
     ?? userSettings?.immersion_level
     ?? 1
   const displayedImmersionLevel = overrides.immersion_level ?? savedImmersionLevel
+  const proficiency = userSettings?.language_profiles?.find((row) => row.l2 === targetLanguage)?.proficiency ?? "A2"
+  const lengthRange: Record<string, string> = {
+    A1: "25–50",
+    A2: "60–100",
+    B1: "120–170",
+    B2: "180–250",
+  }
+  const lengthHintRange = ["ja", "ko", "zh"].includes(targetLanguage.split("-")[0].toLowerCase())
+    ? null
+    : lengthRange[proficiency.toUpperCase()]
+
+  const usePrompt = (prompt: WritingPrompt, mode: PromptEntryMode) => {
+    setPromptSelection({ promptId: prompt.id, mode })
+    setRecentPromptIds((current) => [...new Set([...current, prompt.id])].slice(-20))
+    if (!title.trim()) setTitle(prompt.title)
+    if (mode !== "idea") {
+      const nextText = mode === "frame" ? prompt.sentence_frame : prompt.one_sentence_frame
+      setText(nextText)
+      setWordCount(nextText.trim().split(/\s+/).filter(Boolean).length)
+      setError(null)
+    }
+  }
 
   const handleCloseTranslationModal = () => {
     setIsTranslationModalOpen(false);
@@ -325,10 +360,28 @@ export function JournalEditor() {
                   </Link>
                 </div>
               </div>
-              <div className="text-sm text-muted-foreground pr-2">
-                {t('journal.wordCount')}: {wordCount}
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground pr-2">
+                <span>{t('journal.wordCount')}: {wordCount}</span>
+                {lengthHintRange && (
+                  <span>{t('journal.promptLengthHint', { range: lengthHintRange })}</span>
+                )}
               </div>
             </div>
+
+            {settingsStatus === "ready" && (
+              <PromptPicker
+                key={promptPickerKey}
+                language={targetLanguage}
+                level={proficiency}
+                disabled={isSubmitting}
+                excludeIds={recentPromptIds}
+                resetKey={promptPickerKey}
+                onUsePrompt={usePrompt}
+                onPromptUsed={(promptId) => {
+                  postSupportEvent({ kind: "prompt_selected", l2: targetLanguage, prompt_id: promptId }).catch(() => {})
+                }}
+              />
+            )}
 
             {settingsStatus === "ready" && (
               <WordBankPanel

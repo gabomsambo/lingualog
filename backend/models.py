@@ -32,6 +32,8 @@ class JournalEntryRequest(BaseModel):
     strictness: Optional[str] = Field(None, description="Override correction strictness (gentle, medium, strict, pedantic)")
     formality: Optional[str] = Field(None, description="Override formality level (casual, neutral, formal, academic)")
     immersion_level: Optional[int] = Field(None, description="Override immersion level (0-3)", ge=0, le=3)
+    prompt_id: Optional[str] = Field(None, min_length=1, max_length=100)
+    entry_mode: Optional[Literal["idea", "frame", "one_sentence"]] = None
 
     # Word bank: words from the learner's notebook they chose to write with in this entry
     target_word_ids: List[UUID] = Field(
