@@ -99,7 +99,7 @@ async def _run_live(corpus: list[dict[str, str]]) -> tuple[list[dict[str, Any]],
         "formality": "neutral",
     }
     try:
-        for sample in corpus:
+        for index, sample in enumerate(corpus, start=1):
             effective = resolve_effective(
                 profile,
                 {"target_language": "es", "proficiency": sample["level"]},
@@ -131,6 +131,11 @@ async def _run_live(corpus: list[dict[str, str]]) -> tuple[list[dict[str, Any]],
                 "predicted": predicted,
                 "failure": failure,
             })
+            print(
+                f"{index}/{len(corpus)} {sample['id']}: {predicted or 'no suggestion'} "
+                f"({counter['calls']} live calls)",
+                flush=True,
+            )
     finally:
         genai.Client = original_client_factory
     return rows, counter["calls"], model

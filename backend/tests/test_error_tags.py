@@ -24,6 +24,12 @@ def test_error_type_is_required_and_closed():
     with pytest.raises(ValidationError):
         GrammarSuggestion(original="x", corrected="y", error_type="anything")
 
+    suggestion_schema = GeminiJournalFeedback.model_json_schema()["$defs"]["GrammarSuggestion"]
+    assert "error_type" in suggestion_schema["required"]
+    assert set(suggestion_schema["properties"]["error_type"]["enum"]) >= {
+        "ser_estar", "gustar", "por_para", "other",
+    }
+
 
 def test_language_families_have_closed_tag_lists_and_spanish_has_its_core_tags():
     assert len(ERROR_TYPES_BY_FAMILY) >= 6

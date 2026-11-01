@@ -42,6 +42,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **POST /log-entry**
   - Submit a journal entry text
+  - Each grammar suggestion has a required, closed `error_type` tag stored in the existing JSONB; tagging uses the same feedback call
   - Optional `prompt_id` and `entry_mode` (`idea`, `frame`, `one_sentence`) record a guided prompt entry
   - Optional `class_note_id` links writing from a pasted class note; its grammar focus is checked in this same feedback call
   - Returns comprehensive AI feedback, including the saved entry `id`
