@@ -66,6 +66,10 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **GET /user/policy?l2=**
   - The current learning policy for one language; entries stored without `policy_snapshot` render with it
 
+- **GET /user/stats/error-patterns**
+  - Read-only counts for the three most common grammar tags per target language in the latest 50 entries
+  - Suggestions from older entries without `error_type` count as `other`; this endpoint makes no model calls
+
 - **GET /prompts?l2=&level=&topic=&exclude=**
   - Load curated prompt ideas and sentence frames for a studied language and CEFR level
   - Spanish A1-B1 content is available in v1; `exclude` accepts prompt ids to avoid showing recent choices again

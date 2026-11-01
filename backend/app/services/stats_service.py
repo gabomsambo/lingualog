@@ -11,7 +11,16 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from supabase import Client as SupabaseClient
 
-from app.schemas.stats_schemas import WordCountStat, LanguageStat, StreakData, UserStatsResponse
+from ai.error_tags import ERROR_TYPE_VALUES
+from app.schemas.stats_schemas import (
+    ErrorPatternsResponse,
+    ErrorTagCount,
+    LanguageErrorPatterns,
+    WordCountStat,
+    LanguageStat,
+    StreakData,
+    UserStatsResponse,
+)
 from app.services import vocab_service
 from review_scheduler import (
     DEFAULT_DAILY_NEW_WORDS, aware, day_start, is_at_risk, make_scheduler, waiting_cards,
@@ -26,6 +35,8 @@ TREND_DAYS = 30
 WEEK_DAYS = 7
 TRUE_RETENTION_DAYS = 30
 REVIEW_MINUTES_BUDGET = 20
+ERROR_PATTERN_WINDOW_ENTRIES = 50
+ERROR_PATTERN_TOP_TAGS = 3
 
 
 async def get_daily_word_counts(db: SupabaseClient, user_id: str, days: int = 7) -> List[WordCountStat]:
@@ -178,12 +189,54 @@ async def get_user_stats_service(
         longest=longest_s,
         totalWords=total_words # This needs to be the grand total words from language_breakdown
     )
-
     return UserStatsResponse(
         wordCounts=daily_word_counts,
         languageBreakdown=language_stats,
         streak=streak_data
     )
+
+
+async def get_error_patterns_service(
+    db: SupabaseClient,
+    user_id: str,
+) -> ErrorPatternsResponse:
+    """Count the most common feedback tags by target language over recent entries."""
+    response = (
+        db.table("journal_entries")
+        .select("target_language, grammar_suggestions, created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(ERROR_PATTERN_WINDOW_ENTRIES)
+        .execute()
+    )
+    rows = response.data or []
+    counts_by_language: Dict[str, Dict[str, int]] = {}
+    for row in rows:
+        language = str(row.get("target_language") or "other")
+        tag_counts = counts_by_language.setdefault(language, {})
+        suggestions = row.get("grammar_suggestions")
+        if not isinstance(suggestions, list):
+            continue
+        for suggestion in suggestions:
+            if not isinstance(suggestion, Mapping):
+                continue
+            error_type = suggestion.get("error_type")
+            if not isinstance(error_type, str) or error_type not in ERROR_TYPE_VALUES:
+                error_type = "other"
+            tag_counts[error_type] = tag_counts.get(error_type, 0) + 1
+
+    languages = []
+    for language, tag_counts in sorted(counts_by_language.items()):
+        top_tags = [
+            ErrorTagCount(error_type=tag, count=count)
+            for tag, count in sorted(tag_counts.items(), key=lambda item: (-item[1], item[0]))[
+                :ERROR_PATTERN_TOP_TAGS
+            ]
+        ]
+        if top_tags:
+            languages.append(LanguageErrorPatterns(language=language, top_tags=top_tags))
+
+    return ErrorPatternsResponse(window_entries=len(rows), languages=languages)
 
 
 # --- Vocabulary and review progress ------------------------------------------

@@ -22,6 +22,7 @@ def iso(days=0, hours=0):
 class FakeQuery:
     def __init__(self, rows):
         self.rows = rows
+        self.limit_value = None
 
     def select(self, *_args, **_kwargs):
         return self
@@ -32,8 +33,17 @@ class FakeQuery:
     def gte(self, *_args):
         return self
 
+    def order(self, column, desc=False, **_kwargs):
+        self.rows = sorted(self.rows, key=lambda row: row.get(column) or "", reverse=desc)
+        return self
+
+    def limit(self, count):
+        self.limit_value = count
+        return self
+
     def execute(self):
-        return SimpleNamespace(data=self.rows, count=len(self.rows))
+        rows = self.rows if self.limit_value is None else self.rows[:self.limit_value]
+        return SimpleNamespace(data=rows, count=len(rows))
 
 
 class FakeDb:
@@ -60,6 +70,83 @@ async def test_language_breakdown_groups_by_target_language_not_tone():
     assert by_language["es"].count == 4
     assert by_language["fr"].count == 2
     assert by_language["es"].percentage == pytest.approx(66.7, abs=0.1)
+
+
+@pytest.mark.asyncio
+async def test_error_patterns_count_recent_tags_and_treat_legacy_as_other():
+    rows = [
+        {"target_language": "es", "created_at": iso(), "grammar_suggestions": [
+            {"error_type": "ser_estar"}, {"error_type": "gender_agreement"},
+        ]},
+        {"target_language": "es", "created_at": iso(hours=-1), "grammar_suggestions": [
+            {"error_type": "ser_estar"}, {"error_type": "article"},
+        ]},
+        {"target_language": "es", "created_at": iso(hours=-2), "grammar_suggestions": [
+            {"error_type": "ser_estar"}, {"error_type": "gender_agreement"},
+            {"note": "legacy suggestion without a tag"},
+        ]},
+        {"target_language": "fr", "created_at": iso(hours=-3), "grammar_suggestions": [
+            {"error_type": "preposition"}, {"error_type": "not_in_schema"},
+        ]},
+        {"target_language": "de", "created_at": iso(hours=-4), "grammar_suggestions": []},
+    ]
+
+    result = await stats_service.get_error_patterns_service(FakeDb(rows), USER)
+
+    assert result.window_entries == 5
+    by_language = {row.language: row for row in result.languages}
+    assert [(tag.error_type, tag.count) for tag in by_language["es"].top_tags] == [
+        ("ser_estar", 3),
+        ("gender_agreement", 2),
+        ("article", 1),
+    ]
+    assert {tag.error_type for tag in by_language["fr"].top_tags} == {"other", "preposition"}
+    assert "de" not in by_language
+
+
+@pytest.mark.asyncio
+async def test_error_patterns_only_uses_the_named_recent_entry_window():
+    rows = [
+        {
+            "target_language": "es",
+            "created_at": iso(hours=-index),
+            "grammar_suggestions": [{"error_type": "ser_estar"}],
+        }
+        for index in range(stats_service.ERROR_PATTERN_WINDOW_ENTRIES)
+    ]
+    rows.append({
+        "target_language": "es",
+        "created_at": iso(hours=-100),
+        "grammar_suggestions": [{"error_type": "gender_agreement"}],
+    })
+
+    result = await stats_service.get_error_patterns_service(FakeDb(rows), USER)
+
+    assert result.window_entries == stats_service.ERROR_PATTERN_WINDOW_ENTRIES
+    assert [tag.model_dump() for tag in result.languages[0].top_tags] == [
+        {"error_type": "ser_estar", "count": stats_service.ERROR_PATTERN_WINDOW_ENTRIES},
+    ]
+
+
+def test_error_patterns_endpoint_requires_a_user_and_returns_recent_tags(monkeypatch):
+    import database
+
+    db = FakeDb([{
+        "target_language": "es",
+        "created_at": iso(),
+        "grammar_suggestions": [{"error_type": "por_para"}],
+    }])
+    monkeypatch.setattr(database, "create_supabase_client", lambda: db)
+    client = TestClient(server.app, raise_server_exceptions=False)
+
+    assert client.get("/user/stats/error-patterns").status_code == 401
+    response = client.get("/user/stats/error-patterns", headers=HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "window_entries": 1,
+        "languages": [{"language": "es", "top_tags": [{"error_type": "por_para", "count": 1}]}],
+    }
 
 
 # --- Pure progress helpers ----------------------------------------------------
