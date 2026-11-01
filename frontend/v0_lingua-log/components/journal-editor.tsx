@@ -127,10 +127,11 @@ export function JournalEditor() {
     })
   }
 
-  // Select-all, copy and modifier key-ups leave a selection behind but are not a lookup request;
-  // opening the sheet there moves focus out of the textarea and swallows the next keystrokes.
+  // Only a Shift+navigation key-up extends a selection into a lookup request. Any other key-up
+  // (select-all in either release order, copy, modifiers) must not steal focus from the textarea.
   const lookupAfterKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.ctrlKey || event.metaKey || ["Control", "Meta", "Alt", "Shift"].includes(event.key)) return
+    const navigation = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || !navigation.includes(event.key)) return
     lookupSelection(event)
   }
 

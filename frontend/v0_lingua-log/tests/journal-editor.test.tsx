@@ -93,6 +93,29 @@ describe("JournalEditor lookup", () => {
     fireEvent.keyUp(editor, { key: "Control" })
     expect(screen.queryByTestId("selected-lookup")).toBeNull()
   })
+
+  it("does not open lookup when Ctrl is released before the 'a' key", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 0 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 18 })
+    fireEvent.keyUp(editor, { key: "Control" })
+    fireEvent.keyUp(editor, { key: "a", ctrlKey: false })
+    expect(screen.queryByTestId("selected-lookup")).toBeNull()
+  })
+
+  it("opens lookup after extending a selection with Shift+arrow", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 11 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 17 })
+    fireEvent.keyUp(editor, { key: "ArrowRight", shiftKey: true })
+    expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
+  })
 })
 
 
