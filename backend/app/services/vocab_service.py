@@ -31,7 +31,7 @@ BOOKS_TABLE = "books"
 # How a word was used in the learner's own writing (V4 refines these with correctness).
 USE_KINDS = ("entry_text", "used_ok", "used_error")
 SMART_LISTS = ("due", "never_used")
-SOURCES = ("entry", "book", "lookup")
+SOURCES = ("entry", "book", "lookup", "class_note")
 STATUSES = ("new", "learning", "known", "mastered", "ignored")
 
 ENCOUNTER_FIELDS = "id, word_id, kind, surface, sentence, source_type, source_id, page, book_id, created_at"
@@ -189,12 +189,21 @@ def book_of_word(encounters: Sequence[Mapping[str, Any]]) -> Dict[Any, str]:
     return books
 
 
-def source_of(word: Mapping[str, Any], books: Optional[Mapping[Any, str]] = None) -> str:
-    """Where the word came from: a book, an entry, or a lookup."""
+def source_of(
+    word: Mapping[str, Any],
+    books: Optional[Mapping[Any, str]] = None,
+    encounters: Sequence[Mapping[str, Any]] = (),
+) -> str:
+    """Where the word came from: a book, an entry, a class note, or a lookup."""
     if word.get("book_id") or (books or {}).get(word.get("id")):
         return "book"
     if word.get("entry_id"):
         return "entry"
+    if any(
+        row.get("word_id") == word.get("id") and row.get("source_type") == "class_note"
+        for row in encounters
+    ):
+        return "class_note"
     return "lookup"
 
 
@@ -240,7 +249,7 @@ def filter_items(
             if str(word.get("book_id") or books.get(word.get("id")) or "") == selector["book_id"]
         ]
     if selector.get("source"):
-        selected = [word for word in selected if source_of(word, books) == selector["source"]]
+        selected = [word for word in selected if source_of(word, books, encounters) == selector["source"]]
     if selector.get("list") == "due":
         due_ids = _due_word_ids(cards, now, profiles)
         selected = [word for word in selected if word.get("id") in due_ids]
@@ -385,7 +394,7 @@ def export_rows(
         card = word.get("card") or {}
         word_encounters = by_word.get(word.get("id"), [])
         book_id = books_by_word.get(word.get("id")) or word.get("book_id")
-        source = source_of(word, books_by_word)
+        source = source_of(word, books_by_word, word_encounters)
         reference = ""
         if source == "entry":
             entry = entry_rows.get(str(word.get("entry_id") or "")) or {}
@@ -394,6 +403,8 @@ def export_rows(
         elif source == "book":
             book = book_rows.get(str(book_id or "")) or {}
             reference = f"Book · {book.get('title')}" if book.get("title") else "Book"
+        elif source == "class_note":
+            reference = "Class note"
         else:
             reference = "Lookup"
 

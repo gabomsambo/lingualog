@@ -92,5 +92,11 @@
   "writeAgainInstructions": "Intenta escribir el texto corregido de memoria. La comparación se hace aquí en tu dispositivo.",
   "writeAgainInputLabel": "Escribe otra vez el texto corregido",
   "writeAgainYourTry": "Compara tu intento con la corrección",
-  "writeAgainMatch": "Coincide con la corrección. ¡Buen trabajo!"
+  "writeAgainMatch": "Coincide con la corrección. ¡Buen trabajo!",
+  "focusTodayTitle": "Enfoque gramatical de hoy",
+  "focusUse_used_correctly": "Bien usado",
+  "focusUse_used_with_error": "Por corregir",
+  "focusUse_unclear": "Por aclarar",
+  "focusUse_not_used": "Sin usar",
+  "focusUseNotUsed": "Este enfoque no aparece en la entrada."
 }

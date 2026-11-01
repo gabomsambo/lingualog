@@ -57,7 +57,7 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_MODEL_WORD_CARD`, `GEMINI_THIN
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
 - **Backend ↔ Gemini Flash-Lite**: Policy-aware vocabulary cards
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`, `word_encounters`, `vocab_cards`, `vocab_review_logs`, `user_fsrs_params`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`, `word_encounters`, `class_notes`, `vocab_cards`, `vocab_review_logs`, `user_fsrs_params`
 
 ## Core Agent Workflows
 
@@ -123,7 +123,7 @@ Key reference files:
 ## Database Schema Quick Reference
 
 ### `journal_entries`
-- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + `sentence_mapping` (+ `_status`), `sentence_actions`, nullable `prompt_id` and `entry_mode`
+- Stores journal text + flattened AI feedback (corrected, rewritten, score, tone, etc.) + `analysis_status`, `analysis_model`, `analysis_error_code` + `policy_snapshot` + nullable `class_note_id` + `sentence_mapping` (+ `_status`), `sentence_actions`, nullable `prompt_id` and `entry_mode`
 - `detected_language` (Gemini's read of the written language) and `detected_language_kept` drive the did-you-mean prompt
 - `meaning_translations_cache` (jsonb): per-part translations, merged via `merge_meaning_translation` RPC
 - Foreign key: `user_id`
@@ -169,6 +169,7 @@ Key reference files:
 - `GET /user/stats` - Get user statistics
 - `GET /vocabulary/progress`, `GET /vocabulary/lists`, `GET /vocabulary/export`, `GET|POST /placement/{language}` - Progress, lists, CSV/Anki export, placement check; see `README.md` (Progress, lists and export)
 - `GET /review/session`, `GET /review/summary`, `POST /review/{card_id}` - FSRS review (no model calls); see `README.md` (Vocabulary review)
+- `POST /class-notes`, `GET /class-notes/{id}`, `POST /class-notes/{id}/confirm`, `GET /class-notes/waiting?language=` - Paste-a-class-note practice (one extraction call); `POST /log-entry` takes `class_note_id`; see `README.md` (Class notes)
 - `GET /word-bank?language=` - Words to write with beside the editor; `POST /log-entry` takes `target_word_ids`; see `README.md` (Word bank)
 - `GET /prompts?l2=&level=&topic=&exclude=` - Authored writing prompts; `POST /log-entry` takes `prompt_id`/`entry_mode`; see `README.md` (Writing prompts)
 - `POST /events` - Log a support event (reveal/rescue taps, `prompt_selected`)

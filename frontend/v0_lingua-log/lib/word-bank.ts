@@ -3,7 +3,7 @@
  * choosing what the next submission sends. No React and no network here.
  */
 
-export type WordBankReason = "at_risk" | "due" | "never_used" | "to_master" | "from_book"
+export type WordBankReason = "at_risk" | "due" | "never_used" | "to_master" | "from_book" | "from_class"
 
 export interface WordBankWord {
   word_id: string

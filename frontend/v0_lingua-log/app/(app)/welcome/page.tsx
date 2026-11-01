@@ -170,6 +170,11 @@ export default function WelcomePage() {
     }
   }
 
+  const handlePasteNow = async () => {
+    if (goal !== "class") return
+    if (await saveGoal()) router.push("/class")
+  }
+
   const handleSkip = () => {
     if (step === 1 && settings) {
       setTargetLanguage(settings.default_target_lang || "es")
@@ -338,7 +343,14 @@ export default function WelcomePage() {
                   </button>
                 ))}
               </div>
-              {goal === "class" && <p className="rounded-lg bg-fun-blue/5 p-4 text-sm text-muted-foreground">{t("welcome.classNoteTeaser")}</p>}
+              {goal === "class" && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-fun-blue/5 p-4">
+                  <p className="max-w-xl text-sm text-muted-foreground">{t("welcome.classNoteTeaser")}</p>
+                  <Button type="button" variant="outline" onClick={handlePasteNow} disabled={isSaving}>
+                    {t("welcome.pasteNow")} <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

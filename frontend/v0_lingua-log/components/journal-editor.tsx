@@ -36,6 +36,7 @@ import { PromptPicker } from "@/components/prompt-picker"
 import {
   ApiError,
   getEntryById,
+  getClassNote,
   postLogEntry,
   postSupportEvent,
   getUserSettings,
@@ -43,6 +44,8 @@ import {
   type PromptEntryMode,
   type UserSettingsData,
   type WritingPrompt,
+  type ClassNoteRecord,
+  type ClassPracticeTask,
 } from "@/lib/api"
 import { studiedLanguages } from "@/lib/studied-languages"
 import { toSideBySideEntry, type SideBySideEntry } from "@/lib/side-by-side"
@@ -80,6 +83,8 @@ export function JournalEditor() {
   const [recentPromptIds, setRecentPromptIds] = useState<string[]>([])
   const [promptPickerKey, setPromptPickerKey] = useState(0)
   const [todayPrompt, setTodayPrompt] = useState("")
+  const [classNote, setClassNote] = useState<ClassNoteRecord | null>(null)
+  const [classTask, setClassTask] = useState<ClassPracticeTask | null>(null)
   const [calmDetailsOpen, setCalmDetailsOpen] = useState(false)
   
   // User settings and overrides
@@ -92,11 +97,16 @@ export function JournalEditor() {
     try {
       const settings = await getUserSettings()
       setUserSettings(settings)
+      const classNoteId = typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("class_note_id")
       const todayLanguage = typeof window === "undefined"
         ? null
         : new URLSearchParams(window.location.search).get("today_l2")
       const activeLanguages = studiedLanguages(settings)
-      const selectedLanguage = todayLanguage && activeLanguages.includes(todayLanguage)
+      const selectedLanguage = classNoteId
+        ? null
+        : todayLanguage && activeLanguages.includes(todayLanguage)
         ? todayLanguage
         : settings.default_target_lang
       if (selectedLanguage) {
@@ -124,6 +134,26 @@ export function JournalEditor() {
     setTodayPrompt(promptText || promptFrame)
     setText(promptFrame)
     setWordCount(promptFrame.trim().split(/\s+/).filter(Boolean).length)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const noteId = params.get("class_note_id")
+    const taskIndex = Number(params.get("class_task") || "0")
+    if (!noteId) return
+
+    getClassNote(noteId)
+      .then((note) => {
+        setClassNote(note)
+        setTargetLanguage(note.l2)
+        const task = note.extracted.tasks[taskIndex] || note.extracted.tasks[0] || null
+        setClassTask(task)
+        setTodayPrompt(task?.prompt || "")
+        if (task?.title) setTitle(task.title)
+      })
+      .catch((loadError) => {
+        console.error("Could not load the class note:", loadError)
+      })
   }, [])
 
   /**
@@ -205,6 +235,7 @@ export function JournalEditor() {
               challenge_word_ids: wordSelection.challengeWordIds,
             }
           : {}),
+        ...(classNote ? { class_note_id: classNote.id } : {}),
         ...(promptSelection
           ? { prompt_id: promptSelection.promptId, entry_mode: promptSelection.mode }
           : {}),
@@ -365,7 +396,7 @@ export function JournalEditor() {
                         role="radio"
                         aria-checked={selected}
                         onClick={() => chooseLanguage(code)}
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !!classNote}
                         className={`inline-flex items-center gap-2 rounded-full border-2 px-4 py-1.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
                           selected
                             ? "border-fun-purple bg-fun-purple/10 text-fun-purple"
@@ -416,14 +447,25 @@ export function JournalEditor() {
                 immersionLevel={displayedImmersionLevel}
                 disabled={isSubmitting}
                 resetKey={bankKey}
+                preferredWordIds={classNote?.extracted.words
+                  .map((word) => word.word_id)
+                  .filter((wordId): wordId is string => !!wordId)}
                 onSelectionChange={setWordSelection}
               />
             )}
 
             {todayPrompt && (
               <section className="rounded-2xl border border-fun-blue/20 bg-fun-blue/5 p-4" data-testid="today-prompt-context">
-                <h3 className="mb-1 text-sm font-bold">{t("journal.todayPromptContext")}</h3>
+                <h3 className="mb-1 text-sm font-bold">
+                  {classTask ? t("journal.classTaskTitle") : t("journal.todayPromptContext")}
+                </h3>
                 <p className="text-sm">{todayPrompt}</p>
+                {classTask && (
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    <p>{t("journal.classTaskLength", { length: classTask.length_hint })}</p>
+                    {classTask.grammar_scope && <p>{t("journal.classTaskScope", { scope: classTask.grammar_scope })}</p>}
+                  </div>
+                )}
               </section>
             )}
             <Textarea

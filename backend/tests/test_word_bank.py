@@ -102,12 +102,12 @@ def test_words_from_the_book_being_written_about_come_first_even_when_others_are
 
 
 def test_count_and_exclude_shape_the_offer_and_shuffle_skips_whats_on_screen():
-    items = [item(word(f"w{i}", "new", saved_days_ago=i)) for i in range(10)]
+    items = [item(word(f"w{i}", "new", saved_days_ago=i)) for i in range(40)]
     first = pick_bank(items, NOW, SCHEDULER, count=5)
     assert [e.word["id"] for e, _ in first] == ["w0", "w1", "w2", "w3", "w4"]
     again = pick_bank(items, NOW, SCHEDULER, count=5, exclude=[e.word["id"] for e, _ in first])
     assert [e.word["id"] for e, _ in again] == ["w5", "w6", "w7", "w8", "w9"]
-    assert len(pick_bank(items, NOW, SCHEDULER, count=99)) == 8
+    assert len(pick_bank(items, NOW, SCHEDULER, count=99)) == 30
 
 
 def test_a_learning_word_never_reviewed_is_a_fresh_word_not_a_due_one():
@@ -249,6 +249,8 @@ def test_summary_counts_each_status():
 def test_target_word_uses_is_a_required_array_in_the_gemini_schema_but_optional_for_the_server():
     assert "target_word_uses" in GeminiJournalFeedback.model_json_schema()["required"]
     assert JournalFeedback.model_fields["target_word_uses"].is_required() is False
+    assert "focus_uses" not in GeminiJournalFeedback.model_json_schema()["required"]
+    assert JournalFeedback.model_fields["focus_uses"].is_required() is False
 
 
 def test_the_rules_and_the_list_reach_the_prompt_only_when_words_were_chosen():
@@ -264,3 +266,13 @@ def test_the_rules_and_the_list_reach_the_prompt_only_when_words_were_chosen():
     assert "TARGET WORDS (" in message and "- madrugar" in message and "- rato" in message
     assert "TARGET WORDS (" not in build_user_message("Hola", effective)
     assert "TARGET WORDS (" not in build_user_message("Hola", effective, [" ", ""])
+
+
+def test_class_grammar_focus_is_checked_in_the_existing_feedback_prompt():
+    effective = resolve_policy(None, "es", {"immersion_level": 2}, settings=None, language_profile=None)
+    system, payload = build_messages("Estoy estudiando.", effective, grammar_focus="estar + gerundio")
+    message = build_user_message("Estoy estudiando.", effective, grammar_focus="estar + gerundio")
+
+    assert "focus_uses" in system and "CLASS GRAMMAR FOCUS" in system
+    assert "CLASS GRAMMAR FOCUS" in message and "estar + gerundio" in message
+    assert payload["grammar_focus"] == "estar + gerundio"

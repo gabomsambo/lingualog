@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { BookMarked, Check, ChevronDown, Eye, Pin, PinOff, Shuffle } from "lucide-react"
+import { BookMarked, Check, CheckCircle2, ChevronDown, Eye, Pin, PinOff, Shuffle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -37,6 +37,8 @@ interface WordBankPanelProps {
   disabled?: boolean
   /** Changing this loads a fresh bank, e.g. after the form is reset. */
   resetKey?: number
+  /** Class-note words the learner already confirmed and wants beside this entry. */
+  preferredWordIds?: string[]
   onSelectionChange: (selection: BankSelection) => void
 }
 
@@ -53,6 +55,7 @@ export function WordBankPanel({
   immersionLevel,
   disabled,
   resetKey = 0,
+  preferredWordIds = [],
   onSelectionChange,
 }: WordBankPanelProps) {
   const { t, uiLang } = useLocale()
@@ -67,24 +70,31 @@ export function WordBankPanel({
   // Set when the editor was opened from a book ("write about what you read"): its words come first.
   const [bookTitle, setBookTitle] = useState<string | null>(null)
   const ticket = useRef(0)
+  const preferredKey = preferredWordIds.join("|")
+  const preferredIds = useMemo(() => preferredKey ? preferredKey.split("|") : [], [preferredKey])
+  const bankSize = Math.max(BANK_SIZE, preferredIds.length)
 
   const load = useCallback(async () => {
     const mine = ++ticket.current
     setWords([])
     setState("loading")
     try {
-      const bank = await getWordBank(language, { count: BANK_SIZE, book: bookParam() })
+      const bank = await getWordBank(language, {
+        count: bankSize,
+        ...(preferredIds.length ? { include: preferredIds } : {}),
+        book: bookParam(),
+      })
       if (mine !== ticket.current) return
       setBookTitle(bank.book?.title ?? null)
       setWords(bank.words)
-      setPinned(new Set())
+      setPinned(new Set(preferredIds))
       setPeeked(new Set())
       setMeaningShown(new Set())
       setState("ready")
     } catch {
       if (mine === ticket.current) setState("failed")
     }
-  }, [language])
+  }, [bankSize, language, preferredIds])
 
   useEffect(() => {
     void load()
@@ -104,13 +114,14 @@ export function WordBankPanel({
     () => new Set(words.filter((word) => wordAppearsIn(text, word.forms, language)).map((word) => word.word_id)),
     [words, text, language],
   )
+  const classWordIds = useMemo(() => new Set(preferredIds), [preferredIds])
 
   const shuffle = async () => {
     const kept = words.filter((word) => pinned.has(word.word_id))
-    if (kept.length >= BANK_SIZE) return
+    if (kept.length >= bankSize) return
     setShuffling(true)
     try {
-      const count = BANK_SIZE - kept.length
+      const count = bankSize - kept.length
       let bank = await getWordBank(language, { count, exclude: words.map((word) => word.word_id), book: bookParam() })
       // Nothing new left to offer: start the rest again rather than leave the bank short.
       if (bank.words.length === 0) {
@@ -170,7 +181,7 @@ export function WordBankPanel({
               variant="outline"
               size="sm"
               onClick={() => void shuffle()}
-              disabled={disabled || shuffling || pinned.size >= Math.min(words.length, BANK_SIZE)}
+              disabled={disabled || shuffling || pinned.size >= Math.min(words.length, bankSize)}
             >
               <Shuffle className="mr-2 h-4 w-4" />
               {t("journal.wordBankShuffle")}
@@ -182,6 +193,11 @@ export function WordBankPanel({
           {bookTitle && state === "ready" && (
             <p className="text-sm font-medium text-fun-purple" data-testid="word-bank-book">
               {t("journal.wordBankFromBook", { title: bookTitle })}
+            </p>
+          )}
+          {classWordIds.size > 0 && state === "ready" && (
+            <p className="rounded-xl bg-fun-purple/5 px-3 py-2 text-sm font-medium text-fun-purple" data-testid="word-bank-class-note">
+              {t("journal.wordBankFromClassSelected")}
             </p>
           )}
           {state === "loading" && (
@@ -218,6 +234,7 @@ export function WordBankPanel({
                 {words.map((word) => {
                   const hidden = challenge && !shownWords.has(word.word_id)
                   const used = ticked.has(word.word_id)
+                  const fromClass = classWordIds.has(word.word_id)
                   const meaningOpen = challenge || word.hint_mode === "shown" || meaningShown.has(word.word_id)
                   return (
                     <li
@@ -247,6 +264,13 @@ export function WordBankPanel({
                           )}
                           {used && (
                             <Check className="h-4 w-4 shrink-0 text-green-600" aria-label={t("journal.wordBankInDraft")} />
+                          )}
+                          {fromClass && !used && (
+                            <CheckCircle2
+                              role="img"
+                              className="h-4 w-4 shrink-0 text-fun-purple"
+                              aria-label={t("journal.wordBankFromClassSelected")}
+                            />
                           )}
                         </div>
                         <button
@@ -279,7 +303,9 @@ export function WordBankPanel({
                             {t("journal.wordBankShowMeaning")}
                           </button>
                         ))}
-                      <p className="mt-1 text-xs text-muted-foreground">{t(`journal.wordBankReason_${word.reason}`)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {fromClass ? t("journal.wordBankReason_from_class") : t(`journal.wordBankReason_${word.reason}`)}
+                      </p>
                     </li>
                   )
                 })}

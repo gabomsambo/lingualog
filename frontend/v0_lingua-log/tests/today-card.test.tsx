@@ -6,6 +6,7 @@ import i18n from "@/i18n/i18n"
 const api = vi.hoisted(() => ({
   getCurrentPolicy: vi.fn(),
   getPrompts: vi.fn(),
+  getWaitingClassNote: vi.fn(),
   postSupportEvent: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
@@ -34,6 +35,7 @@ beforeEach(() => {
       one_sentence_frame: "Me gusta ____.",
     }],
   })
+  api.getWaitingClassNote.mockResolvedValue(null)
   api.postSupportEvent.mockResolvedValue(undefined)
 })
 
@@ -68,5 +70,14 @@ describe("Today card", () => {
     render(<TodayCard language="es" />)
     expect(await screen.findByText("No prompt is available right now. You can still write freely.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Start New Entry" })).toHaveAttribute("href", "/entries/new")
+  })
+
+  it("offers a waiting class note from the Today card", async () => {
+    api.getWaitingClassNote.mockResolvedValue({ id: "class-note-1", l2: "es" })
+    render(<TodayCard language="es" />)
+
+    const link = await screen.findByRole("link", { name: "Write about today's class" })
+    expect(link).toHaveAttribute("href", "/class?note_id=class-note-1")
+    expect(api.getWaitingClassNote).toHaveBeenCalledWith("es")
   })
 })

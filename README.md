@@ -43,8 +43,16 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **POST /log-entry**
   - Submit a journal entry text
   - Optional `prompt_id` and `entry_mode` (`idea`, `frame`, `one_sentence`) record a guided prompt entry
+  - Optional `class_note_id` links writing from a pasted class note; its grammar focus is checked in this same feedback call
   - Returns comprehensive AI feedback, including the saved entry `id`
   - If AI feedback fails, the entry is still saved and the API returns 503 with `{code, entry_id, message}`
+
+- **POST /class-notes**
+  - Paste up to 12,000 characters of class material for one Flash-Lite extraction of vocabulary, a grammar focus, phrases, and three CEFR-sized writing tasks
+- **GET /class-notes/{id}**, **POST /class-notes/{id}/confirm**
+  - Read a learner's own note or save their edited word, focus, phrase and task choices; confirmation creates cached `class_note` encounters for the normal notebook flow
+- **GET /class-notes/waiting?language=**
+  - The newest class note for that language that has not yet been linked to a journal entry
 
 - **POST /entries/{id}/analyze**
   - Retry AI feedback for a saved entry
@@ -109,8 +117,8 @@ The optional “Write it again” comparison runs in the browser and makes no mo
 feedback call may return `did_well`; older entries and omitted values simply show no positive line.
 
 The dashboard's **Today** card keeps the due-review action and loads a level-sized prompt from
-`GET /prompts`; its writing action opens the editor in one-sentence mode. A “today's class” action
-will appear only when class notes are implemented.
+`GET /prompts`; its writing action opens the editor in one-sentence mode. When a pasted class note
+is waiting, it also links to that note's writing tasks.
 
 ### Immersion
 
@@ -176,7 +184,7 @@ All computed from the existing vocabulary, encounter and review tables; no model
 
 ### Word bank and "used it" mastery
 
-The word bank is a panel beside the editor with 5-6 of the learner's own words to write the entry with. Offering it makes no model calls; checking the uses adds one field to the existing feedback call.
+The word bank is a panel beside the editor with 5-6 of the learner's own words to write the entry with. A class note can bring up to 30 confirmed words there. Offering words makes no model calls; checking the uses adds fields to the existing feedback call.
 
 - **Which words** (`backend/word_bank.py`, `GET /word-bank?language=`): Learning words that are due or at risk come first, then recently saved words never used in writing, then Known words that still need a second day of use. Ignored and Mastered words are never offered. Shuffle asks again with `exclude`; pinned words stay on screen. Each chip's meaning follows the policy `quiz` flag: open for levels 0-1, behind a tap for levels 2-3 (the tap is logged as a `reveal_gloss` support event).
 - **Ticks** are client-side (`frontend/v0_lingua-log/lib/word-bank.ts`): the draft is matched against the lemma and the forms the learner has met or written, including conjugated and multiword forms ("aprovechar para" for "aproveché las vacaciones para"). They are a hint; the tutor decides.
@@ -186,6 +194,21 @@ The word bank is a panel beside the editor with 5-6 of the learner's own words t
 - **FSRS credit.** Writing a word the bank displayed is copying, so it is not a review. In challenge mode the bank hides the words and shows only meanings; a correct use of a word the learner never peeked at is a real recall and becomes a "Got it" on that word's production card (`vocab_review_logs.source = 'challenge_use'`). A word with no production card yet earns no credit, and an entry credits a word once.
 - **The result** shows a "Your words today" row (`3 used well · 1 to fix · 1 not used`) with the fix for each error, the question for each unclear use and a note when a word has just become Mastered. Sample feedback from the offline provider (`AI_PROVIDER=mock`) shows the row but is never recorded.
 - Entries remember their chosen words and verdicts in `journal_entries.target_words` / `target_word_uses`, so a retried analysis checks the same words. Migration: `supabase/migrations/20261007000000_word_bank.sql`.
+
+### Class notes
+
+`/class` brings a learner's own class material into a short writing practice. `POST /class-notes`
+stores only the pasted text and one Flash-Lite extraction (up to 30 words, one grammar focus,
+phrases and three tasks sized from `CEFR_LEVELS`). The learner can edit the chips before confirming.
+The confirmed vocabulary uses the existing `POST /vocabulary` path and daily new-word cap, with
+cached cards attached to `word_encounters.source_type = 'class_note'`. A learner can save 10
+class notes per UTC day (`CLASS_NOTES_PER_DAY`), and `class_note_quota_allows` is
+the future plan-quota hook. `GEMINI_MODEL_CLASS_NOTE` selects the Flash-Lite model. Pasted text
+is limited to 12,000 characters; images are not accepted or stored. The note is linked to
+`journal_entries.class_note_id`; its grammar focus is included in
+the same single feedback call as the word-bank checks. Optional `focus_uses` reports
+`used_correctly`, `used_with_error`, `not_used` or `unclear` and stays absent for ordinary entries.
+Migration: `supabase/migrations/20261106000000_class_notes.sql`.
 
 ### Writing prompts
 
@@ -256,6 +279,7 @@ OPEN_AI_API_KEY=
 GEMINI_API_KEY=
 GEMINI_MODEL_FEEDBACK=gemini-3.8-flash
 GEMINI_MODEL_WORD_CARD=gemini-3.5-flash-lite
+GEMINI_MODEL_CLASS_NOTE=gemini-3.5-flash-lite
 GEMINI_THINKING_LEVEL=low
 AI_PROVIDER=gemini
 LARA_TRANSLATE_ID=

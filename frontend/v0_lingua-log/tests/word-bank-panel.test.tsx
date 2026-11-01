@@ -24,8 +24,10 @@ const word = (id: string, over: Partial<WordBankWord> = {}): WordBankWord => ({
 })
 const bank = (...words: WordBankWord[]) => ({ language: "es", words })
 
-function setup(text = "", onSelectionChange = vi.fn()) {
-  const view = render(<WordBankPanel language="es" text={text} onSelectionChange={onSelectionChange} />)
+function setup(text = "", onSelectionChange = vi.fn(), preferredWordIds: string[] = []) {
+  const view = render(
+    <WordBankPanel language="es" text={text} preferredWordIds={preferredWordIds} onSelectionChange={onSelectionChange} />,
+  )
   return { onSelectionChange, ...view }
 }
 
@@ -62,6 +64,18 @@ describe("WordBankPanel", () => {
     expect(screen.getByTestId("word-bank-book")).toHaveTextContent("Write about La sombra del viento")
     expect(chips[0]).toHaveTextContent("From your book this week")
     window.history.pushState({}, "", "/")
+  })
+
+  it("preselects confirmed class words and keeps them visible beside the editor", async () => {
+    api.getWordBank.mockResolvedValue(bank(word("clase"), word("rato")))
+    setup("", vi.fn(), ["clase"])
+    const chips = await screen.findAllByTestId("word-bank-chip")
+
+    expect(api.getWordBank).toHaveBeenCalledWith("es", { count: 6, include: ["clase"] })
+    expect(screen.getByTestId("word-bank-class-note")).toHaveTextContent("Confirmed words from class")
+    expect(within(chips[0]).getByRole("img", { name: "Confirmed words from class are ready to try. Choose what fits." })).toBeInTheDocument()
+    expect(within(chips[0]).getByRole("button", { name: "Stop keeping clase" })).toHaveAttribute("aria-pressed", "true")
+    expect(chips[0]).toHaveAttribute("data-used", "false")
   })
 
   it("is the plain bank, with no book banner, on an ordinary new entry", async () => {
