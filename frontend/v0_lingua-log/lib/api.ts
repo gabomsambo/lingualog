@@ -1197,6 +1197,29 @@ export interface LanguageProfileData {
   daily_new_words?: number | null;
   /** The recall probability review aims for (0.80-0.95). */
   desired_retention?: number | null;
+  goal?: string | null;
+  onboarded_at?: string | null;
+}
+
+export interface FirstRunLevelCriteria {
+  can_do: string;
+  can_do_key: string;
+  default_immersion: number;
+  soft_entry_words: [number, number];
+  spanish_grammar_scope: string[];
+  first_entry: {
+    kind: "frames" | "hint" | "open";
+    prompt: string;
+    hint?: string;
+    frames?: Array<{ prefix: string; label: string }>;
+  };
+}
+
+export async function getLearningLevels(): Promise<Record<string, FirstRunLevelCriteria>> {
+  const res = await fetch(`${API_BASE}/learning/levels`);
+  if (!res.ok) throw new Error(`Failed to fetch learning levels: ${res.status}`);
+  const data = (await res.json()) as { levels: Record<string, FirstRunLevelCriteria> };
+  return data.levels;
 }
 
 export interface UserSettingsUpdate {

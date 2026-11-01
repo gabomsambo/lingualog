@@ -35,7 +35,7 @@ async function loadLocaleBundle(lang: string): Promise<void> {
 
   try {
     // Load all namespace files for the language
-    const namespaces = ['common', 'auth', 'journal', 'settings', 'feedback']
+    const namespaces = ['common', 'auth', 'journal', 'settings', 'feedback', 'welcome']
     
     const loadPromises = namespaces.map(async (ns) => {
       try {
