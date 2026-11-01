@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   getUserSettings: vi.fn(),
   getWordBank: vi.fn(),
   postSupportEvent: vi.fn(),
+  getPrompts: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 
@@ -47,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.getWordBank.mockResolvedValue({ language: "fr", words: [] })
   api.postSupportEvent.mockResolvedValue(undefined)
+  api.getPrompts.mockResolvedValue({ l2: "fr", level: "B1", meaning: "rescue_only", gloss_available: false, topics: [], prompts: [] })
 })
 
 describe("JournalEditor when settings fail to load", () => {
@@ -196,5 +198,91 @@ describe("JournalEditor without a title", () => {
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
     expect(api.postLogEntry.mock.calls[0][1]).toBe("Samedi")
+  })
+})
+
+describe("JournalEditor prompt bank", () => {
+  const frame = "Me llamo [__]. Soy de [__]."
+  const prompt = {
+    id: "es-a1-01",
+    level: "A1",
+    topics: ["identidad_personal"],
+    title: "Preséntate",
+    prompt: "Completa una ficha breve con tu nombre y lugar de origen.",
+    sentence_frame: frame,
+    one_sentence_frame: "Me llamo [__] y soy de [__].",
+    structure_hint: "Usa me llamo, tengo y soy.",
+    suggested_words: ["me llamo", "años", "de"],
+    gloss: {
+      prompt: "Complete a short profile.",
+      sentence_frame: "My name is [__]. I am from [__].",
+      one_sentence_frame: "My name is [__] and I am from [__].",
+      structure_hint: "Use me llamo, tengo and soy.",
+    },
+  }
+  const spanishA1 = {
+    native_lang: "en",
+    default_target_lang: "es",
+    immersion_level: 0,
+    language_profiles: [{ l2: "es", immersion_level: 0, proficiency: "A1", active: true }],
+  }
+  const promptResponse = {
+    l2: "es",
+    level: "A1",
+    meaning: "open",
+    gloss_available: true,
+    topics: ["identidad_personal"],
+    prompts: [prompt],
+  }
+
+  beforeEach(() => {
+    api.getUserSettings.mockResolvedValue(spanishA1)
+    api.getWordBank.mockResolvedValue({ language: "es", words: [] })
+    api.getPrompts.mockResolvedValue(promptResponse)
+    api.postLogEntry.mockResolvedValue({ id: "entry-prompt" })
+    api.getEntryById.mockResolvedValue(null)
+  })
+
+  it("shows all three starts and submits a filled frame in three taps", async () => {
+    render(<JournalEditor />)
+
+    await screen.findByTestId("word-bank-empty")
+    const mode = screen.getByRole("button", { name: "Fill in the blanks" })
+    expect(screen.getByRole("button", { name: "Give me an idea" })).toBeVisible()
+    expect(mode).toBeVisible()
+    expect(screen.getByRole("button", { name: "Just one sentence" })).toBeVisible()
+
+    fireEvent.click(mode)
+    const useFrame = await screen.findByRole("button", { name: "Use this frame" })
+    fireEvent.click(useFrame)
+    expect(screen.getByPlaceholderText("Entry Title")).toHaveValue(prompt.title)
+    expect(screen.getByPlaceholderText(/Write your thoughts/)).toHaveValue(frame)
+
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+    expect(api.postLogEntry.mock.calls[0][3]).toMatchObject({
+      target_language: "es",
+      prompt_id: "es-a1-01",
+      entry_mode: "frame",
+    })
+    expect(api.postSupportEvent).toHaveBeenCalledWith({
+      kind: "prompt_selected",
+      l2: "es",
+      prompt_id: "es-a1-01",
+    })
+  })
+
+  it("excludes a used prompt when the learner starts another entry", async () => {
+    render(<JournalEditor />)
+    await screen.findByTestId("word-bank-empty")
+    fireEvent.click(screen.getByRole("button", { name: "Fill in the blanks" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Use this frame" }))
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reset" }))
+    fireEvent.click(screen.getByRole("button", { name: "Fill in the blanks" }))
+    await waitFor(() => expect(api.getPrompts).toHaveBeenCalledTimes(2))
+    expect(api.getPrompts.mock.calls[1][0].exclude).toContain("es-a1-01")
   })
 })
