@@ -203,7 +203,7 @@ async def get_error_patterns_service(
     """Count the most common feedback tags by target language over recent entries."""
     response = (
         db.table("journal_entries")
-        .select("target_language, grammar_suggestions, created_at")
+        .select("target_language, grammar_suggestions, analysis_status, created_at")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(ERROR_PATTERN_WINDOW_ENTRIES)
@@ -212,6 +212,8 @@ async def get_error_patterns_service(
     rows = response.data or []
     counts_by_language: Dict[str, Dict[str, int]] = {}
     for row in rows:
+        if row.get("analysis_status") == "mock":
+            continue
         language = str(row.get("target_language") or "other")
         tag_counts = counts_by_language.setdefault(language, {})
         suggestions = row.get("grammar_suggestions")
@@ -222,7 +224,7 @@ async def get_error_patterns_service(
                 continue
             error_type = suggestion.get("error_type")
             if not isinstance(error_type, str) or error_type not in ERROR_TYPE_VALUES:
-                error_type = "other"
+                continue
             tag_counts[error_type] = tag_counts.get(error_type, 0) + 1
 
     languages = []

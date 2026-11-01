@@ -73,7 +73,7 @@ async def test_language_breakdown_groups_by_target_language_not_tone():
 
 
 @pytest.mark.asyncio
-async def test_error_patterns_count_recent_tags_and_treat_legacy_as_other():
+async def test_error_patterns_count_recent_tags_and_skip_untagged_and_mock():
     rows = [
         {"target_language": "es", "created_at": iso(), "grammar_suggestions": [
             {"error_type": "ser_estar"}, {"error_type": "gender_agreement"},
@@ -87,20 +87,26 @@ async def test_error_patterns_count_recent_tags_and_treat_legacy_as_other():
         ]},
         {"target_language": "fr", "created_at": iso(hours=-3), "grammar_suggestions": [
             {"error_type": "preposition"}, {"error_type": "not_in_schema"},
+            {"error_type": "other"},
         ]},
+        {"target_language": "es", "created_at": iso(hours=-5), "analysis_status": "mock",
+         "grammar_suggestions": [{"error_type": "other"}] * 5},
         {"target_language": "de", "created_at": iso(hours=-4), "grammar_suggestions": []},
     ]
 
     result = await stats_service.get_error_patterns_service(FakeDb(rows), USER)
 
-    assert result.window_entries == 5
+    assert result.window_entries == 6
     by_language = {row.language: row for row in result.languages}
     assert [(tag.error_type, tag.count) for tag in by_language["es"].top_tags] == [
         ("ser_estar", 3),
         ("gender_agreement", 2),
         ("article", 1),
     ]
-    assert {tag.error_type for tag in by_language["fr"].top_tags} == {"other", "preposition"}
+    assert {(t.error_type, t.count) for t in by_language["fr"].top_tags} == {
+        ("other", 1),
+        ("preposition", 1),
+    }
     assert "de" not in by_language
 
 
