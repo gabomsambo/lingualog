@@ -295,6 +295,19 @@ def save_user_settings(
     ).execute()
 
 
+def mark_language_profile_onboarded(user_id: str, l2: str) -> None:
+    """Stamp a new learner's profile after their first successful corrected entry."""
+    supabase = create_supabase_client()
+    (
+        supabase.table("user_language_profiles")
+        .update({"onboarded_at": datetime.now(timezone.utc).isoformat()})
+        .eq("user_id", user_id)
+        .eq("l2", l2)
+        .is_("onboarded_at", "null")
+        .execute()
+    )
+
+
 def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Turn a flat journal_entries row into the GET /entries/{id} payload.
