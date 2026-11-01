@@ -195,15 +195,15 @@ def source_of(
     encounters: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Where the word came from: a book, an entry, a class note, or a lookup."""
+    if word.get("book_id") or (books or {}).get(word.get("id")):
+        return "book"
+    if word.get("entry_id"):
+        return "entry"
     if any(
         row.get("word_id") == word.get("id") and row.get("source_type") == "class_note"
         for row in encounters
     ):
         return "class_note"
-    if word.get("book_id") or (books or {}).get(word.get("id")):
-        return "book"
-    if word.get("entry_id"):
-        return "entry"
     return "lookup"
 
 
