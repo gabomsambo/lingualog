@@ -131,3 +131,35 @@ describe("JournalEditor word bank", () => {
     expect(api.postLogEntry.mock.calls[0][3]).not.toHaveProperty("target_word_ids")
   })
 })
+
+describe("JournalEditor without a title", () => {
+  beforeEach(() => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    api.postLogEntry.mockResolvedValue({ id: "entry-1" })
+    api.getEntryById.mockResolvedValue(null)
+  })
+
+  async function writeWithoutTitle(text: string) {
+    render(<JournalEditor />)
+    await screen.findByRole("radio")
+    fireEvent.change(screen.getByPlaceholderText(/Write your thoughts/), { target: { value: text } })
+    const submit = screen.getByRole("button", { name: /submit/i })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+  }
+
+  it("submits with an automatic title made of the first words", async () => {
+    await writeWithoutTitle("Je suis allé au marché ce matin avec ma sœur.")
+    expect(api.postLogEntry.mock.calls[0][1]).toBe("Je suis allé au marché ce…")
+  })
+
+  it("keeps a title the learner typed", async () => {
+    render(<JournalEditor />)
+    await screen.findByRole("radio")
+    fillEntry()
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+    expect(api.postLogEntry.mock.calls[0][1]).toBe("Samedi")
+  })
+})
