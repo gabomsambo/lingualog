@@ -7,6 +7,7 @@ in a later PR) and keep the same field names the frontend already consumes.
 """
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
+from ai.error_tags import ErrorType
 
 
 SENTENCE_ACTIONS = ("removed", "merged")
@@ -41,6 +42,7 @@ class GrammarSuggestion(BaseModel):
     note: str = Field("", description="Learner-facing explanation. Existing clients read this field")
     note_l1: str = Field("", description="Note in the learner's language. Empty when the policy forbids L1")
     note_l2: str = Field("", description="Note in the target language. Empty when the policy forbids L2 notes")
+    error_type: ErrorType = Field(..., description="Closed English error tag for the target language family")
     meaning_changing: bool = Field(False, description="True when the words as written mean something else")
     literal_reading: str = Field("", description="As written, a native reads… Empty when meaning did not change")
 

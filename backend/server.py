@@ -80,8 +80,8 @@ from word_bank import clean_target_word_uses
 
 from app.routers import books, class_notes, entry_translation, level_suggestions, prompts, review, support_events, vocab, word_bank
 from app.services import book_service, class_note_service, review_service, vocab_service, word_bank_service
-from app.services.stats_service import get_user_stats_service
-from app.schemas.stats_schemas import UserStatsResponse
+from app.services.stats_service import get_error_patterns_service, get_user_stats_service
+from app.schemas.stats_schemas import ErrorPatternsResponse, UserStatsResponse
 from app.services.entry_translation_service import split_sentences
 from prompts import get_prompt
 
@@ -1577,6 +1577,32 @@ async def get_user_stats(request: Request):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not fetch user stats: {str(e)}"
+        )
+
+
+@app.get(
+    "/user/stats/error-patterns",
+    response_model=ErrorPatternsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_user_error_patterns(request: Request):
+    """Return read-only common grammar tags from the user's recent journal entries."""
+    user_id = request.headers.get("X-User-ID")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not provided",
+        )
+
+    try:
+        from database import create_supabase_client
+        supabase = create_supabase_client()
+        return await get_error_patterns_service(supabase, user_id)
+    except Exception as e:
+        logger.error("Error fetching error patterns for user %s: %s", user_id, str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fetch error patterns: {str(e)}",
         )
 
 @app.get("/user/policy", status_code=status.HTTP_200_OK)

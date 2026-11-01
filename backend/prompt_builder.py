@@ -80,6 +80,7 @@ You must respond with a valid JSON object containing exactly these fields:
       "note": "Learner-facing explanation (same content as note_l1 / note_l2)",
       "note_l1": "Explanation in the learner's language, or empty when the policy says so",
       "note_l2": "Explanation in the target language, or empty when the policy says so",
+      "error_type": "gender_agreement",
       "meaning_changing": false,
       "literal_reading": "As written, a native reads… — empty when the meaning did not change"
     }}
@@ -230,6 +231,12 @@ def build_messages(
     # Build system prompt with language settings
     system_prompt = SYSTEM_TEMPLATE.format(
         explanation_instruction=explanation_instr
+    )
+    from ai.error_tags import error_types_for_language
+    allowed_error_types = ", ".join(error_types_for_language(effective.l2))
+    system_prompt += (
+        "\n\nFor each grammar suggestion choose one English error_type from this closed list for "
+        f"{effective.l2}: {allowed_error_types}; use other when none fit."
     )
     if _target_words_block(target_words):
         system_prompt += TARGET_WORD_RULES

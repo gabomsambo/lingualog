@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const api = vi.hoisted(() => ({
   getUserStats: vi.fn(),
+  getErrorPatterns: vi.fn(),
   getUserSettings: vi.fn(),
   getVocabularyProgress: vi.fn(),
   getPlacementCheck: vi.fn(),
@@ -66,6 +67,7 @@ describe("StatsPage", () => {
     vi.clearAllMocks()
     window.history.pushState({}, "", "/stats")
     api.getUserStats.mockResolvedValue(userStats)
+    api.getErrorPatterns.mockResolvedValue({ window_entries: 50, languages: [] })
     api.getUserSettings.mockResolvedValue(settings)
     api.getVocabularyProgress.mockResolvedValue(progress())
   })

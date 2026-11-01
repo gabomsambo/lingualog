@@ -209,6 +209,7 @@ async def mock_generate_structured(
                 "original": entry_text.split()[0] if entry_text.split() else entry_text,
                 "corrected": f"[Mock suggestion] {entry_text.split()[0] if entry_text.split() else entry_text}",
                 "note": "Sample suggestion for development.",
+                "error_type": "other",
             }
         ],
         new_words=[
@@ -227,6 +228,7 @@ async def mock_generate_structured(
         ],
         sentence_actions=[],
         target_word_uses=[_mock_word_use(word, entry_text) for word in target_words or []],
+        detected_language="",
         is_mock=True,
     )
 

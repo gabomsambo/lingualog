@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
+from ai.error_tags import ErrorType
 
 
 class AnalyzeEntryRequest(BaseModel):
@@ -68,6 +69,7 @@ class Suggestion(BaseModel):
     original: str = Field(..., description="The original text snippet")
     corrected: str = Field(..., description="The suggested correction")
     note: str = Field(..., description="An explanatory note for the suggestion")
+    error_type: Optional[ErrorType] = Field(None, description="English error tag; absent on older entries")
     note_l1: Optional[str] = Field("", description="Note in the learner's language")
     note_l2: Optional[str] = Field("", description="Note in the target language")
     meaning_changing: Optional[bool] = Field(False, description="True when the words as written mean something else")

@@ -42,6 +42,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **POST /log-entry**
   - Submit a journal entry text
+  - Each grammar suggestion has a required, closed `error_type` tag stored in the existing JSONB; tagging uses the same feedback call
   - Optional `prompt_id` and `entry_mode` (`idea`, `frame`, `one_sentence`) record a guided prompt entry
   - Optional `class_note_id` links writing from a pasted class note; its grammar focus is checked in this same feedback call
   - Returns comprehensive AI feedback, including the saved entry `id`
@@ -65,6 +66,10 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **GET /user/policy?l2=**
   - The current learning policy for one language; entries stored without `policy_snapshot` render with it
+
+- **GET /user/stats/error-patterns**
+  - Read-only counts for the three most common grammar tags per target language in the latest 50 entries
+  - Suggestions without a valid `error_type` (older entries) and mock entries are skipped, not counted as `other`; this endpoint makes no model calls
 
 - **GET /prompts?l2=&level=&topic=&exclude=**
   - Load curated prompt ideas and sentence frames for a studied language and CEFR level
