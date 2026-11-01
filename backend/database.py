@@ -344,7 +344,15 @@ def shape_entry_for_api(flat_entry_data: Dict[str, Any]) -> Dict[str, Any]:
     restructured_entry["rewritten"] = flat_entry_data.get("rewrite")
     restructured_entry["analysis_status"] = flat_entry_data.get("analysis_status")
     restructured_entry["analysis_error_code"] = flat_entry_data.get("analysis_error_code")
-    restructured_entry["policy_snapshot"] = flat_entry_data.get("policy_snapshot")
+    snapshot = flat_entry_data.get("policy_snapshot")
+    if isinstance(snapshot, dict):
+        try:
+            from learning_policy import LearningPolicy
+
+            snapshot = LearningPolicy.from_dict(snapshot).to_dict()
+        except (TypeError, ValueError):
+            pass
+    restructured_entry["policy_snapshot"] = snapshot
     return restructured_entry
 
 

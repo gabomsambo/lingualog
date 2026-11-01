@@ -95,6 +95,9 @@ class FeedbackResponse(BaseModel):
     rewritten: str = Field("", description="Native-like rewritten version")
     score: int = Field(0, description="Fluency score (0-100)", ge=0, le=100)
     tone: str = Field("", description="Detected emotional tone/style")
+    did_well: Optional[str] = Field(
+        None, description="One short, specific positive observation when the tutor has one"
+    )
     translation: str = Field("", description="Direct translation to user's native language (populated by Lara in a later PR)")
     explanation: Optional[str] = Field(None, description="Optional explanation of mistakes")
     rubric: Optional[Rubric] = Field(None, description="Detailed scoring rubric for grammar, vocabulary, and complexity")

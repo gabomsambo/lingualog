@@ -21,6 +21,14 @@ def test_cefr_first_run_criteria_and_default_immersion():
     ]
     assert default_immersion_for("a1") == 0
     assert set(CEFR_LEVELS) == {"A1", "A2", "B1", "B2", "C1", "C2"}
+    assert {level: data["result_density"] for level, data in CEFR_LEVELS.items()} == {
+        "A1": "calm",
+        "A2": "calm",
+        "B1": "full",
+        "B2": "full",
+        "C1": "full",
+        "C2": "full",
+    }
     assert all(
         level["can_do"] and level["can_do_key"] and level["soft_entry_words"] and level["spanish_grammar_scope"]
         for level in CEFR_LEVELS.values()
@@ -225,6 +233,16 @@ class TestSnapshotRoundTrip:
         assert restored.l2 == "ja"
         assert restored.quiz == LEVELS[2]["quiz"]
 
+    def test_result_density_is_snapshotted_and_older_snapshots_are_upgraded(self):
+        a1 = _resolve(proficiency="A1")
+        b1 = _resolve(proficiency="B1")
+        assert a1.to_dict()["result_density"] == "calm"
+        assert b1.to_dict()["result_density"] == "full"
+
+        legacy_snapshot = a1.to_dict()
+        legacy_snapshot.pop("result_density")
+        assert LearningPolicy.from_dict(legacy_snapshot).result_density == "calm"
+
     def test_entry_api_shape_exposes_snapshot_and_rewrite(self):
         policy = _resolve(immersion=1, explanation_mode="level")
         now = datetime.now(timezone.utc).isoformat()
@@ -258,6 +276,7 @@ class TestSnapshotRoundTrip:
         dumped = model.model_dump(mode="json", by_alias=True)
         assert dumped["policy_snapshot"]["v"] == 1
         assert dumped["policy_snapshot"]["explanation"] == "l1_with_l2_terms"
+        assert dumped["policy_snapshot"]["result_density"] == "full"
         assert dumped["corrected"] == "El agua estaba muy fría."
         assert dumped["rewrite"] == "El agua estaba helada."
         assert dumped["rewritten"] == "El agua estaba helada."
@@ -268,6 +287,12 @@ class TestSnapshotRoundTrip:
 
 
 class TestPromptRules:
+    def test_feedback_prompt_requests_a_specific_positive_observation(self):
+        effective = _resolve(proficiency="A1")
+        system_prompt, _ = build_messages("Me gusta el té.", effective)
+        assert '"did_well"' in system_prompt
+        assert "specific positive observation" in system_prompt
+
     def test_each_level_states_its_note_language_and_the_correction_rule(self):
         phrases = {
             0: ("in English only", "leave `note_l2` empty"),

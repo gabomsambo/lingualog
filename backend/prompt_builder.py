@@ -38,6 +38,7 @@ You must respond with a valid JSON object containing exactly these fields:
   "rewrite": "Native-like rewrite that sounds natural and fluent while maintaining the original message",
   "score": 85,
   "tone": "One of: Happy, Sad, Excited, Anxious, Confident, Frustrated, Neutral, Reflective, Hopeful, Determined",
+  "did_well": "One short, specific positive observation in the explanation language, or an empty string",
   "explanation": "Detailed explanation of corrections, improvements, and learning points following the language settings above",
   "rubric": {{
     "grammar": 80,
@@ -124,6 +125,8 @@ You must respond with a valid JSON object containing exactly these fields:
    removed sentences to [], and unchanged sentences to their corresponding corrected index. Every corrected
    sentence index must appear in at least one mapping item.
 10. `target_word_uses` is an empty array unless the request lists TARGET WORDS.
+11. `did_well` is one short, specific positive observation in the explanation language. Mention something
+    the learner actually did well; use an empty string when no clear strength stands out.
 
 **SENTENCE FATE RULES — read carefully:**
 A. Never drop a learner's sentence just because it is odd, off-topic, awkward, or has a small grammar slip.
