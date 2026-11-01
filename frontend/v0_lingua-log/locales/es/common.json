@@ -113,5 +113,21 @@
   "review": "Repaso",
   "yourLearningStats": "Tus Estadísticas de Aprendizaje",
   "writingStreak": "Racha de Escritura",
-  "words": "palabras"
+  "words": "palabras",
+  "advanced": "Avanzado",
+  "intermediate": "Intermedio",
+  "beginner": "Principiante",
+  "novice": "Novato",
+  "invalidEntryId": "ID de entrada inválido.",
+  "unknown": "Desconocido",
+  "entryNotFound": "Entrada no encontrada",
+  "couldNotFindEntry": "No se pudo encontrar la entrada solicitada.",
+  "failedToLoadEntry": "Error al cargar los detalles de la entrada o el vocabulario.",
+  "addedToFavorites": "Agregado a favoritos",
+  "removedFromFavorites": "Eliminado de favoritos",
+  "copied": "¡Copiado!",
+  "copyText": "Copiar Texto",
+  "removeFromFavorites": "Eliminar de favoritos",
+  "addToFavorites": "Agregar a favoritos",
+  "entry": "Entrada"
 }

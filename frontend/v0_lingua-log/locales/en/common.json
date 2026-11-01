@@ -32,5 +32,22 @@
   "review": "Review",
   "yourLearningStats": "Your Learning Stats",
   "writingStreak": "Writing Streak",
-  "words": "words"
+  "words": "words",
+  "advanced": "Advanced",
+  "intermediate": "Intermediate",
+  "beginner": "Beginner",
+  "novice": "Novice",
+  "error": "Error",
+  "invalidEntryId": "Invalid entry ID.",
+  "unknown": "Unknown",
+  "entryNotFound": "Entry not found",
+  "couldNotFindEntry": "Could not find the requested entry.",
+  "failedToLoadEntry": "Failed to load entry details or vocabulary.",
+  "addedToFavorites": "Added to favorites",
+  "removedFromFavorites": "Removed from favorites",
+  "copied": "Copied!",
+  "copyText": "Copy Text",
+  "removeFromFavorites": "Remove from favorites",
+  "addToFavorites": "Add to favorites",
+  "entry": "Entry"
 }

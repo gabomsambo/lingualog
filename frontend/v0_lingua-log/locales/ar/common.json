@@ -23,5 +23,22 @@
   "yourLearningStats": "إحصاءات تعلّمك",
   "writingStreak": "سلسلة الكتابة",
   "words": "كلمات",
-  "signOut": "تسجيل الخروج"
+  "signOut": "تسجيل الخروج",
+  "advanced": "متقدم",
+  "intermediate": "متوسط",
+  "beginner": "مبتدئ",
+  "novice": "مبتدئ جدًا",
+  "error": "خطأ",
+  "invalidEntryId": "معرّف الإدخال غير صالح.",
+  "unknown": "غير معروف",
+  "entryNotFound": "الإدخال غير موجود",
+  "couldNotFindEntry": "تعذّر العثور على الإدخال المطلوب.",
+  "failedToLoadEntry": "فشل تحميل تفاصيل الإدخال أو المفردات.",
+  "addedToFavorites": "تمت الإضافة إلى المفضلة",
+  "removedFromFavorites": "تمت الإزالة من المفضلة",
+  "copied": "تم النسخ!",
+  "copyText": "نسخ النص",
+  "removeFromFavorites": "إزالة من المفضلة",
+  "addToFavorites": "إضافة إلى المفضلة",
+  "entry": "إدخال"
 }

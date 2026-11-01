@@ -1,0 +1,19 @@
+{
+  "advanced": "מתקדם",
+  "intermediate": "בינוני",
+  "beginner": "מתחיל",
+  "novice": "מתחיל מאוד",
+  "error": "שגיאה",
+  "invalidEntryId": "מזהה רשומה לא תקין.",
+  "unknown": "לא ידוע",
+  "entryNotFound": "הרשומה לא נמצאה",
+  "couldNotFindEntry": "לא ניתן למצוא את הרשומה המבוקשת.",
+  "failedToLoadEntry": "טעינת פרטי הרשומה או אוצר המילים נכשלה.",
+  "addedToFavorites": "נוסף למועדפים",
+  "removedFromFavorites": "הוסר מהמועדפים",
+  "copied": "הועתק!",
+  "copyText": "העתקת טקסט",
+  "removeFromFavorites": "הסר מהמועדפים",
+  "addToFavorites": "הוסף למועדפים",
+  "entry": "רשומה"
+}
