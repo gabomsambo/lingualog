@@ -13,7 +13,7 @@ MIGRATION = (
     Path(__file__).resolve().parents[2]
     / "supabase"
     / "migrations"
-    / "20261104000000_first_run_welcome.sql"
+    / "20261105000000_first_run_welcome.sql"
 )
 DATABASE_URL = os.getenv("MIGRATION_TEST_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres")
 
