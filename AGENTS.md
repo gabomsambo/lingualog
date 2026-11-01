@@ -57,7 +57,7 @@ Gemini settings (`GEMINI_MODEL_FEEDBACK`, `GEMINI_MODEL_WORD_CARD`, `GEMINI_THIN
 - **Backend ↔ Gemini**: Journal analysis (stateless structured output)
 - **Backend ↔ Gemini Flash-Lite**: Policy-aware vocabulary cards
 - **Frontend ↔ Supabase**: Direct client for auth state management
-- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`, `word_encounters`, `class_notes`, `vocab_cards`, `vocab_review_logs`, `user_fsrs_params`
+- **Database Tables**: `journal_entries`, `user_vocabulary`, `users`, `user_settings`, `support_events`, `word_encounters`, `class_notes`, `lesson_offers`, `vocab_cards`, `vocab_review_logs`, `user_fsrs_params`
 
 ## Core Agent Workflows
 
@@ -173,6 +173,7 @@ Key reference files:
 - `POST /class-notes`, `GET /class-notes/{id}`, `POST /class-notes/{id}/confirm`, `GET /class-notes/waiting?language=` - Paste-a-class-note practice (one extraction call); `POST /log-entry` takes `class_note_id`; see `README.md` (Class notes)
 - `GET /word-bank?language=` - Words to write with beside the editor; `POST /log-entry` takes `target_word_ids`; see `README.md` (Word bank)
 - `GET /prompts?l2=&level=&topic=&exclude=` - Authored writing prompts; `POST /log-entry` takes `prompt_id`/`entry_mode`; see `README.md` (Writing prompts)
+- `POST /lessons/offers/{entry_id}`, `.../{l2}/{tag}/seen|snooze`, `GET .../{l2}/{tag}/drill` - Recurring-tag mini-lessons and no-model cloze drills; see `README.md` (Mini-lessons)
 - `POST /events` - Log a support event (reveal/rescue taps, `prompt_selected`)
 
 ## Maintaining this file

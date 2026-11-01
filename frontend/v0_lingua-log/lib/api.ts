@@ -1156,6 +1156,78 @@ export interface ErrorPatterns {
   languages: LanguageErrorPatterns[];
 }
 
+export interface MiniLessonExample {
+  es: string;
+  en: string;
+}
+
+export interface MiniLesson {
+  id: string;
+  tag: string;
+  title: string;
+  level: string;
+  explanation: string;
+  examples: MiniLessonExample[];
+  trap_note: string;
+}
+
+export interface MiniLessonOffer {
+  l2: string;
+  tag: string;
+  count: number;
+  lesson: MiniLesson;
+}
+
+export interface MiniLessonCloze {
+  before: string;
+  answer: string;
+  after: string;
+}
+
+export async function getMiniLessonOffer(entryId: string): Promise<MiniLessonOffer | null> {
+  const res = await fetch(`${API_BASE}/lessons/offers/${encodeURIComponent(entryId)}`, {
+    method: "POST",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return ((await res.json()) as { offer: MiniLessonOffer | null }).offer;
+}
+
+export async function markMiniLessonSeen(l2: string, tag: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/lessons/offers/${encodeURIComponent(l2)}/${encodeURIComponent(tag)}/seen`,
+    { method: "POST", headers: await userHeaders(), credentials: "include" },
+  );
+  if (!res.ok) throw await apiError(res);
+}
+
+export async function snoozeMiniLesson(l2: string, tag: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/lessons/offers/${encodeURIComponent(l2)}/${encodeURIComponent(tag)}/snooze`,
+    { method: "POST", headers: await userHeaders(), credentials: "include" },
+  );
+  if (!res.ok) throw await apiError(res);
+}
+
+export async function getMiniLessonDrill(
+  l2: string,
+  tag: string,
+  entryId: string,
+): Promise<MiniLessonCloze[]> {
+  const url = new URL(
+    `${API_BASE}/lessons/offers/${encodeURIComponent(l2)}/${encodeURIComponent(tag)}/drill`,
+  );
+  url.searchParams.set("entry_id", entryId);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return ((await res.json()) as { items: MiniLessonCloze[] }).items;
+}
+
 export async function getUserProfile(): Promise<UserProfile> {
   const authHeaders = await getAuthHeaders();
   const user = await getUser();

@@ -1,0 +1,164 @@
+{
+  "needs_native_speaker_review": true,
+  "review_status": "needs native-speaker review",
+  "language": "es",
+  "level": "A1-B1",
+  "lessons": [
+    {
+      "id": "gender-agreement",
+      "tag": "gender_agreement",
+      "title": "Make adjectives match gender",
+      "explanation": "Many Spanish adjectives change their ending to match a noun's grammatical gender. A common pattern is -o with masculine nouns and -a with feminine nouns. The noun decides the form.",
+      "examples": [
+        { "es": "un libro nuevo", "en": "a new book" },
+        { "es": "una casa blanca", "en": "a white house" },
+        { "es": "la mesa pequeña", "en": "the small table" }
+      ],
+      "trap_note": "The ending follows the noun, not the person speaking: una persona cansada can describe anyone.",
+      "source_note": "Original wording based on standard Spanish noun-adjective agreement described in the RAE Nueva gramática de la lengua española (concordancia)."
+    },
+    {
+      "id": "number-agreement",
+      "tag": "number_agreement",
+      "title": "Make words match singular or plural",
+      "explanation": "When a noun is plural, its article and describing adjective usually become plural too. Add -s after a vowel, or often -es after a consonant.",
+      "examples": [
+        { "es": "el libro interesante", "en": "the interesting book" },
+        { "es": "los libros interesantes", "en": "the interesting books" },
+        { "es": "unas flores azules", "en": "some blue flowers" }
+      ],
+      "trap_note": "Check the whole noun phrase: los libros interesante still needs a plural adjective, interesantes.",
+      "source_note": "Original wording based on standard Spanish number agreement and plural formation described in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "ser-estar-identity",
+      "tag": "ser_estar",
+      "title": "Use ser for identity and origin",
+      "explanation": "Use ser to say who or what someone is, where someone is from, and many lasting descriptions. Match the form of ser to the subject.",
+      "examples": [
+        { "es": "Soy estudiante.", "en": "I am a student." },
+        { "es": "Mi amiga es médica.", "en": "My friend is a doctor." },
+        { "es": "Somos de Madrid.", "en": "We are from Madrid." }
+      ],
+      "trap_note": "A job or identity normally uses ser: Soy profesor. A current feeling usually uses estar.",
+      "source_note": "Original wording based on the standard distinction between ser and estar in the RAE Nueva gramática de la lengua española and Diccionario panhispánico de dudas."
+    },
+    {
+      "id": "ser-estar-state-location",
+      "tag": "ser_estar",
+      "title": "Use estar for states and location",
+      "explanation": "Use estar for a current state or condition and for the location of people and things. The form of estar changes with the subject.",
+      "examples": [
+        { "es": "Estoy cansada hoy.", "en": "I am tired today." },
+        { "es": "La comida está fría.", "en": "The food is cold." },
+        { "es": "Madrid está en España.", "en": "Madrid is in Spain." }
+      ],
+      "trap_note": "An event's location usually uses ser: La clase es en el aula. A person's location uses estar.",
+      "source_note": "Original wording based on the standard distinction between ser and estar in the RAE Nueva gramática de la lengua española and Diccionario panhispánico de dudas."
+    },
+    {
+      "id": "gustar",
+      "tag": "gustar",
+      "title": "Build sentences with gustar",
+      "explanation": "With gustar, the thing liked is the subject. Use gusta with one thing or an infinitive, and gustan with plural things. Add me, te, le, nos, or les for the person who likes it.",
+      "examples": [
+        { "es": "Me gusta el café.", "en": "I like coffee." },
+        { "es": "A Luis le gustan los gatos.", "en": "Luis likes cats." },
+        { "es": "Nos gusta bailar.", "en": "We like dancing." }
+      ],
+      "trap_note": "The verb agrees with the thing liked: me gustan las películas, because películas is plural.",
+      "source_note": "Original wording based on Spanish indirect-object constructions with gustar and verb agreement described in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "verb-conjugation-present",
+      "tag": "verb_conjugation",
+      "title": "Match the present-tense verb ending",
+      "explanation": "Regular present-tense verbs use different endings for each subject. For -ar verbs, yo often ends in -o; nosotros ends in -amos. -er and -ir verbs use their own patterns.",
+      "examples": [
+        { "es": "Yo hablo español.", "en": "I speak Spanish." },
+        { "es": "Nosotros comemos temprano.", "en": "We eat early." },
+        { "es": "Ellas viven aquí.", "en": "They live here." }
+      ],
+      "trap_note": "Do not leave a conjugated verb in the infinitive after a subject: yo hablar needs to be yo hablo.",
+      "source_note": "Original wording based on regular present indicative conjugation patterns in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "tense-choice-past",
+      "tag": "tense_choice",
+      "title": "Use a past tense for a finished event",
+      "explanation": "For a completed event at a finished time, Spanish often uses the preterite. Use the present for habits and things happening now. Time words can help you choose.",
+      "examples": [
+        { "es": "Ayer estudié en casa.", "en": "Yesterday I studied at home." },
+        { "es": "Todos los días estudio español.", "en": "I study Spanish every day." },
+        { "es": "El sábado comimos con Ana.", "en": "On Saturday we ate with Ana." }
+      ],
+      "trap_note": "A finished time such as ayer points toward a past form; a routine such as todos los días points toward the present.",
+      "source_note": "Original wording based on standard uses of the preterite and present indicative described in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "articles",
+      "tag": "article",
+      "title": "Choose an article that matches the noun",
+      "explanation": "Spanish articles show whether a noun is specific or introduced for the first time. El and la mean 'the'; un and una often mean 'a'. Their form matches the noun's gender and number.",
+      "examples": [
+        { "es": "el perro", "en": "the dog" },
+        { "es": "una ventana", "en": "a window" },
+        { "es": "las ciudades", "en": "the cities" }
+      ],
+      "trap_note": "A singular countable noun often needs an article: Tengo bicicleta is usually Tengo una bicicleta.",
+      "source_note": "Original wording based on standard Spanish article forms and noun phrase agreement described in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "por-para",
+      "tag": "por_para",
+      "title": "Choose por or para from the meaning",
+      "explanation": "Para often points to a goal, destination, recipient, or deadline. Por often gives a reason, route, duration, or exchange. Look at the relationship the sentence expresses.",
+      "examples": [
+        { "es": "Estudio para aprender.", "en": "I study in order to learn." },
+        { "es": "Este regalo es para ti.", "en": "This gift is for you." },
+        { "es": "Caminamos por el parque.", "en": "We walk through the park." }
+      ],
+      "trap_note": "Translate the idea, not just the English word 'for': a goal uses para, while a cause often uses por.",
+      "source_note": "Original wording based on the standard meanings and contrasts of por and para described in the RAE Diccionario panhispánico de dudas."
+    },
+    {
+      "id": "accent-spelling",
+      "tag": "accent_spelling",
+      "title": "Use an accent when it changes the word",
+      "explanation": "Written accents show stress in some words and distinguish some short words with different meanings. They are part of the spelling, even when the word is short.",
+      "examples": [
+        { "es": "Tú tienes tu libro.", "en": "You have your book." },
+        { "es": "Él vive en el centro.", "en": "He lives downtown." },
+        { "es": "¿Qué quieres? Dime que sí.", "en": "What do you want? Tell me yes." }
+      ],
+      "trap_note": "Question words such as qué carry an accent in direct or indirect questions; the conjunction que does not.",
+      "source_note": "Original wording based on Spanish accentuation and diacritical accents described in the RAE Ortografía de la lengua española."
+    },
+    {
+      "id": "word-order",
+      "tag": "word_order",
+      "title": "Keep a clear basic word order",
+      "explanation": "A common Spanish sentence order is subject, verb, then object. Spanish can leave out a subject pronoun when the verb ending already makes the subject clear. Many adjectives follow the noun.",
+      "examples": [
+        { "es": "Marta compra pan.", "en": "Marta buys bread." },
+        { "es": "Vivimos cerca.", "en": "We live nearby." },
+        { "es": "Tengo un coche rojo.", "en": "I have a red car." }
+      ],
+      "trap_note": "A subject pronoun is not needed in every sentence: hablo already tells us the speaker is 'I'.",
+      "source_note": "Original wording based on common Spanish clause order, subject omission and adjective placement described in the RAE Nueva gramática de la lengua española."
+    },
+    {
+      "id": "preposition-a",
+      "tag": "preposition",
+      "title": "Use a before a person and a destination",
+      "explanation": "Spanish uses a for many destinations and before a specific person who is the direct object. Use en for the place where someone or something is located.",
+      "examples": [
+        { "es": "Veo a mi profesora.", "en": "I see my teacher." },
+        { "es": "Vamos a Valencia.", "en": "We are going to Valencia." },
+        { "es": "Estoy en Valencia.", "en": "I am in Valencia." }
+      ],
+      "trap_note": "The personal a is for a person, not an ordinary object: veo el libro, but veo a mi profesor.",
+      "source_note": "Original wording based on the personal a and place expressions described in the RAE Nueva gramática de la lengua española and Diccionario panhispánico de dudas."
+    }
+  ]
+}

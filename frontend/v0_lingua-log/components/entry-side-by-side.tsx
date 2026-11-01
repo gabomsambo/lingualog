@@ -5,6 +5,7 @@ import Link from "next/link"
 import { AlertCircle, Check, FlaskConical, HelpCircle, Languages, Loader2, Plus, RotateCcw } from "lucide-react"
 
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
+import { MiniLessonOffer } from "@/components/mini-lesson-offer"
 import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -665,6 +666,13 @@ export function EntrySideBySide({
           l2Dir={l2Dir}
           explanation={policy.explanation}
           onLookup={(event, text) => openLookup(event, text, l2, "entry_fix")}
+        />
+      )}
+      {!failed && (
+        <MiniLessonOffer
+          entryId={entry.id}
+          language={l2}
+          analysisStatus={entry.analysisStatus}
         />
       )}
       {isCalm && (

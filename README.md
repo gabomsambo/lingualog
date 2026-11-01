@@ -71,6 +71,13 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Read-only counts for the three most common grammar tags per target language in the latest 50 entries
   - Suggestions without a valid `error_type` (older entries) and mock entries are skipped, not counted as `other`; this endpoint makes no model calls
 
+- **POST /lessons/offers/{entry_id}**
+  - Check a saved Spanish entry for a supported tag repeated in the latest five entries and return at most one inline refresher
+- **POST /lessons/offers/{l2}/{tag}/seen**, **POST /lessons/offers/{l2}/{tag}/snooze**
+  - Record that a lesson was opened or defer the offer for seven days
+- **GET /lessons/offers/{l2}/{tag}/drill?entry_id=**
+  - Build up to three cloze prompts from the learner's own corrected sentences; checking answers stays in the browser
+
 - **GET /prompts?l2=&level=&topic=&exclude=**
   - Load curated prompt ideas and sentence frames for a studied language and CEFR level
   - Spanish A1-B1 content is available in v1; `exclude` accepts prompt ids to avoid showing recent choices again
@@ -214,6 +221,20 @@ is limited to 12,000 characters; images are not accepted or stored. The note is 
 the same single feedback call as the word-bank checks. Optional `focus_uses` reports
 `used_correctly`, `used_with_error`, `not_used` or `unclear` and stays absent for ordinary entries.
 Migration: `supabase/migrations/20261106000000_class_notes.sql`.
+
+### Mini-lessons
+
+`backend/content/lessons/es.json` contains 12 original Spanish A1-B1 refreshers with a short
+English explanation, three Spanish examples with English glosses, a common-trap note, and
+grammar source notes. **The content needs native-speaker review before it is treated as final.**
+The result page offers at most one refresher inline when a supported rule-governed tag appears
+in two of the latest five entries for the same Spanish language profile. Offers are never popups;
+`Not now` snoozes for seven days, opening a lesson is remembered for 30 days, and an offer is
+not offered for a different entry for seven days, though reloading the same entry shows it again. `vocabulary_choice`, `other`, mock feedback, and non-Spanish entries
+never trigger a lesson. The lesson sheet can build a three-item cloze from corrected sentences
+the learner has already written; the answer check runs locally. Lessons and drills make no model
+calls. Offer state is stored in `lesson_offers` by
+`supabase/migrations/20261107000000_lesson_offers.sql`.
 
 ### Writing prompts
 
