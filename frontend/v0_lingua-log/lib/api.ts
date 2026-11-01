@@ -1141,6 +1141,21 @@ export interface UserStats {
   };
 }
 
+export interface ErrorTagCount {
+  error_type: string;
+  count: number;
+}
+
+export interface LanguageErrorPatterns {
+  language: string;
+  top_tags: ErrorTagCount[];
+}
+
+export interface ErrorPatterns {
+  window_entries: number;
+  languages: LanguageErrorPatterns[];
+}
+
 export async function getUserProfile(): Promise<UserProfile> {
   const authHeaders = await getAuthHeaders();
   const user = await getUser();
@@ -1219,6 +1234,29 @@ export async function getUserStats(): Promise<UserStats> {
   }
   
   return (await res.json()) as UserStats;
+}
+
+export async function getErrorPatterns(): Promise<ErrorPatterns> {
+  const authHeaders = await getAuthHeaders();
+  const user = await getUser();
+  const customHeaders: Record<string, string> = {
+    ...(authHeaders as Record<string, string>),
+  };
+
+  if (user?.id) customHeaders["X-User-ID"] = user.id;
+
+  const res = await fetch(`${API_BASE}/user/stats/error-patterns`, {
+    method: "GET",
+    headers: customHeaders,
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: `Failed to fetch error patterns. Status: ${res.status}` }));
+    throw new Error(errorData.detail || `Failed to fetch error patterns. Status: ${res.status}`);
+  }
+
+  return (await res.json()) as ErrorPatterns;
 }
 
 // User Settings API

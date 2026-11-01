@@ -18,11 +18,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlacementCheck } from "@/components/placement-check"
 import { WritingAnimation } from "@/components/writing-animation"
+import { ErrorPatternsPanel } from "@/components/error-patterns-panel"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { resolveLanguage } from "@/i18n/languages"
 import {
   getUserSettings,
   getUserStats,
+  getErrorPatterns,
+  type ErrorPatterns,
   getVocabularyProgress,
   type PlacementResult,
   type UserStats,
@@ -69,6 +72,9 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<UserStats | null>(null)
   const [progress, setProgress] = useState<VocabularyProgress | null>(null)
+  const [errorPatterns, setErrorPatterns] = useState<ErrorPatterns | null>(null)
+  const [errorPatternsLoading, setErrorPatternsLoading] = useState(true)
+  const [errorPatternsFailed, setErrorPatternsFailed] = useState(false)
   const [languages, setLanguages] = useState<string[]>([])
   const [language, setLanguage] = useState<string>(ALL)
   const [placementOpen, setPlacementOpen] = useState(false)
@@ -81,6 +87,13 @@ export default function StatsPage() {
       })
       .catch(() => setStats(null))
       .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    getErrorPatterns()
+      .then(setErrorPatterns)
+      .catch(() => setErrorPatternsFailed(true))
+      .finally(() => setErrorPatternsLoading(false))
   }, [])
 
   useEffect(() => {
@@ -167,6 +180,12 @@ export default function StatsPage() {
         </div>
       ) : (
         <>
+          <ErrorPatternsPanel
+            patterns={errorPatterns}
+            loading={errorPatternsLoading}
+            failed={errorPatternsFailed}
+          />
+
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Card className="fun-card border-fun-green/30">
               <CardHeader>

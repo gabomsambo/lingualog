@@ -35,6 +35,7 @@ export interface SuggestionData {
   note?: string
   note_l1?: string
   note_l2?: string
+  error_type?: string | null
   meaning_changing?: boolean
   literal_reading?: string
 }
