@@ -69,7 +69,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **GET /user/stats/error-patterns**
   - Read-only counts for the three most common grammar tags per target language in the latest 50 entries
-  - Suggestions from older entries without `error_type` count as `other`; this endpoint makes no model calls
+  - Suggestions without a valid `error_type` (older entries) and mock entries are skipped, not counted as `other`; this endpoint makes no model calls
 
 - **GET /prompts?l2=&level=&topic=&exclude=**
   - Load curated prompt ideas and sentence frames for a studied language and CEFR level

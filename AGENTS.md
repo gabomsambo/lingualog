@@ -167,6 +167,7 @@ Key reference files:
 - `POST /user/level-suggestions/{l2}/accept` - Apply that suggestion via `save_user_settings`
 - `POST /user/level-suggestions/{l2}/dismiss` - Snooze that language's suggestion for 7 days
 - `GET /user/stats` - Get user statistics
+- `GET /user/stats/error-patterns` - Top 3 grammar `error_type` tags per language over the latest 50 entries; see `README.md`
 - `GET /vocabulary/progress`, `GET /vocabulary/lists`, `GET /vocabulary/export`, `GET|POST /placement/{language}` - Progress, lists, CSV/Anki export, placement check; see `README.md` (Progress, lists and export)
 - `GET /review/session`, `GET /review/summary`, `POST /review/{card_id}` - FSRS review (no model calls); see `README.md` (Vocabulary review)
 - `POST /class-notes`, `GET /class-notes/{id}`, `POST /class-notes/{id}/confirm`, `GET /class-notes/waiting?language=` - Paste-a-class-note practice (one extraction call); `POST /log-entry` takes `class_note_id`; see `README.md` (Class notes)
