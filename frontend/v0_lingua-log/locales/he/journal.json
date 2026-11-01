@@ -33,5 +33,11 @@
   "promptTopic_transporte": "תחבורה",
   "promptTopic_tecnologia": "טכנולוגיה",
   "promptTopic_medio_ambiente": "סביבה",
-  "promptTopic_cultura": "תרבות"
+  "promptTopic_cultura": "תרבות",
+  "todayTitle": "היום",
+  "todayPromptTitle": "רעיון קטן להיום",
+  "todayPromptLoading": "מחפשים הצעה שמתאימה לרמה שלך…",
+  "todayPromptUnavailable": "אין כרגע הצעה זמינה. אפשר לכתוב בחופשיות.",
+  "todayWriteOneSentence": "כתיבת משפט אחד",
+  "todayPromptContext": "רעיון הכתיבה להיום"
 }

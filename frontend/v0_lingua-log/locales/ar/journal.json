@@ -54,5 +54,11 @@
   "promptTopic_transporte": "المواصلات",
   "promptTopic_tecnologia": "التقنية",
   "promptTopic_medio_ambiente": "البيئة",
-  "promptTopic_cultura": "الثقافة"
+  "promptTopic_cultura": "الثقافة",
+  "todayTitle": "اليوم",
+  "todayPromptTitle": "فكرة بسيطة لليوم",
+  "todayPromptLoading": "جارٍ العثور على فكرة تناسب مستواك…",
+  "todayPromptUnavailable": "لا توجد فكرة متاحة الآن. يمكنك الكتابة بحرية.",
+  "todayWriteOneSentence": "اكتب جملة واحدة",
+  "todayPromptContext": "فكرة الكتابة لليوم"
 }

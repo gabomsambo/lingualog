@@ -120,6 +120,7 @@ LEVELS = {
 # (2020) self-assessment grid; it is not copied official descriptor text.
 CEFR_LEVELS = {
     "A1": {
+        "result_density": "calm",
         "can_do": "I can write a few familiar words and simple sentences about myself.",
         "can_do_key": "canDoA1",
         "default_immersion": 0,
@@ -141,6 +142,7 @@ CEFR_LEVELS = {
         },
     },
     "A2": {
+        "result_density": "calm",
         "can_do": "I can join familiar sentences with words like y, pero, and porque.",
         "can_do_key": "canDoA2",
         "default_immersion": 1,
@@ -159,6 +161,7 @@ CEFR_LEVELS = {
         },
     },
     "B1": {
+        "result_density": "full",
         "can_do": "I can write connected paragraphs about experiences, reasons, and feelings.",
         "can_do_key": "canDoB1",
         "default_immersion": 2,
@@ -175,6 +178,7 @@ CEFR_LEVELS = {
         },
     },
     "B2": {
+        "result_density": "full",
         "can_do": "I can write clear, detailed texts and support an opinion with reasons.",
         "can_do_key": "canDoB2",
         "default_immersion": 2,
@@ -192,6 +196,7 @@ CEFR_LEVELS = {
         },
     },
     "C1": {
+        "result_density": "full",
         "can_do": "I can write well-structured text on complex topics and adapt the tone to the reader.",
         "can_do_key": "canDoC1",
         "default_immersion": 3,
@@ -207,6 +212,7 @@ CEFR_LEVELS = {
         },
     },
     "C2": {
+        "result_density": "full",
         "can_do": "I can express fine shades of meaning in fluent, precise writing for different readers.",
         "can_do_key": "canDoC2",
         "default_immersion": 3,
@@ -311,6 +317,7 @@ class LearningPolicy:
     translation_policy: str
     explanation_source: str
     immersion_source: str
+    result_density: str = "full"
 
     def to_dict(self) -> Dict[str, Any]:
         """JSON-ready snapshot stored on the journal entry (``v`` is the schema version)."""
@@ -322,6 +329,9 @@ class LearningPolicy:
         fields = {name: data[name] for name in cls.__dataclass_fields__ if name in data}
         if "v" not in fields:
             fields["v"] = POLICY_VERSION
+        if "result_density" not in fields:
+            proficiency = _normalize_proficiency(fields.get("proficiency")) or DEFAULT_PROFICIENCY
+            fields["result_density"] = CEFR_LEVELS[proficiency]["result_density"]
         return cls(**fields)
 
 
@@ -634,6 +644,7 @@ def resolve_policy(
         translation_policy=level["translation_policy"],
         explanation_source=explanation_source,
         immersion_source=immersion_source,
+        result_density=CEFR_LEVELS[proficiency]["result_density"],
     )
     logger.info(
         "Resolved learning policy v=%s L1=%s L2=%s immersion=%s (%s) "

@@ -27,6 +27,7 @@ import StatsPage from "@/app/(app)/stats/page"
 
 const FILES = ["app/(app)/stats/page.tsx", "components/user-nav.tsx"]
 const LOCALES = ["en", "es", "ar"]
+const ALL_LOCALES = ["en", "es", "ar", "he"]
 const COMMON_KEYS = ["yourLearningStats", "writingStreak", "signOut", "words", "welcomeBack", "readyToContinue"]
 
 function usedKeys(file: string): string[] {
@@ -35,6 +36,30 @@ function usedKeys(file: string): string[] {
 }
 
 describe("no raw key renders on the stats page and the user menu", () => {
+  it("ships Today and calm-result strings in both i18n sources for every locale", () => {
+    const journalKeys = [
+      "todayTitle", "todayPromptTitle", "todayPromptLoading", "todayPromptUnavailable",
+      "todayWriteOneSentence", "todayPromptContext",
+    ]
+    const feedbackKeys = [
+      "calmCorrectedTitle", "calmFixesTitle", "didWellLabel", "calmWordsToSave",
+      "calmSeeDetails", "calmHideDetails", "writeAgain", "writeAgainInstructions",
+      "writeAgainInputLabel", "writeAgainYourTry", "writeAgainMatch", "saveWord", "savedWord",
+    ]
+    for (const lng of ALL_LOCALES) {
+      const journal = JSON.parse(readFileSync(path.join(__dirname, "..", `locales/${lng}/journal.json`), "utf8"))
+      const feedback = JSON.parse(readFileSync(path.join(__dirname, "..", `locales/${lng}/feedback.json`), "utf8"))
+      for (const key of journalKeys) {
+        expect(journal, `${lng}/journal.json ${key}`).toHaveProperty(key)
+        expect(i18n.exists(key, { ns: "journal", lng }), `${lng} inline journal ${key}`).toBe(true)
+      }
+      for (const key of feedbackKeys) {
+        expect(feedback, `${lng}/feedback.json ${key}`).toHaveProperty(key)
+        expect(i18n.exists(key, { ns: "feedback", lng }), `${lng} inline feedback ${key}`).toBe(true)
+      }
+    }
+  })
+
   it.each(FILES)("every key used by %s resolves in every locale", async (file) => {
     const keys = usedKeys(file)
     expect(keys.length).toBeGreaterThan(0)

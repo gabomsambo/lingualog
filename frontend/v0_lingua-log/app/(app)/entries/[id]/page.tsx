@@ -44,11 +44,16 @@ export default function EntryInsightPage() {
   const [loading, setLoading] = useState(true)
   const [entry, setEntry] = useState<Entry | null>(null)
   const [showTranslation, setShowTranslation] = useState(false)
+  const [calmDetailsOpen, setCalmDetailsOpen] = useState(false)
+  const [resultDensity, setResultDensity] = useState<"calm" | "full" | null>(null)
   const [isFavorite, setIsFavorite] = useState(false)
   const [copied, setCopied] = useState(false)
   const [nativeLanguage, setNativeLanguage] = useState("en")
   const [immersionLevel, setImmersionLevel] = useState<number | undefined>()
   const [sideBySide, setSideBySide] = useState<SideBySideEntry | null>(null)
+  const showLegacyDetails =
+    !sideBySide ||
+    (resultDensity !== null && (resultDensity !== "calm" || calmDetailsOpen))
 
   const loadFullEntryData = useCallback(async () => {
     if (!params.id || typeof params.id !== 'string') {
@@ -74,7 +79,15 @@ export default function EntryInsightPage() {
         // Cast to any to access ai_feedback, as the fetchedEntryData is typed as frontend Entry
         const apiResponse = fetchedEntryData as any; 
         const aiFeedbackData = apiResponse.ai_feedback; // Extract for easier access
-        setSideBySide(toSideBySideEntry(apiResponse))
+        const sideBySideEntry = toSideBySideEntry(apiResponse)
+        setSideBySide(sideBySideEntry)
+        setResultDensity(
+          sideBySideEntry.policy?.result_density === "calm"
+            ? "calm"
+            : sideBySideEntry.policy?.result_density
+              ? "full"
+              : null,
+        )
 
         const processedEntry: Entry = {
           // Spread common top-level fields from fetchedEntryData (which is typed as Entry)
@@ -251,10 +264,19 @@ export default function EntryInsightPage() {
       
       {sideBySide && (
         <div className="mb-8 lg:-mx-12 xl:-mx-32">
-          <EntrySideBySide entry={sideBySide} showOverview={false} onReanalyzed={loadFullEntryData} />
+          <EntrySideBySide
+            entry={sideBySide}
+            showOverview={false}
+            detailsOpen={resultDensity === "calm" ? calmDetailsOpen : undefined}
+            onDetailsOpenChange={resultDensity === "calm" ? setCalmDetailsOpen : undefined}
+            onResultDensityChange={setResultDensity}
+            onReanalyzed={loadFullEntryData}
+          />
         </div>
       )}
 
+      {showLegacyDetails && (
+        <>
       {/* ROW 1: Entry Viewer (Full Width) */}
       <div className="mb-8">
         <EntryViewer entry={{
@@ -310,6 +332,8 @@ export default function EntryInsightPage() {
           onDismiss={handleDismissGrammarFeedback}
         />
       </div>
+        </>
+      )}
 
     </motion.div>
   )

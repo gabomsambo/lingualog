@@ -24,6 +24,8 @@ export interface LearningPolicySnapshot {
   quiz?: string
   explanation_mode?: string
   translation_policy?: string
+  /** CEFR-sized feedback presentation for this entry. */
+  result_density?: "calm" | "full" | string
 }
 
 export interface SuggestionData {
@@ -104,6 +106,7 @@ export interface SideBySideEntry {
   score?: number
   tone?: string
   explanation?: string
+  didWell?: string
   rubric?: { grammar?: number; vocabulary?: number; complexity?: number }
   intendedMeaning: string
   ambiguities: Ambiguity[]
@@ -140,6 +143,9 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
     score: typeof ai.score === "number" ? ai.score : undefined,
     tone: typeof ai.tone === "string" ? ai.tone : undefined,
     explanation: ai.explanation || undefined,
+    didWell: typeof rubric.did_well === "string" && rubric.did_well.trim()
+      ? rubric.did_well.trim()
+      : undefined,
     rubric: {
       grammar: rubric.grammar,
       vocabulary: rubric.vocabulary,
@@ -346,13 +352,17 @@ export interface DiffPart {
 }
 
 /** Word-level minimal diff (longest common subsequence), deletions before insertions. */
-export function diffWords(before: string, after: string): DiffPart[] {
+export function diffWords(
+  before: string,
+  after: string,
+  same: (x: string, y: string) => boolean = (x, y) => x === y,
+): DiffPart[] {
   const a = (before || "").split(/\s+/).filter(Boolean)
   const b = (after || "").split(/\s+/).filter(Boolean)
   const lcs: number[][] = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0))
   for (let i = a.length - 1; i >= 0; i--) {
     for (let j = b.length - 1; j >= 0; j--) {
-      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
+      lcs[i][j] = same(a[i], b[j]) ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
     }
   }
   const parts: DiffPart[] = []
@@ -364,7 +374,7 @@ export function diffWords(before: string, after: string): DiffPart[] {
   let i = 0
   let j = 0
   while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) {
+    if (same(a[i], b[j])) {
       push("same", a[i])
       i++
       j++
@@ -377,6 +387,20 @@ export function diffWords(before: string, after: string): DiffPart[] {
   while (i < a.length) push("del", a[i++])
   while (j < b.length) push("ins", b[j++])
   return parts
+}
+
+/** Client-side comparison used by the optional retype practice; it never makes a model call. */
+export function compareRetypedText(corrected: string, retyped: string): DiffPart[] {
+  return diffWords(
+    (corrected || "").trim(),
+    (retyped || "").trim(),
+    (x, y) => x.toLocaleLowerCase() === y.toLocaleLowerCase(),
+  )
+}
+
+export function matchesRetypedText(corrected: string, retyped: string): boolean {
+  const normalize = (text: string) => text.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+  return !!normalize(retyped || "") && normalize(corrected || "") === normalize(retyped || "")
 }
 
 export interface ErrorMark {

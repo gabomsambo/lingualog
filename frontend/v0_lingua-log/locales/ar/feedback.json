@@ -20,5 +20,18 @@
   "levelSuggestionDownBody": "كنت تفتح الترجمة كثيراً وأنت تكتب بـ{language}. المستوى الأقل يُبقي لغتك أقرب. يتغير المستوى فقط عندما توافق.",
   "levelSuggestionUpBody": "نادراً ما احتجت إلى ترجمة وأنت تكتب بـ{language}، ودرجاتك قوية. المستوى الأعلى يُبقي المزيد في اللغة التي تتعلمها. يتغير المستوى فقط عندما توافق.",
   "levelSuggestionAccept": "نعم، غيّر مستواي",
-  "levelSuggestionDismiss": "ليس الآن"
+  "levelSuggestionDismiss": "ليس الآن",
+  "calmCorrectedTitle": "نصك بعد التصحيح",
+  "calmFixesTitle": "بعض الأشياء لتصحيحها",
+  "didWellLabel": "أحسنت في",
+  "calmWordsToSave": "كلمات لحفظها",
+  "calmSeeDetails": "اعرض الدرجة والتفاصيل",
+  "calmHideDetails": "أخفِ الدرجة والتفاصيل",
+  "writeAgain": "اكتبها مرة أخرى",
+  "writeAgainInstructions": "حاول كتابة النص المصحح من ذاكرتك. تتم المقارنة هنا على جهازك.",
+  "writeAgainInputLabel": "اكتب النص المصحح مرة أخرى",
+  "writeAgainYourTry": "قارن محاولتك بالنص المصحح",
+  "writeAgainMatch": "تطابق النص المصحح. أحسنت!",
+  "saveWord": "احفظ",
+  "savedWord": "تم الحفظ"
 }

@@ -79,5 +79,18 @@
   "mismatchSwitch": "Cambiar a {detected}",
   "mismatchAdd": "Aprender {detected}",
   "mismatchKeep": "Mantener {chosen}",
-  "mismatchFailed": "No se pudo cambiar ahora. Inténtalo de nuevo."
+  "mismatchFailed": "No se pudo cambiar ahora. Inténtalo de nuevo.",
+  "calmCorrectedTitle": "Tu texto, corregido",
+  "calmFixesTitle": "Unas pocas cosas que corregir",
+  "didWellLabel": "Lo hiciste bien",
+  "calmWordsToSave": "Palabras para guardar",
+  "saveWord": "Guardar",
+  "savedWord": "Guardada",
+  "calmSeeDetails": "Ver puntuación y detalles",
+  "calmHideDetails": "Ocultar puntuación y detalles",
+  "writeAgain": "Vuelve a escribirlo",
+  "writeAgainInstructions": "Intenta escribir el texto corregido de memoria. La comparación se hace aquí en tu dispositivo.",
+  "writeAgainInputLabel": "Escribe otra vez el texto corregido",
+  "writeAgainYourTry": "Compara tu intento con la corrección",
+  "writeAgainMatch": "Coincide con la corrección. ¡Buen trabajo!"
 }

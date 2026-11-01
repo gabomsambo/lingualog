@@ -386,6 +386,7 @@ def _build_feedback_response(
         rewritten=result.rewrite,
         score=result.score,
         tone=result.tone,
+        did_well=result.did_well,
         translation="",
         explanation=result.explanation,
         rubric=Rubric(**result.rubric.model_dump()),
@@ -419,6 +420,8 @@ def _rubric_column(feedback_response: FeedbackResponse) -> Optional[dict]:
         payload["ambiguities"] = feedback_response.ambiguities
     if feedback_response.rewrite_idioms:
         payload["rewrite_idioms"] = feedback_response.rewrite_idioms
+    if feedback_response.did_well:
+        payload["did_well"] = feedback_response.did_well
     return payload
 
 

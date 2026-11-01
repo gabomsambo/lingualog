@@ -113,6 +113,13 @@ class GeminiJournalFeedback(BaseModel):
     rewrite: str = Field(..., description="Native-like rewrite")
     score: int = Field(..., ge=0, le=100, description="Overall fluency score (0-100)")
     tone: str = Field(..., description="Detected emotional tone or style")
+    did_well: Optional[str] = Field(
+        None,
+        description=(
+            "One short, specific positive observation in the explanation language; omit or leave empty "
+            "when no clear strength stands out"
+        ),
+    )
     explanation: str = Field(..., description="Explanation of corrections and learning points")
     rubric: Rubric = Field(..., description="Detailed scoring breakdown")
     # Required so the structured output always carries them; optional arrays came back empty.

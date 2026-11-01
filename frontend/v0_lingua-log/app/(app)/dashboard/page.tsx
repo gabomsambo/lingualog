@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { Confetti } from "@/components/confetti"
 import { LevelSuggestionCard } from "@/components/level-suggestion-card"
-import { ReviewDueCard } from "@/components/review-due-card"
+import { TodayCard } from "@/components/today-card"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { GlobalLookupBox } from "@/components/lookup-sheet"
@@ -177,12 +177,12 @@ export default function DashboardPage() {
           </motion.div>
         </motion.div>
       </section>
+      <TodayCard language={targetLanguage} />
+
       <section className="mb-8 rounded-3xl border border-fun-blue/20 bg-fun-blue/5 p-5">
         <h2 className="mb-3 text-lg font-bold">Look up anything</h2>
         <GlobalLookupBox language={targetLanguage} />
       </section>
-
-      <ReviewDueCard />
 
       <LevelSuggestionCard />
 

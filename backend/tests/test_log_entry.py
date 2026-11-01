@@ -105,6 +105,7 @@ def test_log_entry_saves_real_feedback(client):
     from ai.gemini import GeminiError
 
     returned_feedback = sample_feedback("Hola")
+    returned_feedback.did_well = "You used a clear sentence about your name."
 
     with patch("server.fetch_user_profile_settings", new=AsyncMock(return_value=None)):
         with patch("server.save_entry", return_value={"id": "entry-123"}) as mock_save:
@@ -134,6 +135,7 @@ def test_log_entry_saves_real_feedback(client):
     assert saved["analysis_error_code"] is None
     assert saved["sentence_mapping"] == [{"source_sentence": 0, "corrected_sentences": [0]}]
     assert saved["sentence_mapping_status"] == "valid"
+    assert saved["rubric"]["did_well"] == "You used a clear sentence about your name."
 
 
 def test_guided_prompt_is_saved_and_context_is_given_to_tutor(client):

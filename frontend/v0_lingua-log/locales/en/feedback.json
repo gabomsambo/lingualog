@@ -87,5 +87,18 @@
   "mismatchSwitch": "Switch to {detected}",
   "mismatchAdd": "Learn {detected}",
   "mismatchKeep": "Keep {chosen}",
-  "mismatchFailed": "Couldn't switch right now. Try again."
+  "mismatchFailed": "Couldn't switch right now. Try again.",
+  "calmCorrectedTitle": "Your text, corrected",
+  "calmFixesTitle": "A few things to fix",
+  "didWellLabel": "You did well",
+  "calmWordsToSave": "Words to save",
+  "saveWord": "Save",
+  "savedWord": "Saved",
+  "calmSeeDetails": "See score and details",
+  "calmHideDetails": "Hide score and details",
+  "writeAgain": "Write it again",
+  "writeAgainInstructions": "Try typing the corrected text from memory. Your comparison stays here on your device.",
+  "writeAgainInputLabel": "Type the corrected text again",
+  "writeAgainYourTry": "Compare your try with the correction",
+  "writeAgainMatch": "That matches the correction. Nice work!"
 }

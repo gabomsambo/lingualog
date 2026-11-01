@@ -9,7 +9,12 @@ const users = vi.hoisted(() => ({
   getUserEntries: vi.fn(),
   getUserStats: vi.fn(),
 }))
-const api = vi.hoisted(() => ({ getUserSettings: vi.fn() }))
+const api = vi.hoisted(() => ({
+  getUserSettings: vi.fn(),
+  getCurrentPolicy: vi.fn(),
+  getPrompts: vi.fn(),
+  postSupportEvent: vi.fn(),
+}))
 vi.mock("@/lib/user-service", () => users)
 vi.mock("@/lib/api", () => api)
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast }) }))
@@ -36,6 +41,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   users.getUserProfile.mockResolvedValue({ id: "u", email: "new@example.com", username: null })
   api.getUserSettings.mockResolvedValue({ default_target_lang: "fr" })
+  api.getCurrentPolicy.mockResolvedValue({ l2: "fr", proficiency: "A2" })
+  api.getPrompts.mockResolvedValue({ prompts: [] })
+  api.postSupportEvent.mockResolvedValue(undefined)
 })
 
 describe("dashboard for a brand-new account", () => {
@@ -55,6 +63,16 @@ describe("dashboard for a brand-new account", () => {
   it("points the global lookup at the default target language", async () => {
     render(<DashboardPage />)
     await waitFor(() => expect(screen.getByTestId("global-lookup")).toHaveAttribute("data-language", "fr"))
+  })
+
+  it("keeps the Today card above progress and recent entries", async () => {
+    render(<DashboardPage />)
+    const today = await screen.findByTestId("today-card")
+    const progress = await screen.findByText("Your Progress 📊")
+    const recent = screen.getByText("Recent Entries 📝")
+    expect(today.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(progress.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(api.getPrompts).toHaveBeenCalledWith({ l2: "fr", level: "A2" })
   })
 })
 
