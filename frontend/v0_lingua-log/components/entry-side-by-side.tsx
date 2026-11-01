@@ -40,6 +40,7 @@ import {
   type LearningPolicySnapshot,
   type SideBySideEntry,
 } from "@/lib/side-by-side"
+import { renderEmphasis } from "@/lib/emphasis"
 import { studiedLanguages } from "@/lib/studied-languages"
 import { cn } from "@/lib/utils"
 
@@ -885,7 +886,7 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                   )}
                   <p className="text-sm" data-testid="action-reason">
                     <span className="font-bold">{t("feedback.whyRemovedOrMerged")}: </span>
-                    {action.reason}
+                    {renderEmphasis(action.reason)}
                   </p>
                 </div>
               )
@@ -911,15 +912,15 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
                     <del className="bg-red-500/10 text-red-600">{suggestion.original}</del> →{" "}
                     <ins className="rounded bg-fun-green/15 px-0.5 text-green-700 no-underline">{suggestion.corrected}</ins>
                   </p>
-                  {primary && <p className="text-sm" data-testid="note-primary">{primary}</p>}
-                  {secondary && <p className="mt-1 text-[13px] text-muted-foreground" data-testid="note-secondary">{secondary}</p>}
+                  {primary && <p className="text-sm" data-testid="note-primary">{renderEmphasis(primary)}</p>}
+                  {secondary && <p className="mt-1 text-[13px] text-muted-foreground" data-testid="note-secondary">{renderEmphasis(secondary)}</p>}
                   {policy.explanation === "l2" &&
                     canTranslate &&
                     (!rescue ? (
                       <PillButton onClick={() => rescueNote(index)}>{t("feedback.explainIn", { language: l1Name })}</PillButton>
                     ) : rescue.status === "ok" ? (
                       <p className="mt-2 text-[13px] text-muted-foreground" lang={l1} data-testid="note-rescue">
-                        {htmlToText(rescue.text)}
+                        {renderEmphasis(htmlToText(rescue.text))}
                       </p>
                     ) : rescue.status === "unavailable" ? (
                       <span className="mt-2 inline-flex items-center gap-2 text-[13px] text-destructive">

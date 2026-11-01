@@ -9,6 +9,7 @@ import { MainNav } from "@/components/main-nav"
 import { UserNav } from "@/components/user-nav"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { GlobalLookupBox } from "@/components/lookup-sheet"
+import { useDefaultTargetLanguage } from "@/hooks/use-default-target-language"
 
 export default function AppGroupLayout({
   children,
@@ -18,6 +19,7 @@ export default function AppGroupLayout({
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { t } = useLocale();
+  const targetLanguage = useDefaultTargetLanguage();
 
   useEffect(() => {
     async function checkAuth() {
@@ -73,7 +75,7 @@ export default function AppGroupLayout({
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
             <div className="hidden max-w-xl flex-1 lg:block">
-              <GlobalLookupBox language="es" />
+              <GlobalLookupBox language={targetLanguage} />
             </div>
             <MainNav />
             <div className="flex items-center space-x-2">

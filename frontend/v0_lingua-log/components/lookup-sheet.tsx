@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useToast } from "@/components/ui/use-toast"
+import { getLanguageDisplayName } from "@/i18n/languages"
 import {
   addVocabularyItem,
   lookupWord,
@@ -159,9 +160,12 @@ export function LookupSheet({ context, open, onOpenChange }: LookupSheetProps) {
   )
 }
 
+const GLOBAL_LOOKUP_LANGUAGES = ["es", "fr", "en", "ar", "he", "ja"]
+
 export function GlobalLookupBox({ language }: { language: string }) {
   const [text, setText] = useState("")
   const [lookupLanguage, setLookupLanguage] = useState(language)
+  useEffect(() => setLookupLanguage(language), [language])
   const [context, setContext] = useState<LookupContext | null>(null)
   return (
     <div className="flex gap-2" data-testid="global-lookup">
@@ -177,6 +181,9 @@ export function GlobalLookupBox({ language }: { language: string }) {
         <option value="ar">Arabic</option>
         <option value="he">Hebrew</option>
         <option value="ja">Japanese</option>
+        {!GLOBAL_LOOKUP_LANGUAGES.includes(lookupLanguage) && (
+          <option value={lookupLanguage}>{getLanguageDisplayName(lookupLanguage)}</option>
+        )}
       </select>
       <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Look up a word or sentence" />
       <Button variant="outline" disabled={!text.trim()} onClick={() => {
