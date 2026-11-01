@@ -30,3 +30,4 @@ with that tag; no suggestion counts as a miss. It reports per-tag precision/reca
 sentence accuracy. The production adapter can retry once, so the 40-item corpus is capped at
 80 Gemini requests total. Keep raw model output outside the repository; commit only the
 aggregate result report alongside the code.
+The measured result for this corpus is in [ERROR_TAGS_RESULTS.md](ERROR_TAGS_RESULTS.md).
