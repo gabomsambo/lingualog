@@ -78,8 +78,8 @@ from ai.gemini import (
 from ai.word_card import card_policy_snapshot, generate_word_card
 from word_bank import clean_target_word_uses
 
-from app.routers import books, entry_translation, level_suggestions, prompts, review, support_events, vocab, word_bank
-from app.services import book_service, review_service, vocab_service, word_bank_service
+from app.routers import books, class_notes, entry_translation, level_suggestions, prompts, review, support_events, vocab, word_bank
+from app.services import book_service, class_note_service, review_service, vocab_service, word_bank_service
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
@@ -367,6 +367,7 @@ def _build_feedback_response(
     original_text: str,
     targets: Optional[List[dict]] = None,
     language: str = "",
+    grammar_focus: Optional[str] = None,
 ) -> FeedbackResponse:
     """Convert the Gemini structured output to the API response model.
 
@@ -405,6 +406,17 @@ def _build_feedback_response(
         detected_language=_detected_language(result.detected_language),
         target_word_uses=(
             clean_target_word_uses(result.target_word_uses, targets, original_text, language) if targets else None
+        ),
+        focus_uses=(
+            [
+                {
+                    **item.model_dump(),
+                    "focus": grammar_focus,
+                }
+                for item in (result.focus_uses or [])[:1]
+            ]
+            if grammar_focus
+            else None
         ),
     )
 
@@ -519,11 +531,12 @@ async def _analyze_with_provider(
     effective: LearningPolicy,
     targets: Optional[List[dict]] = None,
     guided_entry: bool = False,
+    grammar_focus: Optional[str] = None,
 ) -> JournalFeedback:
     """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
     target_terms = [target["lemma"] or target["term"] for target in targets or []]
-    system_prompt, _user_payload = build_messages(text, effective, target_terms)
-    user_message = build_user_message(text, effective, target_terms)
+    system_prompt, _user_payload = build_messages(text, effective, target_terms, grammar_focus)
+    user_message = build_user_message(text, effective, target_terms, grammar_focus)
     if guided_entry:
         user_message += "\n\nThis guided entry uses a sentence template."
 
@@ -560,6 +573,7 @@ app.include_router(prompts.router)
 app.include_router(review.router)
 app.include_router(word_bank.router)
 app.include_router(books.router)
+app.include_router(class_notes.router)
 app.include_router(vocab.router)
 
 
@@ -634,6 +648,22 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     effective_settings = _policy_for_request(user_id, profile_settings, request_overrides)
     snapshot_data = _snapshot_columns(effective_settings)
 
+    class_note = None
+    class_note_columns = {}
+    class_grammar_focus = None
+    if entry.class_note_id:
+        try:
+            class_note = class_note_service.get_class_note(user_id, str(entry.class_note_id))
+        except class_note_service.ClassNoteNotFound as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class note not found") from exc
+        if class_note["l2"] != effective_settings.l2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Class note language does not match the entry language",
+            )
+        class_note_columns = {"class_note_id": str(entry.class_note_id)}
+        class_grammar_focus = (class_note.get("extracted") or {}).get("grammar_focus")
+
     if bool(entry.prompt_id) != bool(entry.entry_mode):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -658,9 +688,12 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
     try:
         result = await _analyze_with_provider(
-            entry.text, effective_settings, targets, guided_entry=bool(entry.prompt_id)
+            entry.text, effective_settings, targets,
+            guided_entry=bool(entry.prompt_id), grammar_focus=class_grammar_focus,
         )
-        feedback_response = _build_feedback_response(result, entry.text, targets, effective_settings.l2)
+        feedback_response = _build_feedback_response(
+            result, entry.text, targets, effective_settings.l2, class_grammar_focus
+        )
     except GeminiError as e:
         logger.error(f"AI feedback failed ({e.code}): {e.message}")
         # Keep the entry so the learner can retry later.
@@ -673,6 +706,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
             "analysis_model": GEMINI_MODEL_FEEDBACK,
             "analysis_error_code": e.code,
             **target_columns,
+            **class_note_columns,
             **prompt_columns,
             **snapshot_data,
         }
@@ -712,7 +746,9 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         "detected_language": feedback_response.detected_language,
         **_analysis_columns(feedback_response),
         **target_columns,
+        **class_note_columns,
         **({"target_word_uses": feedback_response.target_word_uses or []} if targets else {}),
+        **({"focus_uses": feedback_response.focus_uses or []} if class_grammar_focus else {}),
         **prompt_columns,
         **snapshot_data,
     }
@@ -917,12 +953,22 @@ async def analyze_existing_entry(
         item["word_id"] for item in stored_targets if item.get("challenge") and item.get("word_id")
     } & {t["word_id"] for t in targets}
 
+    class_grammar_focus = None
+    if entry.get("class_note_id") and not switch_to:
+        try:
+            class_note = class_note_service.get_class_note(user_id, str(entry["class_note_id"]))
+            if class_note["l2"] == effective_settings.l2:
+                class_grammar_focus = (class_note.get("extracted") or {}).get("grammar_focus")
+        except class_note_service.ClassNoteNotFound:
+            pass
+
     try:
         result = await _analyze_with_provider(
             entry["content"],
             effective_settings,
             targets,
             guided_entry=bool(entry.get("prompt_id")) and not switch_to,
+            grammar_focus=class_grammar_focus,
         )
     except GeminiError as e:
         logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
@@ -944,7 +990,9 @@ async def analyze_existing_entry(
             },
         ) from e
 
-    feedback_response = _build_feedback_response(result, entry["content"], targets, effective_settings.l2)
+    feedback_response = _build_feedback_response(
+        result, entry["content"], targets, effective_settings.l2, class_grammar_focus
+    )
     update_data = {
         "corrected": feedback_response.corrected,
         "rewrite": feedback_response.rewritten,
@@ -965,6 +1013,8 @@ async def analyze_existing_entry(
     if stored_targets:
         update_data["target_words"] = _target_word_columns(targets, challenge_ids)
         update_data["target_word_uses"] = feedback_response.target_word_uses or []
+    if class_grammar_focus:
+        update_data["focus_uses"] = feedback_response.focus_uses or []
     if switch_to:
         # Translations of the old rewrite and notes no longer match the new analysis.
         update_data.update(
@@ -974,6 +1024,8 @@ async def analyze_existing_entry(
                 "detected_language_kept": False,
             }
         )
+        if entry.get("class_note_id"):
+            update_data.update({"class_note_id": None, "focus_uses": None})
     update_entry_analysis(entry_id, user_id, update_data)
 
     feedback_response.id = entry_id

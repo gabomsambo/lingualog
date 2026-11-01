@@ -20,6 +20,7 @@ async def get_word_bank(
     language: str,
     count: int = Query(DEFAULT_BANK_SIZE, ge=1, le=MAX_BANK_SIZE),
     exclude: List[UUID] = Query(default_factory=list, max_length=50),
+    include: List[UUID] = Query(default_factory=list, max_length=30),
     book: Optional[UUID] = None,
 ):
     """Words to use in today's entry: due or at-risk ones first, then words never used yet.
@@ -34,6 +35,7 @@ async def get_word_bank(
         return word_bank_service.get_bank(
             user_id, language, count, [str(word_id) for word_id in exclude],
             book_id=str(book) if book else None,
+            include=[str(word_id) for word_id in include],
         )
     except book_service.BookNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found") from exc

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 SENTENCE_ACTIONS = ("removed", "merged")
 
 TargetWordStatus = Literal["used_correctly", "used_with_error", "not_used", "unclear"]
+FocusUseStatus = Literal["used_correctly", "used_with_error", "not_used", "unclear"]
 
 
 class Rubric(BaseModel):
@@ -70,6 +71,16 @@ class TargetWordUse(BaseModel):
         "",
         description="One short sentence in the policy's note language. Only for used_with_error (why) and unclear (the question)",
     )
+
+
+class FocusUse(BaseModel):
+    """How the learner used the one grammar focus selected from their class note."""
+
+    focus: str = Field("", description="The grammar focus copied from the request")
+    status: FocusUseStatus = Field(..., description="used_correctly, used_with_error, not_used, or unclear")
+    evidence: str = Field("", description="The learner's exact evidence, or empty when not used")
+    fix: str = Field("", description="A corrected version, only when used_with_error")
+    note: str = Field("", description="One brief explanation or question in the policy's note language")
 
 
 class SentenceMapping(BaseModel):
@@ -151,6 +162,11 @@ class GeminiJournalFeedback(BaseModel):
             "One item per target word listed in the request, in the order listed."
             " An empty array only when the request lists no target words"
         ),
+    )
+    # Optional so older model responses remain valid; the server never makes another call to fill it.
+    focus_uses: List[FocusUse] = Field(
+        default_factory=list,
+        description="One optional check for the class grammar focus; empty when no focus was requested",
     )
     intended_meaning: str = Field(
         "",

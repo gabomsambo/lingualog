@@ -34,14 +34,15 @@ class JournalEntryRequest(BaseModel):
     immersion_level: Optional[int] = Field(None, description="Override immersion level (0-3)", ge=0, le=3)
     prompt_id: Optional[str] = Field(None, min_length=1, max_length=100)
     entry_mode: Optional[Literal["idea", "frame", "one_sentence"]] = None
+    class_note_id: Optional[UUID] = Field(None, description="Class note this entry practises")
 
     # Word bank: words from the learner's notebook they chose to write with in this entry
     target_word_ids: List[UUID] = Field(
-        default_factory=list, max_length=8, description="Notebook words the learner meant to use in this entry"
+        default_factory=list, max_length=30, description="Notebook words the learner meant to use in this entry"
     )
     challenge_word_ids: List[UUID] = Field(
         default_factory=list,
-        max_length=8,
+        max_length=30,
         description="Target words whose text stayed hidden while writing; a correct use is real recall",
     )
 
@@ -131,6 +132,10 @@ class FeedbackResponse(BaseModel):
             "How each word-bank word was used: status, the form written, a fix or question, and"
             " what the use did to the word. Null when no words were chosen"
         ),
+    )
+    focus_uses: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="How the learner used the grammar focus selected from their class note",
     )
 
     # TODO: Add metrics/analytics fields as needed for progress tracking

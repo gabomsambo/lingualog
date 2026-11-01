@@ -28,6 +28,7 @@ from word_bank import (
     ENCOUNTER_KIND_FOR_STATUS,
     ENCOUNTER_USED_OK,
     MAX_TARGET_WORDS,
+    REASON_FROM_CLASS,
     USE_ENCOUNTER_KINDS,
     USED_CORRECTLY,
     BankWord,
@@ -112,6 +113,7 @@ def get_bank(
     exclude: Iterable[str] = (),
     now: Optional[datetime] = None,
     book_id: Optional[str] = None,
+    include: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Five or six of the learner's words to write with today, each with why it was chosen.
 
@@ -149,7 +151,23 @@ def get_bank(
 
     scheduler = review_service.scheduler_for(user_id, language)
     quiz = resolve_policy(user_id, language).quiz
-    chosen = pick_bank(items, now, scheduler, count, exclude, prefer or ())
+    by_id = {str(item.word["id"]): item for item in items}
+    skipped = {str(word_id) for word_id in exclude}
+    class_words = [
+        (by_id[word_id], REASON_FROM_CLASS)
+        for word_id in dict.fromkeys(str(word_id) for word_id in include)
+        if word_id in by_id and word_id not in skipped
+    ]
+    class_ids = {str(item.word["id"]) for item, _reason in class_words}
+    remaining = pick_bank(
+        items,
+        now,
+        scheduler,
+        max(0, count - len(class_words)),
+        [*skipped, *class_ids],
+        prefer or (),
+    )
+    chosen = [*class_words, *remaining]
     payload = []
     for item, reason in chosen:
         hint, hint_mode = bank_hint(item.word, quiz)

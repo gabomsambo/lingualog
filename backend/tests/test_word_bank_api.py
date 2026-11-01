@@ -251,6 +251,21 @@ def test_writing_about_a_book_offers_its_words_from_this_week_first(book, client
     assert client.get("/word-bank", params={"language": "es"}, headers=HEADERS).json()["book"] is None
 
 
+def test_writing_from_a_class_note_includes_its_words_first(book, client):
+    book.word(W1, "sobremesa", "new")
+    book.word(W2, "aprovechar", "new")
+
+    body = client.get(
+        "/word-bank",
+        params={"language": "es", "count": 2, "include": [W1]},
+        headers=HEADERS,
+    ).json()
+
+    assert [(item["word_id"], item["reason"]) for item in body["words"]] == [
+        (W1, "from_class"), (W2, "never_used"),
+    ]
+
+
 def test_a_book_that_is_not_yours_or_in_another_language_is_refused(book, client, monkeypatch):
     from app.services import book_service
 
@@ -290,7 +305,7 @@ def test_forms_the_learner_met_or_wrote_become_the_forms_the_ticks_match(book, c
 def test_the_bank_needs_a_user_and_a_valid_language(book, client):
     assert client.get("/word-bank", params={"language": "es"}).status_code == 401
     assert client.get("/word-bank", params={"language": "Spanish"}, headers=HEADERS).status_code == 400
-    assert client.get("/word-bank", params={"language": "es", "count": 20}, headers=HEADERS).status_code == 422
+    assert client.get("/word-bank", params={"language": "es", "count": 31}, headers=HEADERS).status_code == 422
 
 
 # --- An entry written with chosen words ---------------------------------------------------

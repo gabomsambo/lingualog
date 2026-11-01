@@ -101,7 +101,8 @@ You must respond with a valid JSON object containing exactly these fields:
       "fix": "the corrected phrase, only for used_with_error",
       "note": "one short sentence, only for used_with_error and unclear"
     }}
-  ]
+  ],
+  "focus_uses": []
 }}
 
 **SCORING GUIDELINES:**
@@ -127,6 +128,7 @@ You must respond with a valid JSON object containing exactly these fields:
 10. `target_word_uses` is an empty array unless the request lists TARGET WORDS.
 11. `did_well` is one short, specific positive observation in the explanation language. Mention something
     the learner actually did well; use an empty string when no clear strength stands out.
+12. `focus_uses` is an empty array unless the request includes CLASS GRAMMAR FOCUS.
 
 **SENTENCE FATE RULES — read carefully:**
 A. Never drop a learner's sentence just because it is odd, off-topic, awkward, or has a small grammar slip.
@@ -182,6 +184,16 @@ Judge only the target word and what it governs. A correct use stays used_correct
 sentence needs fixes. Never invent a use: `form_in_text` must be text that is really in the entry. Write
 `note` only for used_with_error and unclear."""
 
+CLASS_FOCUS_RULES = """
+
+**CLASS GRAMMAR FOCUS:**
+The learner selected one focus from a class note. Return exactly one `focus_uses` item for the
+focus in the request. Do not add a second feedback call or teach a new rule. Use `used_correctly`
+when the entry uses the focus accurately, `used_with_error` when the attempt is clear but incorrect,
+`not_used` when no attempt appears, and `unclear` when you cannot tell. Copy the focus exactly.
+Set `evidence` to the learner's exact words, leave it empty when not used, and add a concise `fix`
+and `note` only for an incorrect attempt. If there is no class grammar focus, return an empty array."""
+
 
 def _target_words_block(target_words: Optional[Sequence[str]]) -> str:
     words = [word.strip() for word in target_words or [] if word and word.strip()]
@@ -195,6 +207,7 @@ def build_messages(
     entry_text: str,
     effective: EffectiveSettings,
     target_words: Optional[Sequence[str]] = None,
+    grammar_focus: Optional[str] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Build system prompt and user payload for AI analysis.
@@ -220,6 +233,8 @@ def build_messages(
     )
     if _target_words_block(target_words):
         system_prompt += TARGET_WORD_RULES
+    if grammar_focus:
+        system_prompt += CLASS_FOCUS_RULES
     
     # Build user payload with entry and metadata
     user_payload = {
@@ -239,6 +254,8 @@ def build_messages(
         "rewrite_gloss": getattr(effective, "rewrite_gloss", ""),
         "analysis_request": f"Please analyze this journal entry written in {effective.l2}."
     }
+    if grammar_focus:
+        user_payload["grammar_focus"] = grammar_focus
     
     logger.info(f"Built prompt for {len(entry_text)} chars in {effective.l2}, "
                f"explanation_mode={effective.explanation_mode}, "
@@ -251,6 +268,7 @@ def build_user_message(
     entry_text: str,
     effective: EffectiveSettings,
     target_words: Optional[Sequence[str]] = None,
+    grammar_focus: Optional[str] = None,
 ) -> str:
     """
     Build a user message string that includes the entry and context.
@@ -287,6 +305,7 @@ CONTEXT:
 - Tone: {effective.formality}
 - Immersion level: {effective.immersion_level} (0 = native-first, 3 = full immersion)
 - Proficiency: {_proficiency(effective)} (A1-C2, separate from immersion){_target_words_block(target_words)}
+{f'- CLASS GRAMMAR FOCUS: {grammar_focus}' if grammar_focus else ''}
 
 Please provide your analysis as a JSON object following the specified format."""
     

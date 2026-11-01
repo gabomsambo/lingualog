@@ -20,8 +20,8 @@ from review_cards import GLOSS_ON_TAP, GLOSS_SHOWN, find_form, normalize_answer
 from review_scheduler import KNOWN_STABILITY_DAYS, aware, is_at_risk, is_due, retrievability
 
 DEFAULT_BANK_SIZE = 6
-MAX_BANK_SIZE = 8
-MAX_TARGET_WORDS = 8
+MAX_BANK_SIZE = 30
+MAX_TARGET_WORDS = 30
 MAX_SURFACE_FORMS = 8
 MASTERED_USE_DAYS = 2
 
@@ -41,6 +41,7 @@ REASON_DUE = "due"
 REASON_NEVER_USED = "never_used"
 REASON_TO_MASTER = "to_master"
 REASON_FROM_BOOK = "from_book"
+REASON_FROM_CLASS = "from_class"
 
 # Statuses a word can be in and still be offered. Mastered and ignored words are done.
 _OFFERED = frozenset({"new", "learning", "known"})

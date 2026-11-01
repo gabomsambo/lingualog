@@ -156,6 +156,14 @@ def test_filters_combine_tags_source_status_and_entry():
     assert [r["id"] for r in combined] == ["w1", "w2"]
 
 
+def test_class_note_source_is_filterable_and_export_friendly():
+    item = word("w1")
+    encounter = {"word_id": "w1", "source_type": "class_note", "source_id": "note-1"}
+
+    assert vocab_service.source_of(item, encounters=[encounter]) == "class_note"
+    assert vocab_service.filter_items([item], [encounter], [], {"source": "class_note"}) == [item]
+
+
 def test_selector_validates_values():
     assert vocab_service.selector_from("due", "travel") == {"list": "due", "tag": "travel"}
     with pytest.raises(ValueError):
