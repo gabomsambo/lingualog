@@ -128,6 +128,11 @@ describe("write-again comparison", () => {
     ])
   })
 
+  it("marks nothing when the retype differs only by capitalization or spacing", () => {
+    const parts = compareRetypedText("Me gusta la pizza.", "  ME gusta   LA pizza. ")
+    expect(parts.every((p) => p.kind === "same")).toBe(true)
+  })
+
   it("treats matching text with different spacing or capitalization as correct", () => {
     expect(matchesRetypedText("Me gusta la pizza.", "  ME gusta   la pizza.  ")).toBe(true)
     expect(matchesRetypedText("Me gusta la pizza.", "Me gusta pizza.")).toBe(false)

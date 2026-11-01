@@ -342,8 +342,9 @@ export function EntrySideBySide({
 
   useEffect(() => {
     if (!policy || !onResultDensityChange) return
-    onResultDensityChange(policy.result_density === "calm" ? "calm" : "full")
-  }, [onResultDensityChange, policy?.result_density])
+    const calm = policy.result_density === "calm" && entry.analysisStatus !== "failed"
+    onResultDensityChange(calm ? "calm" : "full")
+  }, [onResultDensityChange, policy?.result_density, entry.analysisStatus])
 
   const [view, setView] = useState<"corrected" | "native">("corrected")
   const [meaning, setMeaning] = useState<Fetched>(IDLE)
