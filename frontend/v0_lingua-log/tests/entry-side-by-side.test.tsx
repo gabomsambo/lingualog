@@ -16,6 +16,10 @@ const api = vi.hoisted(() => ({
   getUserSettings: vi.fn(),
   keepEntryLanguage: vi.fn(),
   addVocabularyItem: vi.fn(),
+  getMiniLessonOffer: vi.fn(),
+  getMiniLessonDrill: vi.fn(),
+  markMiniLessonSeen: vi.fn(),
+  snoozeMiniLesson: vi.fn(),
 }))
 vi.mock("@/lib/api", () => api)
 vi.mock("@/components/lookup-sheet", () => ({
@@ -137,6 +141,10 @@ beforeEach(() => {
   api.dismissLevelSuggestion.mockResolvedValue({})
   api.keepEntryLanguage.mockResolvedValue(undefined)
   api.addVocabularyItem.mockResolvedValue({ id: "word-1" })
+  api.getMiniLessonOffer.mockResolvedValue(null)
+  api.getMiniLessonDrill.mockResolvedValue([])
+  api.markMiniLessonSeen.mockResolvedValue(undefined)
+  api.snoozeMiniLesson.mockResolvedValue(undefined)
   api.getUserSettings.mockResolvedValue({
     default_target_lang: "es",
     language_profiles: [
