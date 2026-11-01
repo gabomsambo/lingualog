@@ -82,6 +82,7 @@ from app.services import book_service, review_service, vocab_service, word_bank_
 from app.services.stats_service import get_user_stats_service
 from app.schemas.stats_schemas import UserStatsResponse
 from app.services.entry_translation_service import split_sentences
+from prompts import get_prompt
 
 # Configure logger
 # Ensure basicConfig is called to set up the root logger handler and level
@@ -499,12 +500,17 @@ def _record_target_word_uses(
 
 
 async def _analyze_with_provider(
-    text: str, effective: LearningPolicy, targets: Optional[List[dict]] = None
+    text: str,
+    effective: LearningPolicy,
+    targets: Optional[List[dict]] = None,
+    guided_entry: bool = False,
 ) -> JournalFeedback:
     """Run the journal tutor (Gemini or mock) using the resolved policy prompt."""
     target_terms = [target["lemma"] or target["term"] for target in targets or []]
     system_prompt, _user_payload = build_messages(text, effective, target_terms)
     user_message = build_user_message(text, effective, target_terms)
+    if guided_entry:
+        user_message += "\n\nThis guided entry uses a sentence template."
 
     if AI_PROVIDER == "mock":
         return await mock_generate_structured(
@@ -613,6 +619,20 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     effective_settings = _policy_for_request(user_id, profile_settings, request_overrides)
     snapshot_data = _snapshot_columns(effective_settings)
 
+    if bool(entry.prompt_id) != bool(entry.entry_mode):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="prompt_id and entry_mode must be provided together",
+        )
+    if entry.prompt_id and not get_prompt(effective_settings.l2, entry.prompt_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Prompt does not exist for the selected language",
+        )
+    prompt_columns = (
+        {"prompt_id": entry.prompt_id, "entry_mode": entry.entry_mode} if entry.prompt_id else {}
+    )
+
     targets = _target_words_for_request(
         user_id, effective_settings.l2, [str(word_id) for word_id in entry.target_word_ids]
     )
@@ -622,7 +642,9 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
     )
 
     try:
-        result = await _analyze_with_provider(entry.text, effective_settings, targets)
+        result = await _analyze_with_provider(
+            entry.text, effective_settings, targets, guided_entry=bool(entry.prompt_id)
+        )
         feedback_response = _build_feedback_response(result, entry.text, targets, effective_settings.l2)
     except GeminiError as e:
         logger.error(f"AI feedback failed ({e.code}): {e.message}")
@@ -636,6 +658,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
             "analysis_model": GEMINI_MODEL_FEEDBACK,
             "analysis_error_code": e.code,
             **target_columns,
+            **prompt_columns,
             **snapshot_data,
         }
         entry_id = None
@@ -675,6 +698,7 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
         **_analysis_columns(feedback_response),
         **target_columns,
         **({"target_word_uses": feedback_response.target_word_uses or []} if targets else {}),
+        **prompt_columns,
         **snapshot_data,
     }
 
@@ -874,7 +898,12 @@ async def analyze_existing_entry(
     } & {t["word_id"] for t in targets}
 
     try:
-        result = await _analyze_with_provider(entry["content"], effective_settings, targets)
+        result = await _analyze_with_provider(
+            entry["content"],
+            effective_settings,
+            targets,
+            guided_entry=bool(entry.get("prompt_id")) and not switch_to,
+        )
     except GeminiError as e:
         logger.error(f"Retry analysis failed for {entry_id} ({e.code}): {e.message}")
         if entry.get("analysis_status") not in ("ok", "mock", "legacy"):

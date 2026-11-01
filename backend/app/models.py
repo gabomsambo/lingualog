@@ -179,6 +179,8 @@ class JournalEntry(JournalEntryBase):
     detected_language_kept: bool = False
     target_words: Optional[List[Dict[str, Any]]] = None
     target_word_uses: Optional[List[Dict[str, Any]]] = None
+    prompt_id: Optional[str] = None
+    entry_mode: Optional[str] = None
 
     model_config = {
         "from_attributes": True, # Pydantic V2 way for orm_mode

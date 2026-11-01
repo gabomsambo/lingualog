@@ -42,6 +42,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **POST /log-entry**
   - Submit a journal entry text
+  - Optional `prompt_id` and `entry_mode` (`idea`, `frame`, `one_sentence`) record a guided prompt entry
   - Returns comprehensive AI feedback, including the saved entry `id`
   - If AI feedback fails, the entry is still saved and the API returns 503 with `{code, entry_id, message}`
 
@@ -56,6 +57,14 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 
 - **GET /user/policy?l2=**
   - The current learning policy for one language; entries stored without `policy_snapshot` render with it
+
+- **GET /prompts?l2=&level=&topic=&exclude=**
+  - Load curated prompt ideas and sentence frames for a studied language and CEFR level
+  - Spanish A1-B1 content is available in v1; `exclude` accepts prompt ids to avoid showing recent choices again
+  - English glosses are included only when the learner's meaning policy allows them
+
+- **POST /events**
+  - Records support actions; `kind: "prompt_selected"` with `l2` and `prompt_id` logs prompt usage
 
 - **GET /review/session?language=&mode=normal|catchup**
   - The next cards to review (20 by default) with the learner's own sentences, plus the counts the page needs
@@ -154,6 +163,12 @@ The word bank is a panel beside the editor with 5-6 of the learner's own words t
 - **FSRS credit.** Writing a word the bank displayed is copying, so it is not a review. In challenge mode the bank hides the words and shows only meanings; a correct use of a word the learner never peeked at is a real recall and becomes a "Got it" on that word's production card (`vocab_review_logs.source = 'challenge_use'`). A word with no production card yet earns no credit, and an entry credits a word once.
 - **The result** shows a "Your words today" row (`3 used well · 1 to fix · 1 not used`) with the fix for each error, the question for each unclear use and a note when a word has just become Mastered. Sample feedback from the offline provider (`AI_PROVIDER=mock`) shows the row but is never recorded.
 - Entries remember their chosen words and verdicts in `journal_entries.target_words` / `target_word_uses`, so a retried analysis checks the same words. Migration: `supabase/migrations/20261007000000_word_bank.sql`.
+
+### Writing prompts
+
+`GET /prompts?l2=&level=&topic=&exclude=` reads the authored pack in `backend/content/prompts/`. Spanish has 20 original prompts at each of A1, A2 and B1, with topic tags, sentence frames, one-sentence starters, structure hints, suggested words and English glosses. Higher CEFR levels use the closest available pack. The gloss follows `LearningPolicy.meaning` and is only returned for English native-language profiles, since no other glosses are authored yet. Choosing a prompt records a `prompt_selected` support event and the entry stores its nullable `prompt_id` and `entry_mode`; guided entries add one sentence-template instruction to the existing tutor request.
+
+The word-count targets are soft hints beside the editor counter: A1 25-50, A2 60-100, B1 120-170, and B2 180-250 words. They never block submission.
 ### Book mode
 
 Book mode is a companion, not a reader: LinguaLog never stores book text beyond the sentence of a word you marked.

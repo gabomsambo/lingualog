@@ -20,6 +20,37 @@ export interface JournalEntryOverrides {
   target_word_ids?: string[];
   /** Target words whose text stayed hidden while writing. */
   challenge_word_ids?: string[];
+  prompt_id?: string;
+  entry_mode?: PromptEntryMode;
+}
+
+export type PromptEntryMode = "idea" | "frame" | "one_sentence";
+
+export interface WritingPrompt {
+  id: string;
+  level: string;
+  topics: string[];
+  title: string;
+  prompt: string;
+  sentence_frame: string;
+  one_sentence_frame: string;
+  structure_hint: string;
+  suggested_words: string[];
+  gloss: {
+    prompt: string;
+    sentence_frame: string;
+    one_sentence_frame: string;
+    structure_hint: string;
+  } | null;
+}
+
+export interface WritingPromptResponse {
+  l2: string;
+  level: string;
+  meaning: "open" | "tap" | "tap_hidden" | "rescue_only" | string;
+  gloss_available: boolean;
+  topics: string[];
+  prompts: WritingPrompt[];
 }
 
 export async function postLogEntry(
@@ -56,6 +87,27 @@ export async function postLogEntry(
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as Entry;
+}
+
+export async function getPrompts(options: {
+  l2: string;
+  level?: string;
+  topic?: string;
+  exclude?: string[];
+}): Promise<WritingPromptResponse> {
+  const url = new URL(`${API_BASE}/prompts`);
+  url.searchParams.set("l2", options.l2);
+  if (options.level) url.searchParams.set("level", options.level);
+  if (options.topic) url.searchParams.set("topic", options.topic);
+  options.exclude?.forEach((promptId) => url.searchParams.append("exclude", promptId));
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: await userHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as WritingPromptResponse;
 }
 
 /** An API failure with its status and parsed `detail` (e.g. 503 `{code, entry_id, message}`). */
@@ -243,7 +295,8 @@ export type SupportEventKind =
   | "rescue_note"
   | "reveal_rewrite_gloss"
   | "reveal_example"
-  | "reveal_gloss";
+  | "reveal_gloss"
+  | "prompt_selected";
 
 export interface LevelSuggestion {
   l2: string;
@@ -288,6 +341,7 @@ export async function postSupportEvent(payload: {
   entry_id?: string;
   immersion_level?: number;
   l2?: string;
+  prompt_id?: string;
 }): Promise<void> {
   const authHeaders = await getAuthHeaders();
   const user = await getUser();

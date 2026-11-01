@@ -55,3 +55,30 @@ def test_prompts_require_a_signed_in_user():
     response = TestClient(server.app).get("/prompts?l2=es&level=A1")
 
     assert response.status_code == 401
+
+
+def test_prompt_selection_is_logged_with_the_prompt_id(monkeypatch):
+    from app.routers import support_events
+    from tests.fake_supabase import FakeSupabase
+
+    store = FakeSupabase()
+    monkeypatch.setattr(support_events, "create_supabase_client", lambda: store)
+
+    response = TestClient(server.app).post(
+        "/events",
+        headers=HEADERS,
+        json={"kind": "prompt_selected", "l2": "es", "prompt_id": "es-a1-01"},
+    )
+
+    assert response.status_code == 201
+    assert store.rows("support_events")[0]["prompt_id"] == "es-a1-01"
+
+
+def test_prompt_usage_event_rejects_unknown_prompt_id():
+    response = TestClient(server.app).post(
+        "/events",
+        headers=HEADERS,
+        json={"kind": "prompt_selected", "l2": "es", "prompt_id": "not-a-prompt"},
+    )
+
+    assert response.status_code == 400
