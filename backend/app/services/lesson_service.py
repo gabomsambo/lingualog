@@ -189,23 +189,32 @@ def offer_for_entry(
         if _recent(state.get("seen_at"), moment, SEEN_COOLDOWN_DAYS):
             continue
         if _recent(state.get("offered_at"), moment, OFFER_COOLDOWN_DAYS):
-            continue
+            if str(state.get("offered_entry_id") or "") != entry_id:
+                continue
         eligible.append((counts[tag], tag))
     if not eligible:
         return None
 
     count, tag = sorted(eligible, key=lambda item: (-item[0], item[1]))[0]
     offered_at = moment.isoformat()
-    if tag in existing:
-        _table(db, LESSON_OFFERS_TABLE).update({"offered_at": offered_at}).eq(
-            "user_id", user_id
-        ).eq("l2", l2).eq("tag", tag).execute()
+    state = existing.get(tag) or {}
+    already_offered_here = (
+        _recent(state.get("offered_at"), moment, OFFER_COOLDOWN_DAYS)
+        and str(state.get("offered_entry_id") or "") == entry_id
+    )
+    if already_offered_here:
+        pass
+    elif tag in existing:
+        _table(db, LESSON_OFFERS_TABLE).update(
+            {"offered_at": offered_at, "offered_entry_id": entry_id}
+        ).eq("user_id", user_id).eq("l2", l2).eq("tag", tag).execute()
     else:
         _table(db, LESSON_OFFERS_TABLE).insert({
             "user_id": user_id,
             "l2": l2,
             "tag": tag,
             "offered_at": offered_at,
+            "offered_entry_id": entry_id,
         }).execute()
 
     lesson = lesson_by_tag[tag]

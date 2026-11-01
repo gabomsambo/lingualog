@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.lesson_offers (
   l2 text NOT NULL,
   tag text NOT NULL,
   offered_at timestamptz NOT NULL DEFAULT now(),
+  offered_entry_id uuid,
   seen_at timestamptz,
   snoozed_until timestamptz,
   CONSTRAINT lesson_offers_user_l2_tag_key UNIQUE (user_id, l2, tag)

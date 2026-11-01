@@ -97,6 +97,22 @@ def test_general_preposition_errors_do_not_get_a_specific_personal_a_lesson():
     assert lesson_service.offer_for_entry(store_with(previous, current), USER, "current", NOW) is None
 
 
+def test_offer_is_repeatable_for_same_entry_until_snoozed_and_not_for_others():
+    store = store_with(entry("previous", NOW - timedelta(days=1)), entry("current", NOW))
+    first = lesson_service.offer_for_entry(store, USER, "current", NOW)
+    again = lesson_service.offer_for_entry(store, USER, "current", NOW + timedelta(seconds=5))
+    assert first and again == first
+    assert len(store.rows("lesson_offers")) == 1
+
+    store.tables["journal_entries"].append(entry("later", NOW + timedelta(hours=1)))
+    assert lesson_service.offer_for_entry(
+        store, USER, "later", NOW + timedelta(hours=1)
+    ) is None
+
+    lesson_service.snooze(store, USER, "es", "ser_estar", NOW)
+    assert lesson_service.offer_for_entry(store, USER, "current", NOW) is None
+
+
 def test_snooze_and_recent_seen_state_suppress_repeat_offers():
     previous = entry("previous", NOW - timedelta(days=1))
     current = entry("current", NOW)
