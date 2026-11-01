@@ -81,6 +81,18 @@ describe("JournalEditor lookup", () => {
     fireEvent.mouseUp(editor)
     expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
   })
+
+  it("does not open lookup on select-all, so typing over the selection keeps working", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 0 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 18 })
+    fireEvent.keyUp(editor, { key: "a", ctrlKey: true })
+    fireEvent.keyUp(editor, { key: "Control" })
+    expect(screen.queryByTestId("selected-lookup")).toBeNull()
+  })
 })
 
 

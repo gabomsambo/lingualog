@@ -127,6 +127,13 @@ export function JournalEditor() {
     })
   }
 
+  // Select-all, copy and modifier key-ups leave a selection behind but are not a lookup request;
+  // opening the sheet there moves focus out of the textarea and swallows the next keystrokes.
+  const lookupAfterKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.ctrlKey || event.metaKey || ["Control", "Meta", "Alt", "Shift"].includes(event.key)) return
+    lookupSelection(event)
+  }
+
   /**
    * Load the saved entry so the result renders from the same data as the entry page
    */
@@ -339,7 +346,7 @@ export function JournalEditor() {
               value={text}
               onChange={handleTextChange}
               onMouseUp={lookupSelection}
-              onKeyUp={lookupSelection}
+              onKeyUp={lookupAfterKey}
               disabled={isSubmitting}
               lang={targetLanguage}
               dir={isRTL(targetLanguage) ? 'rtl' : 'ltr'}
