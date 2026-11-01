@@ -24,6 +24,8 @@ export interface LearningPolicySnapshot {
   quiz?: string
   explanation_mode?: string
   translation_policy?: string
+  /** CEFR-sized feedback presentation for this entry. */
+  result_density?: "calm" | "full" | string
 }
 
 export interface SuggestionData {
@@ -104,6 +106,7 @@ export interface SideBySideEntry {
   score?: number
   tone?: string
   explanation?: string
+  didWell?: string
   rubric?: { grammar?: number; vocabulary?: number; complexity?: number }
   intendedMeaning: string
   ambiguities: Ambiguity[]
@@ -140,6 +143,9 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
     score: typeof ai.score === "number" ? ai.score : undefined,
     tone: typeof ai.tone === "string" ? ai.tone : undefined,
     explanation: ai.explanation || undefined,
+    didWell: typeof rubric.did_well === "string" && rubric.did_well.trim()
+      ? rubric.did_well.trim()
+      : undefined,
     rubric: {
       grammar: rubric.grammar,
       vocabulary: rubric.vocabulary,
@@ -377,6 +383,16 @@ export function diffWords(before: string, after: string): DiffPart[] {
   while (i < a.length) push("del", a[i++])
   while (j < b.length) push("ins", b[j++])
   return parts
+}
+
+/** Client-side comparison used by the optional retype practice; it never makes a model call. */
+export function compareRetypedText(corrected: string, retyped: string): DiffPart[] {
+  return diffWords((corrected || "").trim(), (retyped || "").trim())
+}
+
+export function matchesRetypedText(corrected: string, retyped: string): boolean {
+  const normalize = (text: string) => text.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+  return !!normalize(retyped || "") && normalize(corrected || "") === normalize(retyped || "")
 }
 
 export interface ErrorMark {

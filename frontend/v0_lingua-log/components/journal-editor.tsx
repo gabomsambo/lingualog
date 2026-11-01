@@ -69,6 +69,7 @@ export function JournalEditor() {
   const [result, setResult] = useState<Entry | null>(null)
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null)
   const [resultEntry, setResultEntry] = useState<SideBySideEntry | null>(null)
+  const calmResult = resultEntry?.policy?.result_density === "calm"
   const [isTranslationModalOpen, setIsTranslationModalOpen] = useState(false)
   const [showTranslation, setShowTranslation] = useState(true)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -78,6 +79,8 @@ export function JournalEditor() {
   const [promptSelection, setPromptSelection] = useState<{ promptId: string; mode: PromptEntryMode } | null>(null)
   const [recentPromptIds, setRecentPromptIds] = useState<string[]>([])
   const [promptPickerKey, setPromptPickerKey] = useState(0)
+  const [todayPrompt, setTodayPrompt] = useState("")
+  const [calmDetailsOpen, setCalmDetailsOpen] = useState(false)
   
   // User settings and overrides
   const [userSettings, setUserSettings] = useState<UserSettingsData | null>(null)
@@ -89,8 +92,15 @@ export function JournalEditor() {
     try {
       const settings = await getUserSettings()
       setUserSettings(settings)
-      if (settings.default_target_lang) {
-        setTargetLanguage(settings.default_target_lang)
+      const todayLanguage = typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("today_l2")
+      const activeLanguages = studiedLanguages(settings)
+      const selectedLanguage = todayLanguage && activeLanguages.includes(todayLanguage)
+        ? todayLanguage
+        : settings.default_target_lang
+      if (selectedLanguage) {
+        setTargetLanguage(selectedLanguage)
       }
       setSettingsStatus("ready")
     } catch (error) {
@@ -101,6 +111,19 @@ export function JournalEditor() {
 
   useEffect(() => {
     loadUserSettings()
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const promptId = params.get("today_prompt_id")
+    const promptFrame = params.get("today_prompt_frame")
+    const promptText = params.get("today_prompt_text")
+    if (!promptId || !promptFrame || params.get("today_entry_mode") !== "one_sentence") return
+
+    setPromptSelection({ promptId, mode: "one_sentence" })
+    setTodayPrompt(promptText || promptFrame)
+    setText(promptFrame)
+    setWordCount(promptFrame.trim().split(/\s+/).filter(Boolean).length)
   }, [])
 
   /**
@@ -166,6 +189,7 @@ export function JournalEditor() {
     setError(null)
     setResult(null)
     setResultEntry(null)
+    setCalmDetailsOpen(false)
     setSavedEntryId(null)
     
     try {
@@ -230,6 +254,8 @@ export function JournalEditor() {
     setError(null)
     setOverrides({})
     setPromptSelection(null)
+    setTodayPrompt("")
+    setCalmDetailsOpen(false)
     setPromptPickerKey((key) => key + 1)
     setBankKey((key) => key + 1)
   }
@@ -394,6 +420,12 @@ export function JournalEditor() {
               />
             )}
 
+            {todayPrompt && (
+              <section className="rounded-2xl border border-fun-blue/20 bg-fun-blue/5 p-4" data-testid="today-prompt-context">
+                <h3 className="mb-1 text-sm font-bold">{t("journal.todayPromptContext")}</h3>
+                <p className="text-sm">{todayPrompt}</p>
+              </section>
+            )}
             <Textarea
               placeholder={t('journal.writeThoughtsIn', { language: getLanguageDisplayName(targetLanguage) })}
               className="min-h-[200px] text-base font-serif"
@@ -552,10 +584,12 @@ export function JournalEditor() {
           data-testid="post-submit-result"
         >
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsTranslationModalOpen(true)}>
-              <Languages className="mr-2 h-4 w-4" />
-              {t('journal.translateWholeEntry')}
-            </Button>
+            {!calmResult && (
+              <Button variant="outline" size="sm" onClick={() => setIsTranslationModalOpen(true)}>
+                <Languages className="mr-2 h-4 w-4" />
+                {t('journal.translateWholeEntry')}
+              </Button>
+            )}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/entries/${resultEntry.id}`}>
                 {t('journal.openEntryPage')}
@@ -566,6 +600,8 @@ export function JournalEditor() {
           <div className="lg:-mx-12 xl:-mx-32">
             <EntrySideBySide
               entry={resultEntry}
+              detailsOpen={calmResult ? calmDetailsOpen : undefined}
+              onDetailsOpenChange={calmResult ? setCalmDetailsOpen : undefined}
               onReanalyzed={() => loadResultEntry(resultEntry.id)}
               onLevelAccepted={() => {
                 getUserSettings().then(setUserSettings).catch(() => undefined)
@@ -577,12 +613,21 @@ export function JournalEditor() {
 
       <AnimatePresence>
         {result && !isSubmitting && (
+          (!calmResult || calmDetailsOpen) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ duration: 0.3 }}
           >
+            {calmResult && (
+              <div className="mb-4 flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setIsTranslationModalOpen(true)}>
+                  <Languages className="mr-2 h-4 w-4" />
+                  {t('journal.translateWholeEntry')}
+                </Button>
+              </div>
+            )}
             <Card className="border-fun-green/20 shadow-fun rounded-3xl overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-fun-green/10 to-fun-blue/10 pb-4">
                 <CardTitle className="text-2xl flex items-center justify-between">
@@ -646,6 +691,7 @@ export function JournalEditor() {
               </CardContent>
             </Card>
           </motion.div>
+          )
         )}
       </AnimatePresence>
 

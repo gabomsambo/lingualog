@@ -8,6 +8,7 @@ import { LevelSuggestionCard } from "@/components/level-suggestion-card"
 import { LookupSheet, type LookupContext } from "@/components/lookup-sheet"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { WordsTodayRow } from "@/components/words-today-row"
 import { useLocale } from "@/i18n/LocaleProvider"
@@ -29,11 +30,13 @@ import {
   alignSentencesFromMapping,
   cleanLiteralReading,
   diffWords,
+  compareRetypedText,
   htmlToText,
   languageMismatch,
   locateSuggestions,
   sameLanguage,
   noteTexts,
+  matchesRetypedText,
   splitParagraphs,
   splitSentences,
   type ErrorMark,
@@ -79,6 +82,11 @@ interface EntrySideBySideProps {
   onReanalyzed?: () => void | Promise<void>
   /** Called after the learner accepts a suggested immersion change. */
   onLevelAccepted?: () => void
+  /** Allows a parent result page to reveal its legacy feedback card with these details. */
+  detailsOpen?: boolean
+  onDetailsOpenChange?: (open: boolean) => void
+  /** Reports snapshot or fetched policy density so legacy result sections follow the same gate. */
+  onResultDensityChange?: (density: "calm" | "full") => void
 }
 
 function languageName(code: string, uiLang: string): string {
@@ -320,9 +328,22 @@ function LinkButton({ onClick, children }: { onClick: () => void; children: Reac
   )
 }
 
-export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLevelAccepted }: EntrySideBySideProps) {
+export function EntrySideBySide({
+  entry,
+  showOverview = true,
+  onReanalyzed,
+  onLevelAccepted,
+  detailsOpen: controlledDetailsOpen,
+  onDetailsOpenChange,
+  onResultDensityChange,
+}: EntrySideBySideProps) {
   const { t, uiLang } = useLocale()
   const { policy, fromSnapshot } = useEntryPolicy(entry)
+
+  useEffect(() => {
+    if (!policy || !onResultDensityChange) return
+    onResultDensityChange(policy.result_density === "calm" ? "calm" : "full")
+  }, [onResultDensityChange, policy?.result_density])
 
   const [view, setView] = useState<"corrected" | "native">("corrected")
   const [meaning, setMeaning] = useState<Fetched>(IDLE)
@@ -335,9 +356,13 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   const [retryFailed, setRetryFailed] = useState(false)
   const [highlighted, setHighlighted] = useState<number | null>(null)
   const [lookupContext, setLookupContext] = useState<LookupContext | null>(null)
+  const [localDetailsOpen, setLocalDetailsOpen] = useState(false)
   const logged = useRef<Set<string>>(new Set())
 
   const failed = entry.analysisStatus === "failed"
+  const isCalm = policy?.result_density === "calm" && !failed
+  const detailsOpen = controlledDetailsOpen ?? localDetailsOpen
+  const setDetailsOpen = onDetailsOpenChange ?? setLocalDetailsOpen
   const isMock = entry.analysisStatus === "mock"
   const l1 = policy?.l1 || "en"
   const l2 = policy?.l2 || entry.language
@@ -439,13 +464,15 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
   // (visibility is presentation), the rewrite gloss only when it is shown open.
   useEffect(() => {
     if (!policy || !entry.id || !entry.content || !canTranslate) return
+    if (isCalm && !detailsOpen) return
     if (policy.meaning !== "rescue_only") void loadMeaning()
-  }, [policy, entry.id, entry.content, canTranslate, loadMeaning])
+  }, [policy, entry.id, entry.content, canTranslate, isCalm, detailsOpen, loadMeaning])
 
   useEffect(() => {
     if (!policy || !entry.id || !entry.rewrite || failed || !canTranslate) return
+    if (isCalm && !detailsOpen) return
     if (policy.rewrite_gloss === "l1_open") void loadRewriteGloss()
-  }, [policy, entry.id, entry.rewrite, failed, canTranslate, loadRewriteGloss])
+  }, [policy, entry.id, entry.rewrite, failed, canTranslate, isCalm, detailsOpen, loadRewriteGloss])
 
   const revealSentence = (index: number) => {
     setRevealed((prev) => new Set(prev).add(index))
@@ -629,6 +656,30 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
         </div>
       )}
 
+      {isCalm && (
+        <CalmResult
+          entry={entry}
+          l2={l2}
+          l2Dir={l2Dir}
+          explanation={policy.explanation}
+          onLookup={(event, text) => openLookup(event, text, l2, "entry_fix")}
+        />
+      )}
+      {isCalm && (
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          aria-controls={`full-entry-details-${entry.id}`}
+          data-testid="calm-details-toggle"
+          onClick={() => setDetailsOpen(!detailsOpen)}
+          className="inline-flex items-center rounded-full border border-fun-purple/30 bg-fun-purple/5 px-4 py-2 text-sm font-bold text-fun-purple hover:bg-fun-purple/10"
+        >
+          {t(detailsOpen ? "feedback.calmHideDetails" : "feedback.calmSeeDetails")}
+        </button>
+      )}
+
+      {(!isCalm || detailsOpen) && (
+        <div className="space-y-6" id={isCalm ? `full-entry-details-${entry.id}` : undefined} data-testid={isCalm ? "full-entry-details" : undefined}>
       {!failed && <WordsTodayRow uses={entry.targetWordUses} l2={l2} l2Dir={l2Dir} />}
 
       <Card className="overflow-hidden rounded-3xl border-fun-purple/20 shadow-fun">
@@ -842,8 +893,6 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
           </div>
         </CardContent>
       </Card>
-      <LookupSheet context={lookupContext} open={!!lookupContext} onOpenChange={(next) => !next && setLookupContext(null)} />
-
       {!failed && (
         <Card className="overflow-hidden rounded-3xl border-fun-purple/20 shadow-fun">
           <CardHeader className="bg-gradient-to-r from-fun-purple/10 to-fun-blue/10 pb-4">
@@ -963,7 +1012,185 @@ export function EntrySideBySide({ entry, showOverview = true, onReanalyzed, onLe
       )}
 
       {showOverview && !failed && <EntryOverview entry={entry} l2={l2} l2Dir={l2Dir} />}
+        </div>
+      )}
+      <LookupSheet context={lookupContext} open={!!lookupContext} onOpenChange={(next) => !next && setLookupContext(null)} />
     </div>
+  )
+}
+
+function CalmResult({
+  entry,
+  l2,
+  l2Dir,
+  explanation,
+  onLookup,
+}: {
+  entry: SideBySideEntry
+  l2: string
+  l2Dir: "rtl" | "ltr"
+  explanation: string
+  onLookup: (event: React.MouseEvent<HTMLElement>, text: string) => void
+}) {
+  const { t } = useLocale()
+  const { toast } = useToast()
+  const [practiceOpen, setPracticeOpen] = useState(false)
+  const [retyped, setRetyped] = useState("")
+  const [savingTerms, setSavingTerms] = useState<Set<string>>(new Set())
+  const [savedTerms, setSavedTerms] = useState<Set<string>>(new Set())
+  const fixes = entry.suggestions
+    .map((suggestion, index) => ({ suggestion, index }))
+    .sort((a, b) => Number(!!b.suggestion.meaning_changing) - Number(!!a.suggestion.meaning_changing) || a.index - b.index)
+    .slice(0, 3)
+  const words = entry.newWords.slice(0, 2)
+  const retypeDiff = compareRetypedText(entry.corrected, retyped)
+  const retypeMatches = matchesRetypedText(entry.corrected, retyped)
+
+  const saveWord = async (word: SideBySideEntry["newWords"][number]) => {
+    setSavingTerms((current) => new Set(current).add(word.term))
+    try {
+      await addVocabularyItem({
+        term: word.term,
+        language: entry.language,
+        part_of_speech: word.pos,
+        definition: word.definition,
+        reading: word.reading || undefined,
+        example_sentence: word.example,
+        entry_id: entry.id,
+        status: "new",
+      })
+      setSavedTerms((current) => new Set(current).add(word.term))
+      toast({ title: t("feedback.wordSaved", { word: word.term }) })
+    } catch {
+      toast({ title: t("feedback.wordSaveFailed"), variant: "destructive" })
+    } finally {
+      setSavingTerms((current) => {
+        const next = new Set(current)
+        next.delete(word.term)
+        return next
+      })
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden rounded-3xl border-fun-green/20 shadow-fun" data-testid="calm-result">
+      <CardHeader className="bg-gradient-to-r from-fun-green/10 to-fun-blue/10 pb-4">
+        <CardTitle className="text-xl">{t("feedback.calmCorrectedTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5 p-4">
+        {entry.corrected && (
+          <p
+            lang={l2}
+            dir={l2Dir}
+            className="cursor-pointer whitespace-pre-wrap font-serif text-lg leading-relaxed"
+            data-testid="calm-corrected-text"
+            onClick={(event) => onLookup(event, entry.corrected)}
+          >
+            {entry.corrected}
+          </p>
+        )}
+
+        <section aria-labelledby="calm-fixes-title" data-testid="calm-fixes">
+          <h3 id="calm-fixes-title" className="mb-2 text-sm font-bold">{t("feedback.calmFixesTitle")}</h3>
+          {fixes.length ? (
+            <ol className="space-y-3">
+              {fixes.map(({ suggestion, index }) => {
+                const { primary, secondary } = noteTexts(suggestion, explanation)
+                return (
+                  <li
+                    key={index}
+                    className={cn(
+                      "rounded-2xl border p-3",
+                      suggestion.meaning_changing ? "border-fun-orange/50 bg-fun-orange/5" : "border-border",
+                    )}
+                    data-testid="calm-fix"
+                    data-meaning-changing={suggestion.meaning_changing ? "true" : "false"}
+                  >
+                    <p lang={l2} dir={l2Dir} className="font-serif">
+                      <del className="bg-red-500/10 text-red-600">{suggestion.original}</del> →{" "}
+                      <ins className="rounded bg-fun-green/15 px-0.5 text-green-700 no-underline">{suggestion.corrected}</ins>
+                    </p>
+                    {primary && <p className="mt-1 text-sm">{renderEmphasis(primary)}</p>}
+                    {secondary && <p className="mt-1 text-[13px] text-muted-foreground">{renderEmphasis(secondary)}</p>}
+                  </li>
+                )
+              })}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("feedback.nothingToFix")}</p>
+          )}
+        </section>
+
+        {entry.didWell && <p className="rounded-2xl bg-fun-green/10 px-3 py-2 text-sm" data-testid="did-well">
+          <span className="font-bold">{t("feedback.didWellLabel")}: </span>{entry.didWell}
+        </p>}
+
+        {words.length > 0 && (
+          <section aria-labelledby="calm-words-title" data-testid="calm-save-words">
+            <h3 id="calm-words-title" className="mb-2 text-sm font-bold">{t("feedback.calmWordsToSave")}</h3>
+            <div className="flex flex-wrap gap-2">
+              {words.map((word) => (
+                <button
+                  key={word.term}
+                  type="button"
+                  onClick={() => void saveWord(word)}
+                  disabled={savingTerms.has(word.term) || savedTerms.has(word.term)}
+                  className="inline-flex items-center gap-2 rounded-full border border-fun-yellow/50 bg-fun-yellow/10 px-3 py-1.5 text-sm font-semibold disabled:opacity-60"
+                  data-testid="calm-save-word"
+                >
+                  <span lang={l2}>{word.term}</span>
+                  <span className="text-fun-purple">{t(savedTerms.has(word.term) ? "feedback.savedWord" : "feedback.saveWord")}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="border-t border-border pt-4" data-testid="write-again">
+          <button
+            type="button"
+            aria-expanded={practiceOpen}
+            onClick={() => setPracticeOpen((open) => !open)}
+            className="rounded-full border border-fun-blue/30 bg-fun-blue/5 px-4 py-2 text-sm font-bold text-fun-blue hover:bg-fun-blue/10"
+          >
+            {t("feedback.writeAgain")}
+          </button>
+          {practiceOpen && (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-muted-foreground">{t("feedback.writeAgainInstructions")}</p>
+              <Textarea
+                aria-label={t("feedback.writeAgainInputLabel")}
+                value={retyped}
+                onChange={(event) => setRetyped(event.target.value)}
+                lang={l2}
+                dir={l2Dir}
+                className="min-h-[100px] font-serif"
+                data-testid="write-again-input"
+              />
+              {retyped.trim() && (
+                <div className="rounded-2xl bg-muted/50 p-3" data-testid="write-again-comparison">
+                  <p className={cn("mb-2 text-sm font-semibold", retypeMatches && "text-fun-green")}>
+                    {t(retypeMatches ? "feedback.writeAgainMatch" : "feedback.writeAgainYourTry")}
+                  </p>
+                  <p lang={l2} dir={l2Dir} className="font-serif leading-relaxed" data-testid="write-again-diff">
+                    {retypeDiff.map((part, index) => (
+                      <Fragment key={index}>
+                        {index > 0 && " "}
+                        {part.kind === "same" ? part.text : part.kind === "del" ? (
+                          <del className="text-muted-foreground line-through decoration-fun-orange">{part.text}</del>
+                        ) : (
+                          <ins className="rounded bg-fun-green/15 px-0.5 text-green-700 no-underline">{part.text}</ins>
+                        )}
+                      </Fragment>
+                    ))}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </CardContent>
+    </Card>
   )
 }
 

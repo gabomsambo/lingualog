@@ -46,6 +46,7 @@ function fillEntry() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.history.replaceState({}, "", "/")
   api.getWordBank.mockResolvedValue({ language: "fr", words: [] })
   api.postSupportEvent.mockResolvedValue(undefined)
   api.getPrompts.mockResolvedValue({ l2: "fr", level: "B1", meaning: "rescue_only", gloss_available: false, topics: [], prompts: [] })
@@ -117,6 +118,34 @@ describe("JournalEditor lookup", () => {
     Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 17 })
     fireEvent.keyUp(editor, { key: "ArrowRight", shiftKey: true })
     expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
+  })
+})
+
+describe("Today prompt handoff", () => {
+  it("prefills the one-sentence starter and submits its prompt metadata", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    api.getWordBank.mockResolvedValue({ language: "fr", words: [] })
+    api.postLogEntry.mockResolvedValue({ id: "entry-today" })
+    api.getEntryById.mockResolvedValue(null)
+    window.history.replaceState(
+      {},
+      "",
+      "/entries/new?today_prompt_id=fr-a1-01&today_entry_mode=one_sentence&today_prompt_text=Write%20about%20a%20meal.&today_prompt_frame=J%E2%80%99aime%20____.&today_l2=fr",
+    )
+
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    await waitFor(() => expect(editor).toHaveValue("J’aime ____.") )
+    expect(screen.getByTestId("today-prompt-context")).toHaveTextContent("Write about a meal.")
+
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalledWith(
+      "J’aime ____.",
+      expect.any(String),
+      "fr",
+      expect.objectContaining({ prompt_id: "fr-a1-01", entry_mode: "one_sentence" }),
+    ))
+    window.history.replaceState({}, "", "/")
   })
 })
 

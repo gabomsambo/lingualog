@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   alignSentences,
   alignSentencesFromMapping,
+  compareRetypedText,
   cleanLiteralReading,
   htmlToText,
   diffWords,
@@ -13,6 +14,7 @@ import {
   splitSentences,
   languageMismatch,
   sameLanguage,
+  matchesRetypedText,
   toSideBySideEntry,
 } from "@/lib/side-by-side"
 
@@ -114,6 +116,21 @@ describe("diffWords", () => {
 
   it("returns a single unchanged part for identical text", () => {
     expect(diffWords("Hola amigo.", "Hola amigo.")).toEqual([{ kind: "same", text: "Hola amigo." }])
+  })
+})
+
+describe("write-again comparison", () => {
+  it("shows the correction and typed words as a gentle client-side diff", () => {
+    expect(compareRetypedText("Me gusta la pizza.", "Me gusta pizza.")).toEqual([
+      { kind: "same", text: "Me gusta" },
+      { kind: "del", text: "la" },
+      { kind: "same", text: "pizza." },
+    ])
+  })
+
+  it("treats matching text with different spacing or capitalization as correct", () => {
+    expect(matchesRetypedText("Me gusta la pizza.", "  ME gusta   la pizza.  ")).toBe(true)
+    expect(matchesRetypedText("Me gusta la pizza.", "Me gusta pizza.")).toBe(false)
   })
 })
 

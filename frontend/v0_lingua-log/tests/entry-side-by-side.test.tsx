@@ -61,7 +61,15 @@ function rawEntry(level: number | null, overrides: Record<string, unknown> = {})
     rewrite: "Hoy mi hermana está aburridísima porque no para de llover.",
     analysis_status: "ok",
     policy_snapshot:
-      level === null ? null : { v: 1, l1: "en", l2: "es", immersion_level: level, proficiency: "B1", ...LEVELS[level] },
+      level === null ? null : {
+        v: 1,
+        l1: "en",
+        l2: "es",
+        immersion_level: level,
+        proficiency: "B1",
+        result_density: "full",
+        ...LEVELS[level],
+      },
     ai_feedback: {
       score: 68,
       tone: "Reflective",
@@ -299,6 +307,73 @@ describe("EntrySideBySide layout", () => {
     unmount()
     renderEntry(0, {}, { showOverview: false })
     expect(screen.queryByTestId("entry-overview")).toBeNull()
+  })
+})
+
+describe("policy-sized result view", () => {
+  const calmSnapshot = {
+    v: 1,
+    l1: "en",
+    l2: "es",
+    immersion_level: 1,
+    proficiency: "A1",
+    result_density: "calm",
+    ...LEVELS[1],
+  }
+
+  it("shows the calm result first with meaning-changing fixes first and keeps full details one tap away", () => {
+    renderEntry(1, {
+      policy_snapshot: calmSnapshot,
+      ai_feedback: {
+        ...rawEntry(1).ai_feedback,
+        rubric: { ...rawEntry(1).ai_feedback.rubric, did_well: "You described how you felt clearly." },
+        new_words: [
+          { term: "lloviendo", pos: "verb", definition: "raining", example: "Está lloviendo." },
+          { term: "aburrida", pos: "adjective", definition: "bored", example: "Estoy aburrida." },
+          { term: "película", pos: "noun", definition: "movie", example: "Veo una película." },
+        ],
+      },
+    })
+
+    expect(screen.getByTestId("calm-corrected-text")).toHaveTextContent(CORRECTED)
+    expect(screen.getAllByTestId("calm-fix")).toHaveLength(3)
+    expect(screen.getAllByTestId("calm-fix").map((fix) => fix.getAttribute("data-meaning-changing"))).toEqual([
+      "true", "true", "false",
+    ])
+    expect(screen.getByTestId("did-well")).toHaveTextContent("You described how you felt clearly.")
+    expect(screen.getAllByTestId("calm-save-word")).toHaveLength(2)
+    expect(screen.queryByTestId("full-entry-details")).toBeNull()
+    expect(screen.queryByTestId("entry-overview")).toBeNull()
+
+    fireEvent.click(screen.getByTestId("calm-details-toggle"))
+    expect(screen.getByTestId("full-entry-details")).toBeInTheDocument()
+    expect(screen.getByTestId("side-by-side-grid")).toBeInTheDocument()
+    expect(screen.getByTestId("entry-overview")).toBeInTheDocument()
+  })
+
+  it("omits an absent did-well line and leaves B1 on the full result", () => {
+    renderEntry(1)
+    expect(screen.queryByTestId("calm-result")).toBeNull()
+    expect(screen.getByTestId("side-by-side-grid")).toBeInTheDocument()
+    expect(screen.getByTestId("entry-overview")).toBeInTheDocument()
+
+    const { unmount } = renderEntry(1, {
+      policy_snapshot: { ...calmSnapshot, proficiency: "A2" },
+    })
+    expect(screen.getByTestId("calm-result")).toBeInTheDocument()
+    expect(screen.queryByTestId("did-well")).toBeNull()
+    unmount()
+  })
+
+  it("compares a retyped correction in the browser without requesting another analysis", () => {
+    renderEntry(1, { policy_snapshot: calmSnapshot })
+    fireEvent.click(screen.getByRole("button", { name: "Write it again" }))
+    fireEvent.change(screen.getByTestId("write-again-input"), {
+      target: { value: "Mi hermana está muy aburrida hoy." },
+    })
+    expect(screen.getByTestId("write-again-comparison")).toBeInTheDocument()
+    expect(screen.getByTestId("write-again-diff").querySelector("del")).toBeInTheDocument()
+    expect(api.analyzeEntry).not.toHaveBeenCalled()
   })
 })
 

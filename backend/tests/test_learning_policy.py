@@ -242,6 +242,7 @@ class TestSnapshotRoundTrip:
         legacy_snapshot = a1.to_dict()
         legacy_snapshot.pop("result_density")
         assert LearningPolicy.from_dict(legacy_snapshot).result_density == "calm"
+        assert shape_entry_for_api({"policy_snapshot": legacy_snapshot})["policy_snapshot"]["result_density"] == "calm"
 
     def test_entry_api_shape_exposes_snapshot_and_rewrite(self):
         policy = _resolve(immersion=1, explanation_mode="level")

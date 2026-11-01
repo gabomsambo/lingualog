@@ -88,5 +88,11 @@
   "promptTopic_transporte": "Transporte",
   "promptTopic_tecnologia": "Tecnología",
   "promptTopic_medio_ambiente": "Medio ambiente",
-  "promptTopic_cultura": "Cultura"
+  "promptTopic_cultura": "Cultura",
+  "todayTitle": "Hoy",
+  "todayPromptTitle": "Una idea sencilla para hoy",
+  "todayPromptLoading": "Buscando una propuesta para tu nivel…",
+  "todayPromptUnavailable": "Ahora no hay ninguna propuesta. Puedes escribir libremente.",
+  "todayWriteOneSentence": "Escribir una frase",
+  "todayPromptContext": "Idea de escritura para hoy"
 }

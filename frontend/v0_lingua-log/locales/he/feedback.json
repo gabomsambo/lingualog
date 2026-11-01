@@ -1,0 +1,15 @@
+{
+  "calmCorrectedTitle": "הטקסט שלך אחרי תיקון",
+  "calmFixesTitle": "כמה דברים שכדאי לתקן",
+  "didWellLabel": "עשית טוב",
+  "calmWordsToSave": "מילים לשמירה",
+  "calmSeeDetails": "הצגת ציון ופרטים",
+  "calmHideDetails": "הסתרת ציון ופרטים",
+  "writeAgain": "לכתוב שוב",
+  "writeAgainInstructions": "נסו להקליד את הטקסט המתוקן מהזיכרון. ההשוואה נשארת במכשיר שלכם.",
+  "writeAgainInputLabel": "הקלידו שוב את הטקסט המתוקן",
+  "writeAgainYourTry": "השוו את הניסיון שלכם לתיקון",
+  "writeAgainMatch": "זה תואם לתיקון. כל הכבוד!",
+  "saveWord": "שמירה",
+  "savedWord": "נשמרה"
+}

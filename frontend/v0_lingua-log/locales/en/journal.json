@@ -88,5 +88,11 @@
   "promptTopic_transporte": "Transport",
   "promptTopic_tecnologia": "Technology",
   "promptTopic_medio_ambiente": "Environment",
-  "promptTopic_cultura": "Culture"
+  "promptTopic_cultura": "Culture",
+  "todayTitle": "Today",
+  "todayPromptTitle": "A small idea for today",
+  "todayPromptLoading": "Finding a prompt that fits your level…",
+  "todayPromptUnavailable": "No prompt is available right now. You can still write freely.",
+  "todayWriteOneSentence": "Write one sentence",
+  "todayPromptContext": "Today’s writing idea"
 }

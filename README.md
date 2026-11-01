@@ -20,7 +20,7 @@ LinguaLog helps language learners improve their fluency by writing journal entri
   - Explanation of mistakes
 - **Word notebook and review**: look up any word, keep it with the sentence you met it in, and review it with FSRS: two buttons, your own sentences, 10 new words a day per language (see Vocabulary review below)
 - **Book mode**: a reading companion for the paper or e-book you already read: mark words without stopping, photograph a page, build the cards when you stop, keep a printable glossary, and watch the words per page fall (see Book mode below)
-- **Side-by-side result**: after submit and on each entry page, every sentence shows what you wrote, what it means, and how to write it (corrected or native rewrite), with help shown per your immersion level
+- **Side-by-side result**: after submit and on each entry page, A1-A2 start with a calm corrected-text view; other levels show the full sentence comparison. Full details remain available from the calm view, with help shown per your immersion level.
 - **Progress Tracking**: View your improvement over time
 - **Secure User Authentication**: Via Supabase
 
@@ -100,6 +100,17 @@ profiles are backfilled so current learners do not enter onboarding. `GET /learn
 shared first-run criteria. Proficiency stays independent from immersion; `default_immersion_for()` only
 provides the starting immersion suggestion during first run. See [docs/levels.md](docs/levels.md) for the
 can-do wording, soft writing ranges and Spanish grammar scope.
+
+`CEFR_LEVELS` also owns `result_density`: A1 and A2 entries start in the calm view, while B1-C2 keep
+the full result. The calm view shows corrected text, up to three fixes (meaning-changing fixes first,
+then the tutor's original order), an optional positive observation, and up to two notebook words.
+Score, rubric, tone, translation, rewrite and summary stay together under **See score and details**.
+The optional “Write it again” comparison runs in the browser and makes no model call. The existing
+feedback call may return `did_well`; older entries and omitted values simply show no positive line.
+
+The dashboard's **Today** card keeps the due-review action and loads a level-sized prompt from
+`GET /prompts`; its writing action opens the editor in one-sentence mode. A “today's class” action
+will appear only when class notes are implemented.
 
 ### Immersion
 

@@ -10,7 +10,7 @@ import { resolveLanguage } from "@/i18n/languages"
 import { getReviewSummary, type ReviewSummary } from "@/lib/api"
 
 /** "N due" for the dashboard: reviews waiting plus the new words still allowed today. */
-export function ReviewDueCard() {
+export function ReviewDueCard({ embedded = false }: { embedded?: boolean }) {
   const { t } = useLocale()
   const [summary, setSummary] = useState<ReviewSummary | null>(null)
 
@@ -25,7 +25,9 @@ export function ReviewDueCard() {
 
   return (
     <section
-      className="mb-8 flex flex-col gap-4 rounded-3xl border border-fun-yellow/30 bg-fun-yellow/10 p-5 sm:flex-row sm:items-center sm:justify-between"
+      className={embedded
+        ? "flex flex-col gap-4 rounded-2xl border border-fun-yellow/30 bg-fun-yellow/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+        : "mb-8 flex flex-col gap-4 rounded-3xl border border-fun-yellow/30 bg-fun-yellow/10 p-5 sm:flex-row sm:items-center sm:justify-between"}
       data-testid="review-due-card"
     >
       <div>
