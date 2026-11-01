@@ -114,6 +114,128 @@ LEVELS = {
     },
 }
 
+# Original, level-sized guidance for the first run. These are product recommendations,
+# not official CEFR cut-offs; proficiency and immersion remain separate choices.
+# Can-do wording is paraphrased from the Council of Europe's CEFR Companion Volume
+# (2020) self-assessment grid; it is not copied official descriptor text.
+CEFR_LEVELS = {
+    "A1": {
+        "can_do": "I can write a few familiar words and simple sentences about myself.",
+        "can_do_key": "canDoA1",
+        "default_immersion": 0,
+        "soft_entry_words": [25, 50],
+        "spanish_grammar_scope": [
+            "present tense: ser, estar, tener, hay, ir, gustar",
+            "gender and number agreement",
+            "articles",
+        ],
+        "first_entry": {
+            "kind": "frames",
+            "prompt": "Tell me about yourself.",
+            "frames": [
+                {"prefix": "Me llamo", "label": "your name"},
+                {"prefix": "Soy de", "label": "where you are from"},
+                {"prefix": "Vivo en", "label": "where you live"},
+                {"prefix": "Me gusta", "label": "something you like"},
+            ],
+        },
+    },
+    "A2": {
+        "can_do": "I can join familiar sentences with words like y, pero, and porque.",
+        "can_do_key": "canDoA2",
+        "default_immersion": 1,
+        "soft_entry_words": [60, 100],
+        "spanish_grammar_scope": [
+            "A1 scope",
+            "pretérito perfecto and common indefinido verbs",
+            "imperfecto for descriptions and habits",
+            "ir a + infinitive",
+            "direct object pronouns and comparatives",
+        ],
+        "first_entry": {
+            "kind": "hint",
+            "prompt": "Write a few connected sentences about your day or a recent weekend.",
+            "hint": "Try joining ideas with y, pero, or porque.",
+        },
+    },
+    "B1": {
+        "can_do": "I can write connected paragraphs about experiences, reasons, and feelings.",
+        "can_do_key": "canDoB1",
+        "default_immersion": 2,
+        "soft_entry_words": [120, 170],
+        "spanish_grammar_scope": [
+            "indefinido and imperfecto contrasts",
+            "future and conditional for courtesy or advice",
+            "beginning present subjunctive",
+            "relative clauses",
+        ],
+        "first_entry": {
+            "kind": "open",
+            "prompt": "Write about a recent experience and explain how you felt about it.",
+        },
+    },
+    "B2": {
+        "can_do": "I can write clear, detailed texts and support an opinion with reasons.",
+        "can_do_key": "canDoB2",
+        "default_immersion": 2,
+        "soft_entry_words": [180, 250],
+        "spanish_grammar_scope": [
+            "indicative and subjunctive tenses",
+            "si clauses",
+            "passive and impersonal se",
+            "reported speech",
+            "concession and contrast connectors",
+        ],
+        "first_entry": {
+            "kind": "open",
+            "prompt": "Choose a familiar topic and explain your view with a few reasons.",
+        },
+    },
+    "C1": {
+        "can_do": "I can write well-structured text on complex topics and adapt the tone to the reader.",
+        "can_do_key": "canDoC1",
+        "default_immersion": 3,
+        "soft_entry_words": [250, 350],
+        "spanish_grammar_scope": [
+            "nuanced subjunctive and conditional choices",
+            "complex clause linking and emphasis",
+            "register, cohesion, and precise word choice",
+        ],
+        "first_entry": {
+            "kind": "open",
+            "prompt": "Develop a nuanced view on a topic that matters to you.",
+        },
+    },
+    "C2": {
+        "can_do": "I can express fine shades of meaning in fluent, precise writing for different readers.",
+        "can_do_key": "canDoC2",
+        "default_immersion": 3,
+        "soft_entry_words": [350, 500],
+        "spanish_grammar_scope": [
+            "idiomatic nuance and rhetorical emphasis",
+            "flexible complex syntax",
+            "precise register and style choices",
+        ],
+        "first_entry": {
+            "kind": "open",
+            "prompt": "Write a considered response to a complex question of your choice.",
+        },
+    },
+}
+
+
+def default_immersion_for(level: str) -> int:
+    """Return the first-run immersion suggestion for a CEFR level.
+
+    This is a one-time starting point. Later immersion choices are independent
+    of proficiency and continue to be resolved by ``resolve_policy``.
+    """
+    normalized = level.strip().upper() if isinstance(level, str) else ""
+    try:
+        return CEFR_LEVELS[normalized]["default_immersion"]
+    except KeyError as exc:
+        raise ValueError(f"Unknown CEFR level: {level!r}") from exc
+
 # Kept for callers that still read the old (explanation_lang, translation_policy) pairs.
 IMMERSION_MAP = {
     level: (spec["explanation_lang"], spec["translation_policy"])

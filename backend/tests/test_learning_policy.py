@@ -1,9 +1,11 @@
 """Resolver, override precedence, snapshot round-trip, and per-level prompt rules."""
 
 from learning_policy import (
+    CEFR_LEVELS,
     LEVELS,
     MINIMAL_CORRECTION_RULE,
     LearningPolicy,
+    default_immersion_for,
     resolve_policy,
 )
 from prompt_builder import build_messages
@@ -11,6 +13,25 @@ from database import shape_entry_for_api
 from app.models import JournalEntry, UserSettings
 import uuid
 from datetime import datetime, timezone
+
+
+def test_cefr_first_run_criteria_and_default_immersion():
+    assert [default_immersion_for(level) for level in ("A1", "A2", "B1", "B2", "C1", "C2")] == [
+        0, 1, 2, 2, 3, 3
+    ]
+    assert default_immersion_for("a1") == 0
+    assert set(CEFR_LEVELS) == {"A1", "A2", "B1", "B2", "C1", "C2"}
+    assert all(
+        level["can_do"] and level["can_do_key"] and level["soft_entry_words"] and level["spanish_grammar_scope"]
+        for level in CEFR_LEVELS.values()
+    )
+    assert len(CEFR_LEVELS["A1"]["first_entry"]["frames"]) == 4
+    try:
+        default_immersion_for("A0")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Unknown CEFR levels must be rejected")
 
 
 def _settings(l2="es", immersion=1, explanation_mode=None, native="en", explicit=False):
