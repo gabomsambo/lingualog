@@ -66,6 +66,9 @@ LinguaLog helps language learners improve their fluency by writing journal entri
 - **POST /events**
   - Records support actions; `kind: "prompt_selected"` with `l2` and `prompt_id` logs prompt usage
 
+- **GET /learning/levels**
+  - The first-run CEFR can-do guidance, soft entry ranges, and one-time immersion suggestions
+
 - **GET /review/session?language=&mode=normal|catchup**
   - The next cards to review (20 by default) with the learner's own sentences, plus the counts the page needs
 
@@ -88,6 +91,15 @@ Settings holds the whole language model; the rest of the app follows it.
 - The **new-entry picker** offers only the studied languages, default first, plus a link to Settings.
 - **Did you mean…?** Gemini reports the language it read (`detected_language`, stored on the entry) in the same call. When it differs from the chosen language, the result asks the learner to switch or keep. Switch (`POST /entries/{id}/analyze` with `target_language`) is offered only for a studied language; otherwise the learner is sent to Settings. Keep is stored as `detected_language_kept`. The app never switches on its own.
 - Legacy `user_settings.native_language` and `target_languages` are no longer read or written.
+
+### First run and CEFR guidance
+
+New accounts choose a target language, explanation language, CEFR self-placement and optional goal on
+`/welcome`. The first successful corrected entry stamps `user_language_profiles.onboarded_at`; existing
+profiles are backfilled so current learners do not enter onboarding. `GET /learning/levels` returns the
+shared first-run criteria. Proficiency stays independent from immersion; `default_immersion_for()` only
+provides the starting immersion suggestion during first run. See [docs/levels.md](docs/levels.md) for the
+can-do wording, soft writing ranges and Spanish grammar scope.
 
 ### Immersion
 

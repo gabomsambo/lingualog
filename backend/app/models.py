@@ -50,6 +50,8 @@ class LanguageProfile(BaseModel):
     # Review settings. None on a save means leave the stored value alone.
     daily_new_words: Optional[int] = Field(None, ge=1, le=100)
     desired_retention: Optional[float] = Field(None, ge=0.80, le=0.95)
+    goal: Optional[str] = None
+    onboarded_at: Optional[datetime] = None
 
 
 class UserSettings(BaseModel):

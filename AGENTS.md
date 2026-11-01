@@ -131,6 +131,7 @@ Key reference files:
 ### `user_language_profiles`
 - One row per `(user_id, l2)`: `immersion_level`, `proficiency` (A1–C2), `active`, and `level_changed_at` (trigger-stamped)
 - Also `daily_new_words` and `desired_retention` (review settings) and the optional `placement` estimate
+- First-run: `goal` (optional) and `onboarded_at` (stamped by the first corrected entry; existing rows backfilled) — see `README.md` (First run and CEFR guidance)
 - Schema: `supabase/migrations/20261003030000_learning_policy.sql`, `20261006000000_review_fsrs.sql`
 
 ### `user_vocabulary`
@@ -161,6 +162,7 @@ Key reference files:
 - `GET /user/profile` - Get user profile
 - `PUT /user/settings` - Update user settings and per-language profiles (one `save_user_settings` RPC)
 - `GET /user/policy?l2=` - The learner's current LearningPolicy for one language
+- `GET /learning/levels` - First-run CEFR guidance (owner: `docs/levels.md`)
 - `GET /user/level-suggestions` - Current step-up/step-down suggestion per language, or none
 - `POST /user/level-suggestions/{l2}/accept` - Apply that suggestion via `save_user_settings`
 - `POST /user/level-suggestions/{l2}/dismiss` - Snooze that language's suggestion for 7 days

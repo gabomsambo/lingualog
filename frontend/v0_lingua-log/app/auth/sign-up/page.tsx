@@ -18,6 +18,7 @@ import { LoadingDots } from "@/components/loading-dots"
 // Import the auth function
 import { signUp } from "@/lib/auth"
 import { useLocale } from "@/i18n/LocaleProvider"
+import { getEntries, getUserSettings } from "@/lib/api"
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -97,8 +98,18 @@ export default function SignUpPage() {
           variant: "default",
         })
         
-        // Redirect to dashboard
-        router.push("/dashboard")
+        // New accounts enter the first-run flow only when their default profile is still new.
+        try {
+          const [settings, entries] = await Promise.all([getUserSettings(), getEntries()])
+          const defaultProfile = settings.language_profiles?.find(
+            (profile) => profile.l2 === settings.default_target_lang,
+          )
+          const needsWelcome = Boolean(defaultProfile && !defaultProfile.onboarded_at && entries.length === 0)
+          router.push(needsWelcome ? "/welcome" : "/dashboard")
+        } catch (lookupError) {
+          console.error("Could not check first-run status:", lookupError)
+          router.push("/dashboard")
+        }
       }
     } catch (err: any) {
       setIsLoading(false)

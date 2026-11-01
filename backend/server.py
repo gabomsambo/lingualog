@@ -37,7 +37,7 @@ from models import (
 from app.models import JournalEntry, User, UserUpdate, UserSettings, UserSettingsUpdate, LanguageProfile # Corrected import for JournalEntry
 
 # Import new language policy and prompt builder modules
-from learning_policy import LearningPolicy, is_same_language, resolve_policy
+from learning_policy import CEFR_LEVELS, LearningPolicy, is_same_language, resolve_policy
 from review_scheduler import MAX_RETENTION, MIN_RETENTION
 from prompt_builder import build_messages, build_user_message, extract_snapshot_data
 from database import (
@@ -63,6 +63,7 @@ from database import (
     fetch_language_profile,
     list_language_profiles,
     save_user_settings,
+    mark_language_profile_onboarded,
 )
 
 # Gemini tutor adapter
@@ -113,6 +114,8 @@ def _language_profiles_for_user(user_id: str) -> list:
                     active=row.get("active") is not False,
                     daily_new_words=row.get("daily_new_words"),
                     desired_retention=row.get("desired_retention"),
+                    goal=row.get("goal"),
+                    onboarded_at=row.get("onboarded_at"),
                 )
             )
         except Exception as exc:
@@ -145,6 +148,15 @@ def _validated_language_profile(profile: dict) -> dict:
         "proficiency": proficiency,
         "active": profile.get("active") is not False,
     }
+    if "goal" in profile:
+        goal = profile["goal"]
+        if goal is not None and goal not in {"class", "exam", "trip", "work", "just_for_me"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="goal must be class, exam, trip, work, or just_for_me",
+            )
+        if goal is not None:
+            validated["goal"] = goal
     # Review settings are written only when the request carries them.
     daily_new_words = profile.get("daily_new_words")
     if daily_new_words is not None:
@@ -704,6 +716,11 @@ async def create_log_entry(entry: JournalEntryRequest, request: Request):
 
     saved_entry = save_entry(entry_data)
     logger.info(f"Entry saved with ID: {saved_entry.get('id')} and language snapshots")
+
+    try:
+        mark_language_profile_onboarded(user_id, effective_settings.l2)
+    except Exception as exc:
+        logger.warning("Could not mark first-run complete for %s/%s: %s", user_id, effective_settings.l2, exc)
 
     feedback_response.id = saved_entry.get("id")
     feedback_response.entry_id = feedback_response.id
@@ -1523,6 +1540,12 @@ async def get_user_policy(request: Request, l2: Optional[str] = None):
     profile_settings = await fetch_user_profile_settings(user_id)
     overrides = {"target_language": l2} if l2 else {}
     return _policy_for_request(user_id, profile_settings, overrides).to_dict()
+
+
+@app.get("/learning/levels", status_code=status.HTTP_200_OK)
+async def get_learning_levels():
+    """Return the first-run CEFR guidance and its one-time immersion suggestions."""
+    return {"levels": CEFR_LEVELS}
 
 
 # User Settings Endpoints
