@@ -10,7 +10,7 @@ vi.mock("@/lib/api", () => api)
 const toastSpy = vi.hoisted(() => vi.fn())
 vi.mock("@/components/ui/use-toast", () => ({ useToast: () => ({ toast: toastSpy }) }))
 
-import { LookupSheet } from "@/components/lookup-sheet"
+import { GlobalLookupBox, LookupSheet } from "@/components/lookup-sheet"
 
 const card = {
   lemma: "banco", surface: "banco", is_phrase: false, part_of_speech: "noun", gender: "m",
@@ -81,5 +81,17 @@ describe("LookupSheet triage", () => {
     await waitFor(() => expect(api.addVocabularyItem).toHaveBeenCalledWith(expect.objectContaining({
       example_sentence: undefined,
     })))
+  })
+})
+
+describe("GlobalLookupBox language", () => {
+  it("starts on the given language and follows it when it changes", () => {
+    const { rerender } = render(<GlobalLookupBox language="es" />)
+    const select = screen.getByLabelText("Word language") as HTMLSelectElement
+    expect(select.value).toBe("es")
+    rerender(<GlobalLookupBox language="fr" />)
+    expect(select.value).toBe("fr")
+    rerender(<GlobalLookupBox language="de" />)
+    expect(select.value).toBe("de")
   })
 })

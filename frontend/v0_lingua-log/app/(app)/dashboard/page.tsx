@@ -16,6 +16,7 @@ import { ReviewDueCard } from "@/components/review-due-card"
 import { getUserProfile, getUserEntries, getUserStats, UserEntry, UserStats } from "@/lib/user-service"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { GlobalLookupBox } from "@/components/lookup-sheet"
+import { useDefaultTargetLanguage } from "@/hooks/use-default-target-language"
 
 // Badge variants for languages
 const languageBadgeVariants: Record<string, "pink" | "blue" | "purple" | "green" | "yellow" | "default" | "outline"> = {
@@ -35,6 +36,7 @@ export default function DashboardPage() {
   const { t } = useLocale()
   const [userName, setUserName] = useState("Friend")
   const { toast } = useToast()
+  const targetLanguage = useDefaultTargetLanguage()
 
   // Counter animation values
   const [countedWordCount, setCountedWordCount] = useState(0)
@@ -63,12 +65,14 @@ export default function DashboardPage() {
         setLoading(false);
         setShowConfetti(true);
 
-        // Welcome toast
-        toast({
-          title: t('common.welcomeBack'),
-          description: t('common.readyToContinue'),
-          variant: "fun",
-        });
+        // Welcome-back toast only makes sense for someone who has written before
+        if (userEntries.length > 0) {
+          toast({
+            title: t('common.welcomeBack'),
+            description: t('common.readyToContinue'),
+            variant: "fun",
+          });
+        }
       } catch (error) {
         console.error("Error loading user data:", error);
         setLoading(false);
@@ -127,6 +131,8 @@ export default function DashboardPage() {
     }).format(date)
   }
 
+  const streak = stats?.streak || 0
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh]">
@@ -152,7 +158,9 @@ export default function DashboardPage() {
               <span className="fun-heading">{t('journal.greeting', { userName })}</span>
             </h1>
             <p className="text-xl text-muted-foreground">
-              {t('journal.writingStreak', { streak: stats?.streak || 0 })}
+              {streak > 0
+                ? t('journal.writingStreak', { streak })
+                : t(entries.length === 0 ? 'journal.firstEntryPrompt' : 'journal.streakStart')}
             </p>
           </div>
 
@@ -171,7 +179,7 @@ export default function DashboardPage() {
       </section>
       <section className="mb-8 rounded-3xl border border-fun-blue/20 bg-fun-blue/5 p-5">
         <h2 className="mb-3 text-lg font-bold">Look up anything</h2>
-        <GlobalLookupBox language="es" />
+        <GlobalLookupBox language={targetLanguage} />
       </section>
 
       <ReviewDueCard />
@@ -270,7 +278,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-sm text-muted-foreground mt-1 flex items-center">
                   <Star className="h-4 w-4 text-fun-yellow mr-1" />
-                  You're on fire! Keep going! 🔥
+                  {streak > 0 ? t('journal.streakKeepGoing') : t('journal.streakStart')}
                 </p>
               </CardContent>
             </Card>

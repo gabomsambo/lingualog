@@ -81,6 +81,41 @@ describe("JournalEditor lookup", () => {
     fireEvent.mouseUp(editor)
     expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
   })
+
+  it("does not open lookup on select-all, so typing over the selection keeps working", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 0 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 18 })
+    fireEvent.keyUp(editor, { key: "a", ctrlKey: true })
+    fireEvent.keyUp(editor, { key: "Control" })
+    expect(screen.queryByTestId("selected-lookup")).toBeNull()
+  })
+
+  it("does not open lookup when Ctrl is released before the 'a' key", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 0 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 18 })
+    fireEvent.keyUp(editor, { key: "Control" })
+    fireEvent.keyUp(editor, { key: "a", ctrlKey: false })
+    expect(screen.queryByTestId("selected-lookup")).toBeNull()
+  })
+
+  it("opens lookup after extending a selection with Shift+arrow", async () => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    render(<JournalEditor />)
+    const editor = await screen.findByPlaceholderText(/Write your thoughts/)
+    fireEvent.change(editor, { target: { value: "Je vais au marché." } })
+    Object.defineProperty(editor, "selectionStart", { configurable: true, value: 11 })
+    Object.defineProperty(editor, "selectionEnd", { configurable: true, value: 17 })
+    fireEvent.keyUp(editor, { key: "ArrowRight", shiftKey: true })
+    expect(screen.getByTestId("selected-lookup")).toHaveTextContent("marché")
+  })
 })
 
 
@@ -129,5 +164,37 @@ describe("JournalEditor word bank", () => {
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
     await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
     expect(api.postLogEntry.mock.calls[0][3]).not.toHaveProperty("target_word_ids")
+  })
+})
+
+describe("JournalEditor without a title", () => {
+  beforeEach(() => {
+    api.getUserSettings.mockResolvedValue(frenchLearner)
+    api.postLogEntry.mockResolvedValue({ id: "entry-1" })
+    api.getEntryById.mockResolvedValue(null)
+  })
+
+  async function writeWithoutTitle(text: string) {
+    render(<JournalEditor />)
+    await screen.findByRole("radio")
+    fireEvent.change(screen.getByPlaceholderText(/Write your thoughts/), { target: { value: text } })
+    const submit = screen.getByRole("button", { name: /submit/i })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+  }
+
+  it("submits with an automatic title made of the first words", async () => {
+    await writeWithoutTitle("Je suis allé au marché ce matin avec ma sœur.")
+    expect(api.postLogEntry.mock.calls[0][1]).toBe("Je suis allé au marché ce…")
+  })
+
+  it("keeps a title the learner typed", async () => {
+    render(<JournalEditor />)
+    await screen.findByRole("radio")
+    fillEntry()
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+    await waitFor(() => expect(api.postLogEntry).toHaveBeenCalled())
+    expect(api.postLogEntry.mock.calls[0][1]).toBe("Samedi")
   })
 })

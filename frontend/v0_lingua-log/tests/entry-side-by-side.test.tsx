@@ -339,6 +339,19 @@ describe("level 0 (meaning open, rewrite gloss open)", () => {
     expect(api.postSupportEvent).not.toHaveBeenCalled()
   })
 
+  it("renders *emphasis* in a note as emphasis, never as asterisks", () => {
+    const note = "Use *estar* for **feelings**."
+    const rawNote = rawEntry(0)
+    rawNote.ai_feedback.grammar_suggestions[0].note_l1 = note
+    rawNote.ai_feedback.grammar_suggestions[0].note = note
+    render(<EntrySideBySide entry={toSideBySideEntry(rawNote)} />)
+    const primary = screen.getAllByTestId("note-primary")[0]
+    expect(primary).toHaveTextContent("Use estar for feelings.")
+    expect(primary.textContent).not.toContain("*")
+    expect(primary.querySelector("em")).toHaveTextContent("estar")
+    expect(primary.querySelector("strong")).toHaveTextContent("feelings")
+  })
+
   it("writes notes in the learner's language with no rescue button", () => {
     renderEntry(0)
     expect(screen.getAllByTestId("note-primary")[0]).toHaveTextContent("Use estar for feelings.")

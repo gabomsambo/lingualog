@@ -46,6 +46,7 @@ import type { BankSelection } from "@/lib/word-bank"
 import type { Entry } from "@/types/entry"
 import { useLocale } from "@/i18n/LocaleProvider"
 import { isRTL } from "@/i18n/rtl"
+import { autoTitle } from "@/lib/entry-title"
 import { LANGUAGES, getLanguageDisplayName, getLanguageFlag } from "@/i18n/languages"
 
 export function JournalEditor() {
@@ -126,6 +127,14 @@ export function JournalEditor() {
     })
   }
 
+  // Only a Shift+navigation key-up extends a selection into a lookup request. Any other key-up
+  // (select-all in either release order, copy, modifiers) must not steal focus from the textarea.
+  const lookupAfterKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const navigation = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || !navigation.includes(event.key)) return
+    lookupSelection(event)
+  }
+
   /**
    * Load the saved entry so the result renders from the same data as the entry page
    */
@@ -168,7 +177,7 @@ export function JournalEditor() {
       }
       
       // Use the API helper function with overrides
-      const data = await postLogEntry(text, title, targetLanguage, submissionOverrides);
+      const data = await postLogEntry(text, title.trim() || autoTitle(text), targetLanguage, submissionOverrides);
       console.log("Entry submission successful:", data);
       
       // Show success message
@@ -338,7 +347,7 @@ export function JournalEditor() {
               value={text}
               onChange={handleTextChange}
               onMouseUp={lookupSelection}
-              onKeyUp={lookupSelection}
+              onKeyUp={lookupAfterKey}
               disabled={isSubmitting}
               lang={targetLanguage}
               dir={isRTL(targetLanguage) ? 'rtl' : 'ltr'}
@@ -447,7 +456,7 @@ export function JournalEditor() {
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                 <Button 
                   onClick={handleSubmit} 
-                  disabled={text.length < 5 || title.length === 0 || isSubmitting || settingsStatus !== "ready"}
+                  disabled={text.length < 5 || isSubmitting || settingsStatus !== "ready"}
                   className="w-full sm:w-auto bg-gradient-to-r from-fun-green to-fun-blue text-white hover:opacity-90 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 text-lg h-14 px-8"
                 >
                   {isSubmitting ? (
