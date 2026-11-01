@@ -79,6 +79,7 @@ from ai.word_card import card_policy_snapshot, generate_word_card
 from word_bank import clean_target_word_uses
 
 from app.routers import books, class_notes, entry_translation, level_suggestions, prompts, review, support_events, vocab, word_bank
+from app.routers import lessons
 from app.services import book_service, class_note_service, review_service, vocab_service, word_bank_service
 from app.services.stats_service import get_error_patterns_service, get_user_stats_service
 from app.schemas.stats_schemas import ErrorPatternsResponse, UserStatsResponse
@@ -574,6 +575,7 @@ app.include_router(review.router)
 app.include_router(word_bank.router)
 app.include_router(books.router)
 app.include_router(class_notes.router)
+app.include_router(lessons.router)
 app.include_router(vocab.router)
 
 
