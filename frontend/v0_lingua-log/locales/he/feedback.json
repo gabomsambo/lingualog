@@ -11,5 +11,11 @@
   "writeAgainYourTry": "השוו את הניסיון שלכם לתיקון",
   "writeAgainMatch": "זה תואם לתיקון. כל הכבוד!",
   "saveWord": "שמירה",
-  "savedWord": "נשמרה"
+  "savedWord": "נשמרה",
+  "focusTodayTitle": "נושא הדקדוק של היום",
+  "focusUse_used_correctly": "נעשה בו שימוש נכון",
+  "focusUse_used_with_error": "לתיקון",
+  "focusUse_unclear": "לבדיקה",
+  "focusUse_not_used": "לא נעשה בו שימוש",
+  "focusUseNotUsed": "המיקוד הזה לא מופיע בערך."
 }

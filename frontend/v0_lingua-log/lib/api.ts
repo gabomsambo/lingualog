@@ -20,6 +20,8 @@ export interface JournalEntryOverrides {
   target_word_ids?: string[];
   /** Target words whose text stayed hidden while writing. */
   challenge_word_ids?: string[];
+  /** The class note whose grammar focus this entry practises. */
+  class_note_id?: string;
   prompt_id?: string;
   entry_mode?: PromptEntryMode;
 }
@@ -540,7 +542,7 @@ export async function addVocabularyItem(item: UserVocabularyItemCreate): Promise
 }
 
 export type VocabularyListId = "due" | "never_used";
-export type VocabularySource = "entry" | "book" | "lookup";
+export type VocabularySource = "entry" | "book" | "lookup" | "class_note";
 
 /** List and filter selectors for the notebook (GET /vocabulary). */
 export interface VocabularyQuery {
@@ -851,11 +853,12 @@ export async function submitReview(
 
 export async function getWordBank(
   language: string,
-  options: { count?: number; exclude?: string[]; book?: string } = {},
+  options: { count?: number; exclude?: string[]; include?: string[]; book?: string } = {},
 ): Promise<WordBank> {
   const params = new URLSearchParams({ language });
   if (options.count) params.set("count", String(options.count));
   for (const id of options.exclude ?? []) params.append("exclude", id);
+  for (const id of options.include ?? []) params.append("include", id);
   if (options.book) params.set("book", options.book);
   const res = await fetch(`${API_BASE}/word-bank?${params}`, {
     headers: await userHeaders(),
@@ -863,6 +866,75 @@ export async function getWordBank(
   });
   if (!res.ok) throw await apiError(res);
   return (await res.json()) as WordBank;
+}
+
+export interface ClassNoteWord {
+  term: string;
+  lemma: string;
+  gloss: string;
+  part_of_speech: string;
+  example: string;
+  reading: string;
+  word_id?: string | null;
+  encounter_id?: string | null;
+}
+
+export interface ClassPracticeTask {
+  title: string;
+  prompt: string;
+  length_hint: string;
+  grammar_scope: string;
+}
+
+export interface ClassNoteExtraction {
+  words: ClassNoteWord[];
+  grammar_focus: string | null;
+  phrases: string[];
+  tasks: ClassPracticeTask[];
+  level: string;
+  length_hint: string;
+  grammar_scope: string;
+}
+
+export interface ClassNoteRecord {
+  id: string;
+  user_id: string;
+  l2: string;
+  raw_text: string;
+  source: "paste" | "photo";
+  extracted: ClassNoteExtraction;
+  created_at: string;
+}
+
+async function classNoteRequest<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: await userHeaders(method !== "GET"),
+    credentials: "include",
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!res.ok) throw await apiError(res);
+  return (await res.json()) as T;
+}
+
+export function createClassNote(text: string, language: string): Promise<ClassNoteRecord> {
+  return classNoteRequest("/class-notes", "POST", { text, language });
+}
+
+export function getClassNote(noteId: string): Promise<ClassNoteRecord> {
+  return classNoteRequest(`/class-notes/${encodeURIComponent(noteId)}`);
+}
+
+export function getWaitingClassNote(language: string): Promise<ClassNoteRecord | null> {
+  const params = new URLSearchParams({ language });
+  return classNoteRequest(`/class-notes/waiting?${params.toString()}`);
+}
+
+export function confirmClassNote(
+  noteId: string,
+  extraction: ClassNoteExtraction,
+): Promise<ClassNoteRecord> {
+  return classNoteRequest(`/class-notes/${encodeURIComponent(noteId)}/confirm`, "POST", extraction);
 }
 
 // --- Book mode API ---

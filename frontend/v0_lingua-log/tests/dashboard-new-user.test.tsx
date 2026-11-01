@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   getUserSettings: vi.fn(),
   getCurrentPolicy: vi.fn(),
   getPrompts: vi.fn(),
+  getWaitingClassNote: vi.fn(),
   postSupportEvent: vi.fn(),
 }))
 vi.mock("@/lib/user-service", () => users)
@@ -43,6 +44,7 @@ beforeEach(() => {
   api.getUserSettings.mockResolvedValue({ default_target_lang: "fr" })
   api.getCurrentPolicy.mockResolvedValue({ l2: "fr", proficiency: "A2" })
   api.getPrompts.mockResolvedValue({ prompts: [] })
+  api.getWaitingClassNote.mockResolvedValue(null)
   api.postSupportEvent.mockResolvedValue(undefined)
 })
 

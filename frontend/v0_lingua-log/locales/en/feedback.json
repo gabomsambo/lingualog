@@ -100,5 +100,11 @@
   "writeAgainInstructions": "Try typing the corrected text from memory. Your comparison stays here on your device.",
   "writeAgainInputLabel": "Type the corrected text again",
   "writeAgainYourTry": "Compare your try with the correction",
-  "writeAgainMatch": "That matches the correction. Nice work!"
+  "writeAgainMatch": "That matches the correction. Nice work!",
+  "focusTodayTitle": "Today's grammar focus",
+  "focusUse_used_correctly": "Used well",
+  "focusUse_used_with_error": "To fix",
+  "focusUse_unclear": "To check",
+  "focusUse_not_used": "Not used",
+  "focusUseNotUsed": "This focus does not appear in the entry."
 }

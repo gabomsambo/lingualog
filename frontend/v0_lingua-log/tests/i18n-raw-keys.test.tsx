@@ -40,11 +40,21 @@ describe("no raw key renders on the stats page and the user menu", () => {
     const journalKeys = [
       "todayTitle", "todayPromptTitle", "todayPromptLoading", "todayPromptUnavailable",
       "todayWriteOneSentence", "todayPromptContext",
+      "classPageTitle", "classPageIntro", "classPrivacy", "classPastePlaceholder", "classLanguage",
+      "classExtract", "classExtracting", "classReviewTitle", "classReviewHint", "classWordsTitle",
+      "classWordsHint", "classWordTerm", "classWordGloss", "classRemoveWord", "classAddWordPlaceholder",
+      "classAddWord", "classGrammarFocus", "classGrammarPlaceholder", "classPhrasesTitle", "classRemovePhrase",
+      "classAddPhrasePlaceholder", "classAddPhrase", "classTasksTitle", "classTasksHint", "classTaskLength",
+      "classTaskScope", "classTaskTitle", "classEditPaste", "classSavingWords", "classOpenEditor",
+      "classNoteError", "classNoteSaveFailed", "classNoteLoadFailed", "todayClassNoteTitle",
+      "todayClassNoteHint", "todayWriteAboutClass", "wordBankFromClassSelected", "wordBankReason_from_class",
     ]
     const feedbackKeys = [
       "calmCorrectedTitle", "calmFixesTitle", "didWellLabel", "calmWordsToSave",
       "calmSeeDetails", "calmHideDetails", "writeAgain", "writeAgainInstructions",
       "writeAgainInputLabel", "writeAgainYourTry", "writeAgainMatch", "saveWord", "savedWord",
+      "focusTodayTitle", "focusUse_used_correctly", "focusUse_used_with_error", "focusUse_unclear",
+      "focusUse_not_used", "focusUseNotUsed",
     ]
     for (const lng of ALL_LOCALES) {
       const journal = JSON.parse(readFileSync(path.join(__dirname, "..", `locales/${lng}/journal.json`), "utf8"))

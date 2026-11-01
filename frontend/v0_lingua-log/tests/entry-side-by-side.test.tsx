@@ -148,6 +148,20 @@ beforeEach(() => {
 })
 
 describe("EntrySideBySide layout", () => {
+  it("renders a class note grammar focus verdict alongside word-use feedback", () => {
+    renderEntry(1, {
+      focus_uses: [{
+        focus: "estar + gerundio",
+        status: "used_correctly",
+        evidence: "Estoy estudiando.",
+      }],
+    })
+
+    expect(screen.getByTestId("focus-use")).toHaveTextContent("estar + gerundio")
+    expect(screen.getByTestId("focus-use")).toHaveTextContent("Estoy estudiando.")
+    expect(screen.getByTestId("focus-use")).toHaveTextContent("Used well")
+  })
+
   it("renders one row per sentence with errors underlined and the corrected diff", async () => {
     renderEntry(0)
     expect(screen.getAllByTestId("sbs-row")).toHaveLength(3)

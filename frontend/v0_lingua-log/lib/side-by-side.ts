@@ -91,6 +91,14 @@ export interface TargetWordUse {
   credited?: boolean
 }
 
+export interface FocusUse {
+  focus: string
+  status: TargetWordStatus
+  evidence?: string
+  fix?: string
+  note?: string
+}
+
 const TARGET_STATUSES: readonly string[] = ["used_correctly", "used_with_error", "not_used", "unclear"]
 
 export interface SideBySideEntry {
@@ -115,6 +123,8 @@ export interface SideBySideEntry {
   newWords: EntryWord[]
   /** Word-bank words the entry was written with, empty when none were chosen. */
   targetWordUses: TargetWordUse[]
+  /** Optional same-call check of a class note's grammar focus. */
+  focusUses: FocusUse[]
   sentenceMapping: SentenceMapping[] | null
   sentenceMappingStatus: string | null
   sentenceActions: SentenceAction[] | null
@@ -167,6 +177,8 @@ export function toSideBySideEntry(raw: any): SideBySideEntry {
         note: item.note || "",
         sentence: item.sentence || "",
       })),
+    focusUses: asArray<FocusUse>(raw?.focus_uses ?? ai.focus_uses)
+      .filter((item) => item && TARGET_STATUSES.includes(item.status)),
     sentenceMapping: Array.isArray(raw?.sentence_mapping ?? ai.sentence_mapping)
       ? asArray<SentenceMapping>(raw?.sentence_mapping ?? ai.sentence_mapping)
       : null,

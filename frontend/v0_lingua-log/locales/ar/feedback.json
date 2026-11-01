@@ -33,5 +33,11 @@
   "writeAgainYourTry": "قارن محاولتك بالنص المصحح",
   "writeAgainMatch": "تطابق النص المصحح. أحسنت!",
   "saveWord": "احفظ",
-  "savedWord": "تم الحفظ"
+  "savedWord": "تم الحفظ",
+  "focusTodayTitle": "تركيز القواعد اليوم",
+  "focusUse_used_correctly": "استُخدم بشكل صحيح",
+  "focusUse_used_with_error": "يحتاج إلى تصحيح",
+  "focusUse_unclear": "يحتاج إلى تحقق",
+  "focusUse_not_used": "لم يُستخدم",
+  "focusUseNotUsed": "لم يظهر هذا التركيز في النص."
 }

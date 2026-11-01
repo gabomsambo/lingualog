@@ -8,11 +8,19 @@ import { ReviewDueCard } from "@/components/review-due-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLocale } from "@/i18n/LocaleProvider"
-import { getCurrentPolicy, getPrompts, postSupportEvent, type WritingPrompt } from "@/lib/api"
+import {
+  getCurrentPolicy,
+  getPrompts,
+  getWaitingClassNote,
+  postSupportEvent,
+  type ClassNoteRecord,
+  type WritingPrompt,
+} from "@/lib/api"
 
 export function TodayCard({ language }: { language: string }) {
   const { t } = useLocale()
   const [prompt, setPrompt] = useState<WritingPrompt | null>(null)
+  const [waitingClassNote, setWaitingClassNote] = useState<ClassNoteRecord | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,6 +36,20 @@ export function TodayCard({ language }: { language: string }) {
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [language])
+
+  useEffect(() => {
+    let cancelled = false
+    getWaitingClassNote(language)
+      .then((note) => {
+        if (!cancelled) setWaitingClassNote(note)
+      })
+      .catch(() => {
+        if (!cancelled) setWaitingClassNote(null)
       })
     return () => {
       cancelled = true
@@ -57,6 +79,17 @@ export function TodayCard({ language }: { language: string }) {
       </CardHeader>
       <CardContent className="space-y-4 p-4 sm:p-5">
         <ReviewDueCard embedded />
+        {waitingClassNote && (
+          <section className="rounded-2xl border border-fun-yellow/40 bg-fun-yellow/10 p-4" data-testid="today-class-note">
+            <h3 className="text-base font-bold">{t("journal.todayClassNoteTitle")}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t("journal.todayClassNoteHint")}</p>
+            <Button asChild className="mt-3" size="sm">
+              <Link href={`/class?note_id=${encodeURIComponent(waitingClassNote.id)}`}>
+                {t("journal.todayWriteAboutClass")}
+              </Link>
+            </Button>
+          </section>
+        )}
         <section className="rounded-2xl border border-fun-blue/20 bg-fun-blue/5 p-4" data-testid="today-prompt">
           <h3 className="flex items-center gap-2 text-base font-bold">
             <Lightbulb className="h-4 w-4 text-fun-blue" />
