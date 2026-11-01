@@ -230,7 +230,7 @@ grammar source notes. **The content needs native-speaker review before it is tre
 The result page offers at most one refresher inline when a supported rule-governed tag appears
 in two of the latest five entries for the same Spanish language profile. Offers are never popups;
 `Not now` snoozes for seven days, opening a lesson is remembered for 30 days, and an offer is
-not repeated for seven days. `vocabulary_choice`, `other`, mock feedback, and non-Spanish entries
+not offered for a different entry for seven days, though reloading the same entry shows it again. `vocabulary_choice`, `other`, mock feedback, and non-Spanish entries
 never trigger a lesson. The lesson sheet can build a three-item cloze from corrected sentences
 the learner has already written; the answer check runs locally. Lessons and drills make no model
 calls. Offer state is stored in `lesson_offers` by
