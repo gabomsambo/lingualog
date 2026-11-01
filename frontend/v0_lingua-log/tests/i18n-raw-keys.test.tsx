@@ -15,6 +15,7 @@ import ar from "@/locales/ar/common.json"
 
 const api = vi.hoisted(() => ({
   getUserStats: vi.fn(),
+  getErrorPatterns: vi.fn(),
   getUserSettings: vi.fn(),
   getVocabularyProgress: vi.fn(),
   getPlacementCheck: vi.fn(),
@@ -36,7 +37,7 @@ function usedKeys(file: string): string[] {
 }
 
 describe("no raw key renders on the stats page and the user menu", () => {
-  it("ships Today and calm-result strings in both i18n sources for every locale", () => {
+  it("ships class, result, and error-tag strings in both i18n sources for every locale", () => {
     const journalKeys = [
       "todayTitle", "todayPromptTitle", "todayPromptLoading", "todayPromptUnavailable",
       "todayWriteOneSentence", "todayPromptContext",
@@ -55,6 +56,13 @@ describe("no raw key renders on the stats page and the user menu", () => {
       "writeAgainInputLabel", "writeAgainYourTry", "writeAgainMatch", "saveWord", "savedWord",
       "focusTodayTitle", "focusUse_used_correctly", "focusUse_used_with_error", "focusUse_unclear",
       "focusUse_not_used", "focusUseNotUsed",
+      "errorPatternsTitle", "errorPatternsDesc", "errorPatternsEmpty", "errorPatternsLoadError",
+      "errorPatternsCount", "errorTag_agreement", "errorTag_gender_agreement", "errorTag_number_agreement",
+      "errorTag_case", "errorTag_ser_estar", "errorTag_gustar", "errorTag_verb_conjugation",
+      "errorTag_verb_aspect", "errorTag_tense_choice", "errorTag_article", "errorTag_preposition",
+      "errorTag_por_para", "errorTag_postposition", "errorTag_word_order", "errorTag_accent_spelling",
+      "errorTag_capitalization", "errorTag_spelling", "errorTag_particle", "errorTag_classifier",
+      "errorTag_aspect_marker", "errorTag_vocabulary_choice", "errorTag_other",
     ]
     for (const lng of ALL_LOCALES) {
       const journal = JSON.parse(readFileSync(path.join(__dirname, "..", `locales/${lng}/journal.json`), "utf8"))
@@ -114,6 +122,7 @@ describe("no raw key renders on the stats page and the user menu", () => {
     api.getUserStats.mockResolvedValue({
       wordCounts: [], languageBreakdown: [], streak: { current: 0, longest: 0, totalWords: 0 },
     })
+    api.getErrorPatterns.mockResolvedValue({ window_entries: 0, languages: [] })
     api.getUserSettings.mockResolvedValue({
       default_target_lang: "es", language_profiles: [{ l2: "es", immersion_level: 1, proficiency: "B1", active: true }],
     })
